@@ -13,7 +13,7 @@ pub enum DbError {
 }
 
 impl std::convert::From<diesel::result::Error> for DbError {
-    fn from(other: diesel::result::Error) -> Self {
+    fn from(_other: diesel::result::Error) -> Self {
         // TODO do this for real
         DbError::Unknown
     }

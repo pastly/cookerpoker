@@ -94,7 +94,7 @@ impl Account {
         use crate::database::schema::money_log::dsl::money_log;
         let mut sb = self.get_settled_account(db).await?;
         sb += change.change;
-        let nme = NewMoneyLogEntry::new(&self, change);
+        let nme = NewMoneyLogEntry::new(self, change);
         db.run(move |conn| {
             conn.transaction(|| {
                 diesel::update(&sb).set(&sb).execute(conn)?;
