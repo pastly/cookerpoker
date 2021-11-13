@@ -2,7 +2,7 @@
 CREATE TABLE accounts (
     account_id INTEGER NOT NULL PRIMARY KEY,
     account_name TEXT NOT NULL,
-    api_key TEXT NOT NULL,
+    api_key TEXT NOT NULL UNIQUE,
     is_admin SMALLINT NOT NULL DEFAULT FALSE
 );
 

@@ -1,4 +1,4 @@
-use super::schema::{money_log, settled_accounts};
+use super::schema::{money_log, settled_accounts, accounts};
 use crate::account::forms::ModSettled;
 use serde::{Deserialize, Serialize};
 
@@ -43,6 +43,26 @@ impl NewMoneyLogEntry {
             account_id: a.account_id,
             monies: form.change,
             reason: form.reason,
+        }
+    }
+}
+
+#[derive(Insertable)]
+#[table_name = "accounts"]
+pub struct NewAccount {
+    account_name: String,
+    api_key: String,
+    is_admin: i16,
+}
+
+impl NewAccount {
+    pub fn new(account_name: String, is_admin:bool) -> Self {
+        let is_admin = if is_admin {1i16} else {0i16};
+        NewAccount {
+            account_name,
+            is_admin,
+            api_key: poker_core::util::random_string(42)
+
         }
     }
 }

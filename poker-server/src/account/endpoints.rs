@@ -5,7 +5,7 @@ use rocket::response::Redirect;
 use rocket_dyn_templates::{tera::to_value, tera::Context, Template};
 
 pub fn get_endpoints() -> Vec<rocket::route::Route> {
-    routes![get_id_monies, post_id_monies, monies_admin, monies_user]
+    routes![get_id_monies, post_id_monies, monies_admin, monies_user, get_accounts]
 }
 
 #[get("/monies/<id>")]
@@ -59,4 +59,9 @@ async fn monies_user(conn: DbConn, u: User) -> String {
         .await
         .expect("DbError unimplemented");
     format!("Welcome peasent. Your balance is {} pennies", v)
+}
+
+#[get("/accounts")]
+async fn get_accounts(conn: DbConn, _a: Admin) -> Template {
+    unimplemented!()
 }
