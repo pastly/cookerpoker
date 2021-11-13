@@ -1,0 +1,12 @@
+<html>
+    <title>Add account</title>
+    <h1>Account {{ account_name }} - Current Value {{ monies }}
+    </h1>
+    <form method="POST">
+        <label for="change">Modify value as + or - integer in PENNIES. Decimals will cause error</label>
+        <input type="number" id="change" name="change" /><br>
+        <label for="reason">Reason for transaction</label>
+        <input type="text" id="reason" name="reason" /><br>
+        <input type="submit" value="submit">
+    </form>
+</html>

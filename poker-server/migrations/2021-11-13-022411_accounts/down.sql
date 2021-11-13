@@ -3,5 +3,6 @@ DROP TABLE seated;
 DROP TABLE table_meta;
 DROP TABLE game_tables;
 DROP TABLE player_meta;
+DROP TABLE money_log;
 DROP TABLE settled_accounts;
 DROP TABLE accounts;

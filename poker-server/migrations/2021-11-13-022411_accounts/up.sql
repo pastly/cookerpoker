@@ -6,8 +6,8 @@ CREATE TABLE accounts (
     is_admin SMALLINT NOT NULL DEFAULT FALSE
 );
 
-INSERT INTO accounts (account_id, account_name, api_key)
-VALUES (2147483647, "test_account", "not_a_real_api_key");
+INSERT INTO accounts (account_id, account_name, api_key, is_admin)
+VALUES (2147483647, "test_account", "not_a_real_api_key", 1);
 
 CREATE TABLE settled_accounts (
     account_id INTEGER NOT NULL PRIMARY KEY,
@@ -18,6 +18,16 @@ CREATE TABLE settled_accounts (
 
 INSERT INTO settled_accounts (account_id)
 VALUES(2147483647);
+
+CREATE TABLE money_log (
+    transaction_id INTEGER PRIMARY KEY,
+    account_id INTEGER NOT NULL,
+    monies INTEGER NOT NULL,
+    execution_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    reason TEXT NOT NULL,
+    FOREIGN KEY (account_id)
+        REFERENCES accounts (account_id)
+);
 
 CREATE TABLE player_meta (
     account_id INTEGER NOT NULL PRIMARY KEY,

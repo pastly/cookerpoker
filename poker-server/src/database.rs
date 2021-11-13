@@ -7,5 +7,14 @@ pub struct DbConn(diesel::SqliteConnection);
 
 #[derive(Debug)]
 pub enum DbError{
-    NoSettledBalance
+    NoSettledBalance,
+    AccountNotFound,
+    Unknown
+}
+
+impl std::convert::From<diesel::result::Error> for DbError {
+    fn from(other: diesel::result::Error) -> Self {
+        // TODO do this for real
+        DbError::Unknown
+    }
 }
