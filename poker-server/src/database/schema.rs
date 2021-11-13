@@ -2,7 +2,7 @@ table! {
     accounts (account_id) {
         account_id -> Integer,
         account_name -> Text,
-        api_key -> Nullable<Text>,
+        api_key -> Text,
         is_admin -> SmallInt,
     }
 }
