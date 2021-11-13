@@ -12,7 +12,7 @@ fn index() ->&'static str {
 }
 
 #[get("/monies")]
-async fn monies(conn: DbConn) -> String {
+async fn monies(conn: DbConn, ) -> String {
     "Not implemented".into()
 }
 
