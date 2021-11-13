@@ -31,7 +31,7 @@ impl HandClass {
         // not that $foo is the best thing it can be considered. I can only think of one example,
         // unfortunately. It is: is_straight() doesn't check if the hand is also a flush, thus
         // is_straight_flush() must be called first.
-        let mut cards = hand.cards.clone();
+        let mut cards = hand.cards;
         cards.sort_unstable();
         cards.reverse();
         if Self::is_straight_flush(&cards) {
