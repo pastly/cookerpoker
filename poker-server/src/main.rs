@@ -13,12 +13,14 @@ fn index() ->&'static str {
 
 #[get("/monies")]
 async fn monies_admin(conn: DbConn, a: account::Admin) -> String {
-    format!("Welcome God-King {}. Your balance is {} pennies", a.0.account_name, 0)
+    let v = account::get_settled_balance(&conn, a.0.account_id).await;
+    format!("Welcome God-King {}. Your balance is {} pennies", a.0.account_name, v)
 }
 
 #[get("/monies", rank = 2)]
 async fn monies_user(conn: DbConn, u: account::User) -> String {
-    format!("Welcome peasent. Your balance is {} pennies", 0)
+    let v = account::get_settled_balance(&conn, u.0.account_id).await;
+    format!("Welcome peasent. Your balance is {} pennies", v)
 }
 
 #[launch]

@@ -1,7 +1,13 @@
 #[derive(Queryable)]
 pub struct SettledAccount {
     pub account_id: i32,
-    pub monies: i32,
+    monies: i32,
+}
+
+impl SettledAccount {
+    pub fn get_monies(&self) -> i32 {
+        self.monies
+    }
 }
 
 #[derive(Queryable)]
