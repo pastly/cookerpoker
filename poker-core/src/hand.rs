@@ -25,6 +25,12 @@ impl HandClass {
     pub fn which(hand: &Hand) -> HandClass {
         // sort a copy, in case the order of the main copy of cards is important (and also because
         // we aren't mutably borrowing the hand)
+        //
+        // It's important that the order of these checks is maintained from best-hand to
+        // worst-hand. The check for hand type $foo only verifies the hand can be considered $foo,
+        // not that $foo is the best thing it can be considered. I can only think of one example,
+        // unfortunately. It is: is_straight() doesn't check if the hand is also a flush, thus
+        // is_straight_flush() must be called first.
         let mut cards = hand.cards.clone();
         cards.sort_unstable();
         cards.reverse();
