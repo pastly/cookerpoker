@@ -244,7 +244,7 @@ mod test_hand_class {
     ];
     const ALL_SUITS: [Suit; 4] = [Suit::Club, Suit::Diamond, Suit::Heart, Suit::Spade];
 
-    /// All the straight flushes are correctly identified as such.
+    // All the straight flushes are correctly identified as such.
     #[test]
     fn straight_flushes() {
         for ranks in [
@@ -272,7 +272,7 @@ mod test_hand_class {
         }
     }
 
-    /// Test all quads (but not with all kickers)
+    // Test all quads (but not with all kickers)
     #[test]
     fn quads() {
         for rank in ALL_RANKS {
@@ -294,6 +294,7 @@ mod test_hand_class {
         }
     }
 
+    // All combinations of 2 ranks in a full house, but not with all combos of suit too
     #[test]
     fn boat() {
         for rank3 in ALL_RANKS {
@@ -310,6 +311,144 @@ mod test_hand_class {
                 ]);
                 assert_eq!(HandClass::which(&hand), HandClass::FullHouse);
             }
+        }
+    }
+
+    // A couple arbitrarily chosen 5 card hands, but all suits
+    #[test]
+    fn flush() {
+        for ranks in [
+            [Rank::RA, Rank::RK, Rank::RQ, Rank::RJ, Rank::R2],
+            [Rank::RT, Rank::R8, Rank::R6, Rank::R4, Rank::R2],
+            [Rank::R2, Rank::R4, Rank::R5, Rank::R6, Rank::R7],
+        ] {
+            for suit in ALL_SUITS {
+                let hand = Hand::new_unchecked(&[
+                    Card::new(ranks[0], suit),
+                    Card::new(ranks[1], suit),
+                    Card::new(ranks[2], suit),
+                    Card::new(ranks[3], suit),
+                    Card::new(ranks[4], suit),
+                ]);
+                assert_eq!(HandClass::which(&hand), HandClass::Flush);
+            }
+        }
+    }
+
+    #[test]
+    fn straight() {
+        for ranks in [
+            [Rank::RA, Rank::RK, Rank::RQ, Rank::RJ, Rank::RT],
+            [Rank::RK, Rank::RQ, Rank::RJ, Rank::RT, Rank::R9],
+            [Rank::RQ, Rank::RJ, Rank::RT, Rank::R9, Rank::R8],
+            [Rank::RJ, Rank::RT, Rank::R9, Rank::R8, Rank::R7],
+            [Rank::RT, Rank::R9, Rank::R8, Rank::R7, Rank::R6],
+            [Rank::R9, Rank::R8, Rank::R7, Rank::R6, Rank::R5],
+            [Rank::R8, Rank::R7, Rank::R6, Rank::R5, Rank::R4],
+            [Rank::R7, Rank::R6, Rank::R5, Rank::R4, Rank::R3],
+            [Rank::R6, Rank::R5, Rank::R4, Rank::R3, Rank::R2],
+            [Rank::R5, Rank::R4, Rank::R3, Rank::R2, Rank::RA],
+        ] {
+            let hand = Hand::new_unchecked(&[
+                Card::new(ranks[0], Suit::Club),
+                Card::new(ranks[1], Suit::Club),
+                Card::new(ranks[2], Suit::Club),
+                Card::new(ranks[3], Suit::Club),
+                Card::new(ranks[4], Suit::Spade),
+            ]);
+            assert_eq!(HandClass::which(&hand), HandClass::Straight);
+        }
+    }
+
+    #[test]
+    fn set() {
+        for rank in ALL_RANKS {
+            let r2 = match rank {
+                Rank::R2 => Rank::R3,
+                _ => Rank::R2,
+            };
+            let r3 = match rank {
+                Rank::RA => Rank::RK,
+                _ => Rank::RA,
+            };
+            let hand = Hand::new_unchecked(&[
+                Card::new(rank, Suit::Club),
+                Card::new(rank, Suit::Diamond),
+                Card::new(rank, Suit::Heart),
+                Card::new(r2, Suit::Club),
+                Card::new(r3, Suit::Club),
+            ]);
+            assert_eq!(HandClass::which(&hand), HandClass::ThreeOfAKind);
+        }
+    }
+
+    #[test]
+    fn two_pair() {
+        for r1 in ALL_RANKS {
+            for r2 in ALL_RANKS {
+                if r1 == r2 {
+                    continue;
+                }
+                let r3 = if r1 != Rank::RA && r2 != Rank::RA {
+                    Rank::RA
+                } else if r1 != Rank::RK && r2 != Rank::RK {
+                    Rank::RK
+                } else {
+                    Rank::RQ
+                };
+                let hand = Hand::new_unchecked(&[
+                    Card::new(r1, Suit::Club),
+                    Card::new(r1, Suit::Diamond),
+                    Card::new(r2, Suit::Club),
+                    Card::new(r2, Suit::Diamond),
+                    Card::new(r3, Suit::Spade),
+                ]);
+                assert_eq!(HandClass::which(&hand), HandClass::TwoPair);
+            }
+        }
+    }
+
+    #[test]
+    fn pair() {
+        for rank in ALL_RANKS {
+            let r1 = match rank {
+                Rank::R2 => Rank::R3,
+                _ => Rank::R2,
+            };
+            let r2 = match rank {
+                Rank::R4 => Rank::R5,
+                _ => Rank::R4,
+            };
+            let r3 = match rank {
+                Rank::R6 => Rank::R7,
+                _ => Rank::R6,
+            };
+            let hand = Hand::new_unchecked(&[
+                Card::new(r1, Suit::Club),
+                Card::new(r2, Suit::Club),
+                Card::new(r3, Suit::Club),
+                Card::new(rank, Suit::Club),
+                Card::new(rank, Suit::Diamond),
+            ]);
+            assert_eq!(HandClass::which(&hand), HandClass::Pair);
+        }
+    }
+
+    #[test]
+    fn high_card() {
+        for ranks in [
+            [Rank::RA, Rank::RK, Rank::RQ, Rank::RJ, Rank::R2],
+            [Rank::RT, Rank::R8, Rank::R6, Rank::R4, Rank::R2],
+            [Rank::R2, Rank::R4, Rank::R5, Rank::R6, Rank::R7],
+        ] {
+            let hand = Hand::new_unchecked(&[
+                Card::new(ranks[0], Suit::Club),
+                Card::new(ranks[1], Suit::Club),
+                Card::new(ranks[2], Suit::Club),
+                Card::new(ranks[3], Suit::Club),
+                Card::new(ranks[4], Suit::Diamond),
+            ]);
+            assert_eq!(HandClass::which(&hand), HandClass::HighCard);
         }
     }
 }
