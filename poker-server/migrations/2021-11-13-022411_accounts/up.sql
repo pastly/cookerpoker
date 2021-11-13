@@ -6,12 +6,18 @@ CREATE TABLE accounts (
     is_admin SMALLINT NOT NULL DEFAULT FALSE
 );
 
+INSERT INTO accounts (account_id, account_name, api_key)
+VALUES (2147483647, "test_account", "not_a_real_api_key");
+
 CREATE TABLE settled_accounts (
     account_id INTEGER NOT NULL PRIMARY KEY,
     monies INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (account_id)
         REFERENCES accounts (account_id)
 );
+
+INSERT INTO settled_accounts (account_id)
+VALUES(2147483647);
 
 CREATE TABLE player_meta (
     account_id INTEGER NOT NULL PRIMARY KEY,
