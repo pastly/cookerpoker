@@ -32,6 +32,9 @@ actual feature list.
 
 - [ ] Generate a game log (optionally blinded to one player's view) during or
   after a game is played.
+- [ ] Ability to run concurrent games.
+- [ ] Intra-table chat.
+- [ ] Lobby chat.
 
 ### Client
 
@@ -40,7 +43,6 @@ actual feature list.
 - [ ] Admin players can add to/remove from other player's stack (for rebuys and
   to correct mistakes ["we were all supposed to start with 1,000 chips,
 Dave!"])
-- [ ]
 
 ### Core
 
