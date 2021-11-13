@@ -8,7 +8,7 @@ pub struct Hand {
     cards: [Card; 5],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum HandClass {
     HighCard,
     Pair,
@@ -102,6 +102,11 @@ impl HandClass {
             })
             .collect();
         assert_eq!(ints.len(), 5);
+        // Check specifically for A2345 straight, as it will appear as A5432 (aka 12, 3, 2, 1, 0)
+        // and not look like a straight.
+        if ints == [12, 3, 2, 1, 0] {
+            return true;
+        }
         // Now make sure each successive int is one less than the previous one. This is why we
         // needed the cards sorted.
         for n in 0..4 {
@@ -214,5 +219,39 @@ mod test_hand {
         let cards: Vec<Card> = iter::repeat_with(|| deck.draw().unwrap()).take(5).collect();
         let hand = Hand::new(&cards);
         assert!(hand.is_ok());
+    }
+}
+
+#[cfg(test)]
+mod test_hand_class {
+    use super::*;
+    use crate::deck::{Rank, Suit};
+
+    /// All the straight flushes are correctly identified as such.
+    #[test]
+    fn straight_flushes() {
+        for ranks in [
+            [Rank::RA, Rank::RK, Rank::RQ, Rank::RJ, Rank::RT],
+            [Rank::RK, Rank::RQ, Rank::RJ, Rank::RT, Rank::R9],
+            [Rank::RQ, Rank::RJ, Rank::RT, Rank::R9, Rank::R8],
+            [Rank::RJ, Rank::RT, Rank::R9, Rank::R8, Rank::R7],
+            [Rank::RT, Rank::R9, Rank::R8, Rank::R7, Rank::R6],
+            [Rank::R9, Rank::R8, Rank::R7, Rank::R6, Rank::R5],
+            [Rank::R8, Rank::R7, Rank::R6, Rank::R5, Rank::R4],
+            [Rank::R7, Rank::R6, Rank::R5, Rank::R4, Rank::R3],
+            [Rank::R6, Rank::R5, Rank::R4, Rank::R3, Rank::R2],
+            [Rank::R5, Rank::R4, Rank::R3, Rank::R2, Rank::RA],
+        ] {
+            for suit in [Suit::Club, Suit::Diamond, Suit::Heart, Suit::Spade] {
+                let hand = Hand::new_unchecked(&[
+                    Card::new(ranks[0], suit),
+                    Card::new(ranks[1], suit),
+                    Card::new(ranks[2], suit),
+                    Card::new(ranks[3], suit),
+                    Card::new(ranks[4], suit),
+                ]);
+                assert_eq!(HandClass::which(&hand), HandClass::StraightFlush);
+            }
+        }
     }
 }
