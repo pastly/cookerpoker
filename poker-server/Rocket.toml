@@ -1,0 +1,15 @@
+[default]
+address = "0.0.0.0"
+temp_dir = "/tmp"
+cli_colors = true
+
+[debug]
+port = 8000
+
+[release]
+#TODO SSL
+port = 80
+secret_key = "TODOPROPERSECRETKEYGENERATION"
+
+[global.databases]
+sqlite_logs = { url = "test.db" }

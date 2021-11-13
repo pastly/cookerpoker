@@ -30,11 +30,18 @@ actual feature list.
 
 ### Server
 
+MVP:
+- [ ] Reflect game state via REST API
 - [ ] Generate a game log (optionally blinded to one player's view) during or
   after a game is played.
 - [ ] Ability to run concurrent games.
+- [ ] Correctly handle side pots and win conditions
+
+Stretch:
 - [ ] Intra-table chat.
 - [ ] Lobby chat.
+- [ ] Asyncronous server->client communication
+- [ ] Real time hand limits
 
 ### Client
 
