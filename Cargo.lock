@@ -9,15 +9,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "cookerpoker"
-version = "0.1.0"
-dependencies = [
- "rand",
- "serde",
- "serde_derive",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -33,6 +24,22 @@ name = "libc"
 version = "0.2.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fbe5e23404da5b4f555ef85ebed98fb4083e55a00c317800bc2a50ede9f3d219"
+
+[[package]]
+name = "poker-bin"
+version = "0.1.0"
+dependencies = [
+ "poker-core",
+]
+
+[[package]]
+name = "poker-core"
+version = "0.1.0"
+dependencies = [
+ "rand",
+ "serde",
+ "serde_derive",
+]
 
 [[package]]
 name = "ppv-lite86"

@@ -1,5 +1,4 @@
-mod deck;
-use deck::{Card, Deck};
+use poker_core::deck::Deck;
 
 fn main() {
     let mut d = Deck::new();
