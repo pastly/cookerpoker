@@ -32,7 +32,7 @@ const CLUB: char = 'c';
 //const DIAMOND: &str = "♦";
 //const CLUB: &str = "♣";
 
-#[derive(Hash, PartialEq, Eq, PartialOrd, Clone, Copy, Debug)]
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
 pub enum Suit {
     Club,
     Diamond,
@@ -51,7 +51,7 @@ impl fmt::Display for Suit {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, PartialOrd, Clone, Copy, Debug)]
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
 pub enum Rank {
     R2,
     R3,
@@ -88,10 +88,10 @@ impl fmt::Display for Rank {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, PartialOrd, Clone, Copy, Debug)]
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
 pub struct Card {
-    suit: Suit,
     rank: Rank,
+    suit: Suit,
 }
 
 impl fmt::Display for Card {
