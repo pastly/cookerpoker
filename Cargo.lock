@@ -54,7 +54,6 @@ dependencies = [
  "itertools",
  "rand",
  "serde",
- "serde_derive",
 ]
 
 [[package]]

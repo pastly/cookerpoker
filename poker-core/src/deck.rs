@@ -1,6 +1,7 @@
 use rand::prelude::*;
 use std::error::Error;
 use std::fmt;
+use serde::{Serialize, Deserialize};
 
 pub const ALL_RANKS: [Rank; 13] = [
     Rank::R2,
@@ -32,7 +33,7 @@ const CLUB: char = 'c';
 //const DIAMOND: &str = "♦";
 //const CLUB: &str = "♣";
 
-#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Suit {
     Club,
     Diamond,
@@ -51,7 +52,7 @@ impl fmt::Display for Suit {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Rank {
     R2,
     R3,
@@ -88,7 +89,7 @@ impl fmt::Display for Rank {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Card {
     rank: Rank,
     suit: Suit,
