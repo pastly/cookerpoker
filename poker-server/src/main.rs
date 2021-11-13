@@ -5,9 +5,7 @@ mod database;
 mod account;
 
 use database::DbConn;
-use rocket_dyn_templates::{Template, tera::to_value, tera::Context};
-use rocket::response::Redirect;
-use rocket::form::Form;
+use rocket_dyn_templates::Template;
 
 #[get("/")]
 fn index() ->&'static str {
@@ -24,5 +22,6 @@ fn rocket() -> _ {
 fn get_all_endpoints() -> Vec<rocket::route::Route> {
     let mut v = Vec::new();
     v.append(&mut account::get_endpoints());
+    v.append(&mut routes![index]);
     v
 }
