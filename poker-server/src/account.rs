@@ -1,19 +1,22 @@
-use rocket::http::Status;
-use rocket::request::{Outcome, Request, FromRequest};
+pub use crate::database::models::{Account, NewMoneyLogEntry, SettledAccount};
 use crate::database::{DbConn, DbError};
-pub use crate::database::models::{SettledAccount, Account, NewMoneyLogEntry};
-use diesel::prelude::*;
 use derive_more::Deref;
+use diesel::prelude::*;
+use rocket::http::Status;
+use rocket::request::{FromRequest, Outcome, Request};
 
-pub mod forms;
 pub mod endpoints;
+pub mod forms;
 pub use endpoints::get_endpoints;
 
 async fn api_to_account(db: DbConn, key: String) -> Result<Account, ApiKeyError> {
     use crate::database::schema::accounts::dsl::{accounts, api_key};
-    let account = db.run(|conn| 
-        accounts.filter(api_key.eq(key)).first(conn).map_err(|_|ApiKeyError::Invalid)
-    );
+    let account = db.run(|conn| {
+        accounts
+            .filter(api_key.eq(key))
+            .first(conn)
+            .map_err(|_| ApiKeyError::Invalid)
+    });
     account.await
 }
 
@@ -44,7 +47,6 @@ impl<'r> FromRequest<'r> for User {
         }
     }
 }
-
 
 #[derive(Deref)]
 pub struct Admin(pub Account);
@@ -77,35 +79,55 @@ impl<'r> FromRequest<'r> for Admin {
 impl Account {
     pub async fn get_settled_balance(&self, db: &DbConn) -> Result<i32, DbError> {
         // Closure cannot refer to self apparently? Have to copy value out and let it take ownership of id
-        self.get_settled_account(db).await.map(|s: SettledAccount| s.get_monies())
+        self.get_settled_account(db)
+            .await
+            .map(|s: SettledAccount| s.get_monies())
     }
 
-    pub async fn mod_settled_balance(&self, db: &DbConn, change: forms::ModSettled) -> Result<(), DbError> {
+    pub async fn mod_settled_balance(
+        &self,
+        db: &DbConn,
+        change: forms::ModSettled,
+    ) -> Result<(), DbError> {
         // TODO technically supposed to be inside the transaction, but needs minor refactor
         // TODO record starting and ending balance?
         use crate::database::schema::money_log::dsl::money_log;
         let mut sb = self.get_settled_account(db).await?;
         sb += change.change;
         let nme = NewMoneyLogEntry::new(&self, change);
-        db.run(move |conn| conn.transaction(|| {
+        db.run(move |conn| {
+            conn.transaction(|| {
                 diesel::update(&sb).set(&sb).execute(conn)?;
                 diesel::insert_into(money_log).values(nme).execute(conn)?;
                 Ok(())
-        }
-            ).map_err(|_: DbError| DbError::AccountNotFound)
-        ).await
+            })
+            .map_err(|_: DbError| DbError::AccountNotFound)
+        })
+        .await
     }
 
     async fn get_settled_account(&self, db: &DbConn) -> Result<SettledAccount, DbError> {
-        use crate::database::schema::settled_accounts::dsl::{settled_accounts};
+        use crate::database::schema::settled_accounts::dsl::settled_accounts;
         let id = self.account_id;
         //TODO Return other DB errors
-        db.run(move |conn| settled_accounts.find(id).first(conn).map_err(|_|DbError::NoSettledBalance)).await
+        db.run(move |conn| {
+            settled_accounts
+                .find(id)
+                .first(conn)
+                .map_err(|_| DbError::NoSettledBalance)
+        })
+        .await
     }
 
     pub async fn find(db: &DbConn, id: i32) -> Result<Account, DbError> {
         use crate::database::schema::accounts::dsl::accounts;
         //TODO Return other DB errors
-        db.run(move |conn| accounts.find(id).first(conn).map_err(|_| DbError::AccountNotFound)).await
+        db.run(move |conn| {
+            accounts
+                .find(id)
+                .first(conn)
+                .map_err(|_| DbError::AccountNotFound)
+        })
+        .await
     }
 }

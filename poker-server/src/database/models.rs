@@ -1,6 +1,6 @@
-use serde::{Serialize, Deserialize};
 use super::schema::{money_log, settled_accounts};
 use crate::account::forms::ModSettled;
+use serde::{Deserialize, Serialize};
 
 #[derive(Identifiable, Queryable, Serialize, Deserialize, AsChangeset)]
 #[primary_key(account_id)]

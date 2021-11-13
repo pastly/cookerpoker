@@ -1,15 +1,15 @@
-pub mod schema;
 pub mod models;
-use rocket_sync_db_pools::{diesel, database};
+pub mod schema;
+use rocket_sync_db_pools::{database, diesel};
 
 #[database("sqlite")]
 pub struct DbConn(diesel::SqliteConnection);
 
 #[derive(Debug)]
-pub enum DbError{
+pub enum DbError {
     NoSettledBalance,
     AccountNotFound,
-    Unknown
+    Unknown,
 }
 
 impl std::convert::From<diesel::result::Error> for DbError {

@@ -1,20 +1,23 @@
-#[macro_use] extern crate rocket;
-#[macro_use] extern crate diesel;
+#[macro_use]
+extern crate rocket;
+#[macro_use]
+extern crate diesel;
 
-mod database;
 mod account;
+mod database;
 
 use database::DbConn;
 use rocket_dyn_templates::Template;
 
 #[get("/")]
-fn index() ->&'static str {
+fn index() -> &'static str {
     "This will eventually serve the poker client"
 }
 
 #[launch]
 fn rocket() -> _ {
-    rocket::build().attach(DbConn::fairing())
+    rocket::build()
+        .attach(DbConn::fairing())
         .attach(Template::fairing())
         .mount("/", get_all_endpoints())
 }
