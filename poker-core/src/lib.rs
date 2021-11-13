@@ -1,4 +1,5 @@
 pub mod deck;
+pub mod hand;
 
 #[cfg(test)]
 mod tests {
