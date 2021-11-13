@@ -6,6 +6,8 @@ use diesel::prelude::*;
 use derive_more::Deref;
 
 pub mod forms;
+pub mod endpoints;
+pub use endpoints::get_endpoints;
 
 async fn api_to_account(db: DbConn, key: String) -> Result<Account, ApiKeyError> {
     use crate::database::schema::accounts::dsl::{accounts, api_key};
@@ -80,6 +82,7 @@ impl Account {
 
     pub async fn mod_settled_balance(&self, db: &DbConn, change: forms::ModSettled) -> Result<(), DbError> {
         // TODO technically supposed to be inside the transaction, but needs minor refactor
+        // TODO record starting and ending balance?
         use crate::database::schema::money_log::dsl::money_log;
         let mut sb = self.get_settled_account(db).await?;
         sb += change.change;
