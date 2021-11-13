@@ -32,18 +32,6 @@ const CLUB: char = 'c';
 //const DIAMOND: &str = "♦";
 //const CLUB: &str = "♣";
 
-pub fn rand_suit() -> Suit {
-    *ALL_SUITS.choose(&mut thread_rng()).unwrap()
-}
-
-fn rand_rank() -> Rank {
-    *ALL_RANKS.choose(&mut thread_rng()).unwrap()
-}
-
-pub fn rand_card() -> Card {
-    Card::new(rand_rank(), rand_suit())
-}
-
 #[derive(Hash, PartialEq, Eq, PartialOrd, Clone, Copy, Debug)]
 pub enum Suit {
     Club,
@@ -78,23 +66,6 @@ pub enum Rank {
     RQ,
     RK,
     RA,
-}
-
-impl Rank {
-    pub(crate) fn bj_value(self) -> u8 {
-        match self {
-            Rank::R2 => 2,
-            Rank::R3 => 3,
-            Rank::R4 => 4,
-            Rank::R5 => 5,
-            Rank::R6 => 6,
-            Rank::R7 => 7,
-            Rank::R8 => 8,
-            Rank::R9 => 9,
-            Rank::RT | Rank::RJ | Rank::RQ | Rank::RK => 10,
-            Rank::RA => 1, // other code is responsible for adding 10 if possible
-        }
-    }
 }
 
 impl fmt::Display for Rank {
@@ -132,10 +103,6 @@ impl fmt::Display for Card {
 impl Card {
     pub fn new(rank: Rank, suit: Suit) -> Self {
         Self { rank, suit }
-    }
-
-    pub fn bj_value(self) -> u8 {
-        self.rank.bj_value()
     }
 
     pub fn suit(self) -> Suit {
