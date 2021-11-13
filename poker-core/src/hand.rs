@@ -83,7 +83,7 @@ impl HandClass {
         // This function requires the given cards are sorted
         //
         // Convert ranks to ints that we can do basic math on. Rank 2 -> 0, Rank 3 -> 1, etc.
-        let ints: Vec<u8> = cards
+        let ints: Vec<i8> = cards
             .iter()
             .map(|c| match c.rank() {
                 Rank::R2 => 0,
@@ -227,6 +227,23 @@ mod test_hand_class {
     use super::*;
     use crate::deck::{Rank, Suit};
 
+    const ALL_RANKS: [Rank; 13] = [
+        Rank::R2,
+        Rank::R3,
+        Rank::R4,
+        Rank::R5,
+        Rank::R6,
+        Rank::R7,
+        Rank::R8,
+        Rank::R9,
+        Rank::RT,
+        Rank::RJ,
+        Rank::RQ,
+        Rank::RK,
+        Rank::RA,
+    ];
+    const ALL_SUITS: [Suit; 4] = [Suit::Club, Suit::Diamond, Suit::Heart, Suit::Spade];
+
     /// All the straight flushes are correctly identified as such.
     #[test]
     fn straight_flushes() {
@@ -242,7 +259,7 @@ mod test_hand_class {
             [Rank::R6, Rank::R5, Rank::R4, Rank::R3, Rank::R2],
             [Rank::R5, Rank::R4, Rank::R3, Rank::R2, Rank::RA],
         ] {
-            for suit in [Suit::Club, Suit::Diamond, Suit::Heart, Suit::Spade] {
+            for suit in ALL_SUITS {
                 let hand = Hand::new_unchecked(&[
                     Card::new(ranks[0], suit),
                     Card::new(ranks[1], suit),
@@ -251,6 +268,47 @@ mod test_hand_class {
                     Card::new(ranks[4], suit),
                 ]);
                 assert_eq!(HandClass::which(&hand), HandClass::StraightFlush);
+            }
+        }
+    }
+
+    /// Test all quads (but not with all kickers)
+    #[test]
+    fn quads() {
+        for rank in ALL_RANKS {
+            let extra = Card::new(
+                match rank {
+                    Rank::R2 => Rank::R3,
+                    _ => Rank::R2,
+                },
+                Suit::Club,
+            );
+            let hand = Hand::new_unchecked(&[
+                Card::new(rank, Suit::Club),
+                Card::new(rank, Suit::Diamond),
+                Card::new(rank, Suit::Heart),
+                Card::new(rank, Suit::Spade),
+                extra,
+            ]);
+            assert_eq!(HandClass::which(&hand), HandClass::FourOfAKind);
+        }
+    }
+
+    #[test]
+    fn boat() {
+        for rank3 in ALL_RANKS {
+            for rank2 in ALL_RANKS {
+                if rank2 == rank3 {
+                    continue;
+                }
+                let hand = Hand::new_unchecked(&[
+                    Card::new(rank3, Suit::Club),
+                    Card::new(rank3, Suit::Diamond),
+                    Card::new(rank3, Suit::Heart),
+                    Card::new(rank2, Suit::Club),
+                    Card::new(rank2, Suit::Diamond),
+                ]);
+                assert_eq!(HandClass::which(&hand), HandClass::FullHouse);
             }
         }
     }
