@@ -9,6 +9,7 @@ edition = "2021"
 rocket = { version = "0.5.0-rc.1", features = ["tls"] }
 poker-core = { path = "../poker-core" }
 diesel = { version = "1.0", features = ["sqlite"] }
+derive_more = "0.99"
 
 [dependencies.rocket_sync_db_pools]
 version = "0.1.0-rc.1"

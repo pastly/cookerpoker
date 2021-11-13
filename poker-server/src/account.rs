@@ -1,7 +1,8 @@
 use rocket::http::Status;
 use rocket::request::{Outcome, Request, FromRequest};
-use crate::database::{DbConn, models::{SettledAccount, Account}};
+use crate::database::{DbConn, DbError, models::{SettledAccount, Account}};
 use diesel::prelude::*;
+use derive_more::Deref;
 
 async fn api_to_account(db: DbConn, key: String) -> Result<Account, ApiKeyError> {
     use crate::database::schema::accounts::dsl::{accounts, api_key};
@@ -17,6 +18,7 @@ pub enum ApiKeyError {
     Invalid,
 }
 
+#[derive(Deref)]
 pub struct User(pub Account);
 
 #[rocket::async_trait]
@@ -39,6 +41,7 @@ impl<'r> FromRequest<'r> for User {
 }
 
 
+#[derive(Deref)]
 pub struct Admin(pub Account);
 
 #[rocket::async_trait]
@@ -66,7 +69,11 @@ impl<'r> FromRequest<'r> for Admin {
     }
 }
 
-pub async fn get_settled_balance(db: &DbConn, a: i32) -> i32 {
-    use crate::database::schema::settled_accounts::dsl::{settled_accounts, account_id};
-    db.run(move |conn| settled_accounts.filter(account_id.eq(a)).first(conn).map(|s: SettledAccount| s.get_monies()).expect("Account ID doesn't have settled balance")).await
+impl Account {
+    pub async fn get_settled_balance(&self, db: &DbConn) -> Result<i32, DbError> {
+        use crate::database::schema::settled_accounts::dsl::{settled_accounts, account_id};
+        let id = self.account_id;
+        //TODO Return other DB errors
+        db.run(move |conn| settled_accounts.filter(account_id.eq(id)).first(conn).map(|s: SettledAccount| s.get_monies()).map_err(|_| DbError::NoSettledBalance)).await
+    }
 }

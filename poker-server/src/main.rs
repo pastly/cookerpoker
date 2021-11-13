@@ -13,13 +13,13 @@ fn index() ->&'static str {
 
 #[get("/monies")]
 async fn monies_admin(conn: DbConn, a: account::Admin) -> String {
-    let v = account::get_settled_balance(&conn, a.0.account_id).await;
+    let v = a.get_settled_balance(&conn).await.expect("DbError unimplemented");
     format!("Welcome God-King {}. Your balance is {} pennies", a.0.account_name, v)
 }
 
 #[get("/monies", rank = 2)]
 async fn monies_user(conn: DbConn, u: account::User) -> String {
-    let v = account::get_settled_balance(&conn, u.0.account_id).await;
+    let v = u.get_settled_balance(&conn).await.expect("DbError unimplemented");
     format!("Welcome peasent. Your balance is {} pennies", v)
 }
 
