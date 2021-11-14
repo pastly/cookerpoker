@@ -1,5 +1,5 @@
 <html>
-    <title>Add account</title>
+    <title>Add to account</title>
     <h1>Account {{ account_name }} - Current Value {{ monies }}
     </h1>
     <form method="POST">

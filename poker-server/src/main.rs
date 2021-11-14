@@ -5,6 +5,7 @@ extern crate diesel;
 
 mod account;
 mod database;
+mod table;
 
 use database::DbConn;
 use rocket_dyn_templates::Template;
@@ -23,9 +24,9 @@ fn rocket() -> _ {
 }
 
 fn get_all_endpoints() -> Vec<rocket::route::Route> {
-    let mut v = Vec::new();
+    let mut v = routes![index];
+    v.append(&mut table::get_endpoints());
     v.append(&mut account::get_endpoints());
-    v.append(&mut routes![index]);
     v
 }
 

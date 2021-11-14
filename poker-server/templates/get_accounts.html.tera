@@ -2,7 +2,7 @@
     <title>Accounts</title>
     <table>
         <tr>
-            <th>Id Admin</th>
+            <th>Is Admin</th>
             <th>Account name</th>
             <th>Account ID</th>
         </tr>
@@ -10,7 +10,7 @@
             <tr>
                 <td>{{ account.is_admin }}</td>
                 <td>{{ account.account_name }}</td>
-                <td><a href="/monies/{{ account.account_id }}">{{ account.account_id }}</a></td>
+                <td><a href="/monies/{{ account.id }}">{{ account.id }}</a></td>
             </tr>
         {% endfor %}
     </table>

@@ -1,32 +1,23 @@
 -- Your SQL goes here
 CREATE TABLE accounts (
-    account_id INTEGER NOT NULL PRIMARY KEY,
+    id INTEGER NOT NULL PRIMARY KEY,
     account_name TEXT NOT NULL,
     api_key TEXT NOT NULL UNIQUE,
-    is_admin SMALLINT NOT NULL DEFAULT FALSE
+    is_admin SMALLINT NOT NULL DEFAULT FALSE,
+    monies INTEGER NOT NULL DEFAULT 0
 );
 
-INSERT INTO accounts (account_id, account_name, api_key, is_admin)
-VALUES (0, "test_account", "not_a_real_api_key", 1);
-
-CREATE TABLE settled_accounts (
-    account_id INTEGER NOT NULL PRIMARY KEY,
-    monies INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY (account_id)
-        REFERENCES accounts (account_id)
-);
-
-INSERT INTO settled_accounts (account_id)
-VALUES(0);
+INSERT INTO accounts (account_name, api_key, is_admin)
+VALUES ("test_account", "not_a_real_api_key", 1);
 
 CREATE TABLE money_log (
-    transaction_id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY,
     account_id INTEGER NOT NULL,
     monies INTEGER NOT NULL,
     execution_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     reason TEXT NOT NULL,
     FOREIGN KEY (account_id)
-        REFERENCES accounts (account_id)
+        REFERENCES accounts (id)
 );
 
 CREATE TABLE player_meta (
@@ -34,16 +25,13 @@ CREATE TABLE player_meta (
     player_name TEXT NOT NULL DEFAULT "anonymouse",
     email TEXT,
     FOREIGN KEY (account_id)
-        REFERENCES accounts (account_id)
+        REFERENCES accounts (id)
 );
 
 CREATE TABLE game_tables (
-    table_id INTEGER NOT NULL PRIMARY KEY,
-    table_name TEXT NOT NULL
-);
-
-CREATE TABLE table_meta (
-    table_id INTEGER NOT NULL PRIMARY KEY,
+    id INTEGER NOT NULL PRIMARY KEY,
+    table_type SMALLINT NOT NULL DEFAULT 0,
+    table_name TEXT NOT NULL,
     table_state INTEGER NOT NULL DEFAULT 0,
     hand_num INTEGER NOT NULL DEFAULT 0,
     buy_in INTEGER NOT NULL,
@@ -51,11 +39,11 @@ CREATE TABLE table_meta (
 );
 
 CREATE TABLE seated (
-    table_id INTERGE NOT NULL,
+    table_id INTEGER NOT NULL,
     account_id INTEGER NOT NULL,
     PRIMARY KEY(table_id, account_id)
     FOREIGN KEY (account_id)
-        REFERENCES accounts (account_id),
+        REFERENCES accounts (id),
         FOREIGN KEY (table_id)
-        REFERENCES game_tables (table_id)
+        REFERENCES game_tables (id)
 );

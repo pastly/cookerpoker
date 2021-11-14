@@ -1,4 +1,4 @@
-pub use crate::database::models::{Account, NewMoneyLogEntry, SettledAccount};
+pub use crate::database::models::{Account, NewMoneyLogEntry};
 use crate::database::{DbConn, DbError};
 use derive_more::Deref;
 use diesel::prelude::*;
@@ -9,7 +9,8 @@ pub mod endpoints;
 pub mod forms;
 pub use endpoints::get_endpoints;
 
-async fn api_to_account(db: DbConn, key: String) -> Result<Account, ApiKeyError> {
+///TODO I think there is a better way to do this. Return the dsl directly
+pub async fn api_to_account(db: DbConn, key: String) -> Result<Account, ApiKeyError> {
     use crate::database::schema::accounts::dsl::{accounts, api_key};
     let account = db.run(|conn| {
         accounts
@@ -77,44 +78,26 @@ impl<'r> FromRequest<'r> for Admin {
 }
 
 impl Account {
-    pub async fn get_settled_balance(&self, db: &DbConn) -> Result<i32, DbError> {
-        // Closure cannot refer to self apparently? Have to copy value out and let it take ownership of id
-        self.get_settled_account(db)
-            .await
-            .map(|s: SettledAccount| s.get_monies())
-    }
-
     pub async fn mod_settled_balance(
         &self,
         db: &DbConn,
         change: forms::ModSettled,
-    ) -> Result<(), DbError> {
+    ) -> Result<i32, DbError> {
         // TODO technically supposed to be inside the transaction, but needs minor refactor
         // TODO record starting and ending balance?
+        use crate::database::schema::accounts::dsl::{accounts, monies};
         use crate::database::schema::money_log::dsl::money_log;
-        let mut sb = self.get_settled_account(db).await?;
-        sb += change.change;
         let nme = NewMoneyLogEntry::new(self, change);
         db.run(move |conn| {
-            conn.transaction(|| {
-                diesel::update(&sb).set(&sb).execute(conn)?;
+            conn.transaction::<i32, DbError, _>(|| {
+                let a: Account = accounts.find(nme.account_id).first(conn)?;
+                let ov = a.monies();
+                let nv = ov + nme.monies;
+                diesel::update(&a).set(monies.eq(nv)).execute(conn)?;
                 diesel::insert_into(money_log).values(nme).execute(conn)?;
-                Ok(())
+                Ok(nv)
             })
             .map_err(|x: DbError| DbError::AccountNotFound(format!("{:?}", x)))
-        })
-        .await
-    }
-
-    async fn get_settled_account(&self, db: &DbConn) -> Result<SettledAccount, DbError> {
-        use crate::database::schema::settled_accounts::dsl::settled_accounts;
-        let id = self.account_id;
-        //TODO Return other DB errors
-        db.run(move |conn| {
-            settled_accounts
-                .find(id)
-                .first(conn)
-                .map_err(|x| DbError::NoSettledBalance(format!("{:?}", x)))
         })
         .await
     }

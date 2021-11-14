@@ -1,7 +1,6 @@
 use super::*;
 use crate::database::models;
 use crate::database::DbConn;
-use diesel::prelude::*;
 use rocket::form::Form;
 use rocket::response::Redirect;
 use rocket_dyn_templates::{tera::to_value, tera::Context, Template};
@@ -23,14 +22,10 @@ async fn get_id_monies(conn: DbConn, _a: Admin, id: i32) -> Result<Template, DbE
     let a = Account::find(&conn, id)
         .await
         .map_err(|x| DbError::AccountNotFound(format!("{:?}", x)))?;
-    let v = a
-        .get_settled_balance(&conn)
-        .await
-        .map_err(|x| DbError::NoSettledBalance(format!("{:?}", x)))?;
-    let mut c = Context::from_value(to_value(a).unwrap()).unwrap();
-    c.insert("monies", &v);
-    let c = c.into_json();
-    Ok(Template::render("mod_settled", &c))
+    let mut c = Context::new();
+    c.insert("account_name", &a.account_name);
+    c.insert("monies", &a.monies());
+    Ok(Template::render("mod_settled", &c.into_json()))
 }
 
 #[post("/monies/<id>", data = "<change>")]
@@ -39,35 +34,24 @@ async fn post_id_monies(
     _a: Admin,
     id: i32,
     change: Form<forms::ModSettled>,
-) -> Redirect {
-    let a = Account::find(&conn, id)
-        .await
-        .expect("DBError unimplemented");
-    a.mod_settled_balance(&conn, change.into_inner())
-        .await
-        .unwrap_or_else(|_| warn!("New money entry failed?"));
-    Redirect::to(format!("/monies/{}", id))
+) -> Result<Redirect, DbError> {
+    let a = Account::find(&conn, id).await?;
+    a.mod_settled_balance(&conn, change.into_inner()).await?;
+    Ok(Redirect::to(format!("/monies/{}", id)))
 }
 
 #[get("/monies")]
-async fn monies_admin(conn: DbConn, a: Admin) -> String {
-    let v = a
-        .get_settled_balance(&conn)
-        .await
-        .expect("DbError unimplemented");
+async fn monies_admin(a: Admin) -> String {
     format!(
         "Welcome God-King {}. Your balance is {} pennies",
-        a.account_name, v
+        a.account_name,
+        a.monies()
     )
 }
 
 #[get("/monies", rank = 2)]
-async fn monies_user(conn: DbConn, u: User) -> String {
-    let v = u
-        .get_settled_balance(&conn)
-        .await
-        .expect("DbError unimplemented");
-    format!("Welcome peasent. Your balance is {} pennies", v)
+async fn monies_user(u: User) -> String {
+    format!("Welcome peasent. Your balance is {} pennies", u.monies())
 }
 
 #[get("/accounts")]
@@ -85,22 +69,16 @@ async fn new_account(
     f: Form<forms::NewAccount>,
 ) -> Result<String, DbError> {
     use crate::database::schema::accounts::dsl::{accounts, api_key};
-    use crate::database::schema::settled_accounts::dsl::settled_accounts;
     let na = models::NewAccount::from(f.into_inner());
     conn.run::<_, Result<String, DbError>>(|conn| {
-        conn.transaction(|| {
-            let api = na.api_key.clone();
-            diesel::insert_into(accounts).values(na).execute(conn)?;
-            let a = accounts
-                .filter(api_key.eq(api.clone()))
-                .first::<Account>(conn)?;
-            info!("Created and returned account with id {}", a.account_id);
-            let sb = models::SettledAccount::new(a.account_id);
-            diesel::insert_into(settled_accounts)
-                .values(sb)
-                .execute(conn)?;
-            Ok(api)
-        })
+        let api = na.api_key.clone();
+        diesel::insert_into(accounts).values(na).execute(conn)?;
+        // Dirty read because Diesel doesn't support SQLite's RETURNING yet
+        let a = accounts
+            .filter(api_key.eq(api.clone()))
+            .first::<Account>(conn)?;
+        info!("Created and returned account with id {}", a.id);
+        Ok(api)
     })
     .await
 }
