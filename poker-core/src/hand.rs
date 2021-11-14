@@ -114,7 +114,17 @@ impl HandClass {
     }
 
     fn beats_straight(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
-        left[0].cmp(&right[0])
+        // have to look special at 5432A straight, as it will be A5432 since cards are sorted by
+        // rank.
+        let l = match (left[0], left[1]) {
+            (Rank::RA, Rank::R5) => Rank::R5,
+            (first, _) => first,
+        };
+        let r = match (right[0], right[1]) {
+            (Rank::RA, Rank::R5) => Rank::R5,
+            (first, _) => first,
+        };
+        l.cmp(&r)
     }
 
     fn beats_set(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
@@ -425,7 +435,7 @@ mod test_hand {
 #[cfg(test)]
 mod test_hand_class {
     use super::*;
-    use crate::deck::{Rank, Suit};
+    use crate::deck::{cards_from_str, Rank, Suit};
 
     const ALL_RANKS: [Rank; 13] = [
         Rank::R2,
@@ -653,23 +663,43 @@ mod test_hand_class {
     }
 
     #[test]
-    fn beats_straight_flush() {
-        let h1 = Hand::new_unchecked(&[
-            Card::new(Rank::RA, Suit::Club),
-            Card::new(Rank::RK, Suit::Club),
-            Card::new(Rank::RQ, Suit::Club),
-            Card::new(Rank::RJ, Suit::Club),
-            Card::new(Rank::RT, Suit::Club),
-        ]);
-        let h2 = Hand::new_unchecked(&[
-            Card::new(Rank::RA, Suit::Diamond),
-            Card::new(Rank::RK, Suit::Diamond),
-            Card::new(Rank::RQ, Suit::Diamond),
-            Card::new(Rank::RJ, Suit::Diamond),
-            Card::new(Rank::RT, Suit::Diamond),
-        ]);
+    fn beats_straight_flush_tie() {
+        let h1 = Hand::new_unchecked(&cards_from_str("AcKcQcJcTc"));
+        let h2 = Hand::new_unchecked(&cards_from_str("AdKdQdJdTd"));
         assert_eq!(h1.beats(&h2), WinState::Tie);
-        // not finished, and suspected bug with 5432A straights/straight flushes
-        assert!(false);
+        let h1 = Hand::new_unchecked(&cards_from_str("KcQcJcTc9c"));
+        let h2 = Hand::new_unchecked(&cards_from_str("KdQdJdTd9d"));
+        assert_eq!(h1.beats(&h2), WinState::Tie);
+        let h1 = Hand::new_unchecked(&cards_from_str("5c4c3c2cAc"));
+        let h2 = Hand::new_unchecked(&cards_from_str("5d4d3d2dAd"));
+        assert_eq!(h1.beats(&h2), WinState::Tie);
+    }
+
+    #[test]
+    fn beats_straight_flush_win() {
+        let h1 = Hand::new_unchecked(&cards_from_str("AcKcQcJcTc"));
+        let h2 = Hand::new_unchecked(&cards_from_str("KdQdJdTd9d"));
+        println!("{} vs {}", h1, h2);
+        assert_eq!(h1.beats(&h2), WinState::Win);
+        let h1 = Hand::new_unchecked(&cards_from_str("6c5c4c3c2c"));
+        let h2 = Hand::new_unchecked(&cards_from_str("5d4d3d2dAd"));
+        println!("{} vs {}", h1, h2);
+        assert_eq!(h1.beats(&h2), WinState::Win);
+        let h1 = Hand::new_unchecked(&cards_from_str("AcKcQcJcTc"));
+        let h2 = Hand::new_unchecked(&cards_from_str("5d4d3d2dAd"));
+        println!("{} vs {}", h1, h2);
+        assert_eq!(h1.beats(&h2), WinState::Win);
+    }
+
+    #[test]
+    fn beats_straight_flush_lose() {
+        let h1 = Hand::new_unchecked(&cards_from_str("KdQdJdTd9d"));
+        let h2 = Hand::new_unchecked(&cards_from_str("AcKcQcJcTc"));
+        println!("{} vs {}", h1, h2);
+        assert_eq!(h1.beats(&h2), WinState::Lose);
+        let h1 = Hand::new_unchecked(&cards_from_str("5d4d3d2dAd"));
+        let h2 = Hand::new_unchecked(&cards_from_str("6c5c4c3c2c"));
+        println!("{} vs {}", h1, h2);
+        assert_eq!(h1.beats(&h2), WinState::Lose);
     }
 }
