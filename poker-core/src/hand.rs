@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum WinState {
     Win,
     Tie,
@@ -649,21 +649,23 @@ mod test_hand_class {
     }
 
     #[test]
-    fn foo_beats() {
+    fn beats_straight_flush() {
         let h1 = Hand::new_unchecked(&[
             Card::new(Rank::RA, Suit::Club),
-            Card::new(Rank::RA, Suit::Diamond),
-            Card::new(Rank::RA, Suit::Heart),
-            Card::new(Rank::RA, Suit::Spade),
-            Card::new(Rank::R2, Suit::Club),
+            Card::new(Rank::RK, Suit::Club),
+            Card::new(Rank::RQ, Suit::Club),
+            Card::new(Rank::RJ, Suit::Club),
+            Card::new(Rank::RT, Suit::Club),
         ]);
         let h2 = Hand::new_unchecked(&[
-            Card::new(Rank::RK, Suit::Club),
+            Card::new(Rank::RA, Suit::Diamond),
             Card::new(Rank::RK, Suit::Diamond),
-            Card::new(Rank::RK, Suit::Heart),
-            Card::new(Rank::RK, Suit::Spade),
-            Card::new(Rank::R3, Suit::Club),
+            Card::new(Rank::RQ, Suit::Diamond),
+            Card::new(Rank::RJ, Suit::Diamond),
+            Card::new(Rank::RT, Suit::Diamond),
         ]);
-        println!("{:?}", h1.beats(&h2));
+        assert_eq!(h1.beats(&h2), WinState::Tie);
+        // not finished, and suspected bug with 5432A straights/straight flushes
+        assert!(false);
     }
 }
