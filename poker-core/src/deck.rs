@@ -189,8 +189,6 @@ impl fmt::Display for DeckError {
 #[derive(Default)]
 pub struct Deck {
     cards: Vec<Card>,
-    next: usize,
-    infinite: bool,
 }
 
 impl Deck {
@@ -201,23 +199,9 @@ impl Deck {
         d
     }
 
-    /// Generate a deck of cards of infinite size, shuffled, and implemented as always shuffling
-    /// the deck after returning a copy of the topmost card
-    pub fn new_infinite() -> Self {
-        // First get a non-infinite single deck
-        let mut d = Self::with_length(1);
-        // Set the inifinite flag
-        assert!(!d.infinite);
-        d.infinite = true;
-        // Shuffle and return
-        d.shuffle();
-        d
-    }
-
     /// Shuffle the deck of cards in-place, and reset its `next` index to 0
     pub fn shuffle(&mut self) {
         self.cards.shuffle(&mut thread_rng());
-        self.next = 0;
     }
 
     /// Generate a new shuffled multi-deck with `l * DECK_LEN` cards
@@ -239,11 +223,7 @@ impl Deck {
             multi.append(&mut single.clone());
         }
         assert_eq!(multi.len(), multi.capacity());
-        let mut d = Self {
-            cards: multi,
-            next: 0,
-            infinite: false,
-        };
+        let mut d = Self { cards: multi };
         // shuffle it
         d.shuffle();
         d
@@ -251,17 +231,18 @@ impl Deck {
 
     /// Draw the topmost card and return it, or return and error if, e.g., there are no more cards.
     pub fn draw(&mut self) -> Result<Card, DeckError> {
-        if self.infinite {
-            assert_eq!(self.next, 0);
-            let c = self.cards[self.next];
-            self.shuffle();
-            Ok(c)
-        } else if self.next == self.cards.len() {
+        self.cards.pop().ok_or(DeckError::OutOfCards)
+    }
+
+    pub fn burn(&mut self) {
+        self.cards.pop();
+    }
+
+    pub fn deal_pocket(&mut self, i: usize) -> Result<[Card; 2], DeckError> {
+        if self.cards.len() <= i {
             Err(DeckError::OutOfCards)
         } else {
-            let c = self.cards[self.next];
-            self.next += 1;
-            Ok(c)
+            Ok([self.draw()?, self.cards.remove(self.cards.len() - i)])
         }
     }
 }
@@ -276,13 +257,6 @@ mod tests {
         let d = Deck::new();
         assert_eq!(d.cards.len(), d.cards.capacity());
         assert_eq!(d.cards.len(), DECK_LEN);
-    }
-
-    #[test]
-    fn right_len_2() {
-        let d = Deck::with_length(8);
-        assert_eq!(d.cards.len(), d.cards.capacity());
-        assert_eq!(d.cards.len(), 8 * DECK_LEN);
     }
 
     #[test]
@@ -303,48 +277,12 @@ mod tests {
     }
 
     #[test]
-    fn right_count_2() {
-        let d = Deck::with_length(8);
-        let mut counts: HashMap<Card, u16> = HashMap::new();
-        for card in d.cards.iter() {
-            if let Some(count) = counts.get_mut(card) {
-                *count += 1;
-            } else {
-                counts.insert(*card, 1);
-            }
-        }
-        assert_eq!(counts.len(), DECK_LEN);
-        for count in counts.values() {
-            assert_eq!(*count, 8);
-        }
-    }
-
-    #[test]
     fn draw_1() {
         let mut d = Deck::new();
         for _ in 0..DECK_LEN {
             assert!(d.draw().is_ok());
         }
         assert_eq!(d.draw().unwrap_err(), DeckError::OutOfCards);
-    }
-
-    #[test]
-    fn draw_2() {
-        let mut d = Deck::with_length(8);
-        for _ in 0..8 * DECK_LEN {
-            assert!(d.draw().is_ok());
-        }
-        assert_eq!(d.draw().unwrap_err(), DeckError::OutOfCards);
-    }
-
-    #[test]
-    fn draw_infinite() {
-        // can draw from an infinite deck many more times than its internal length. currently the
-        // length is DECK_LEN, but let's further assume it's 8 * DECK_LEN and draw past that
-        let mut d = Deck::new_infinite();
-        for _ in 0..8 * DECK_LEN + 10 {
-            assert!(d.draw().is_ok());
-        }
     }
 
     #[test]
@@ -369,5 +307,24 @@ mod tests {
         let s = "Ah2c6h";
         let res = cards_from_str(&s);
         assert_eq!(res.len(), 3);
+    }
+
+    #[test]
+    fn deal_pockets() {
+        let mut d = Deck::new();
+        let mut v = Vec::new();
+        for _ in 0..10 {
+            v.append(
+                &mut d
+                    .deal_pocket(10)
+                    .expect("Can't deal pockets?")
+                    .into_iter()
+                    .collect::<Vec<Card>>(),
+            );
+        }
+        assert_eq!(d.cards.len(), DECK_LEN - 20);
+        assert_eq!(v.len(), 20);
+        v.dedup();
+        assert_eq!(v.len(), 20);
     }
 }
