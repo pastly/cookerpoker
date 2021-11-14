@@ -147,7 +147,7 @@ impl From<[char; 2]> for Card {
 }
 
 #[cfg(test)]
-fn cards_from_str(s: &'static str) -> Vec<Card> {
+pub fn cards_from_str(s: &'static str) -> Vec<Card> {
     let mut v = vec![];
     let mut s_chars = s.chars();
     while let Some(r) = s_chars.next() {
