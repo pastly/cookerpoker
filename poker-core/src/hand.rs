@@ -702,4 +702,143 @@ mod test_hand_class {
         println!("{} vs {}", h1, h2);
         assert_eq!(h1.beats(&h2), WinState::Lose);
     }
+
+    #[test]
+    fn beats_quads_tie() {
+        // this should be impossible in typical single deck poker, but check for it anyway since
+        // the logic doesn't care
+        let h1 = Hand::new_unchecked(&cards_from_str("2c2d2h2s3c"));
+        let h2 = Hand::new_unchecked(&cards_from_str("2c2d2h2s3d"));
+        println!("{} vs {}", h1, h2);
+        assert_eq!(h1.beats(&h2), WinState::Tie);
+    }
+
+    #[test]
+    fn beats_quads_win() {
+        let h1 = Hand::new_unchecked(&cards_from_str("4c4d4h4s3c"));
+        let h2 = Hand::new_unchecked(&cards_from_str("3c3d3h3s2d"));
+        println!("{} vs {}", h1, h2);
+        assert_eq!(h1.beats(&h2), WinState::Win);
+        let h1 = Hand::new_unchecked(&cards_from_str("4c4d4h4s5c"));
+        let h2 = Hand::new_unchecked(&cards_from_str("4c4d4h4s3c"));
+        println!("{} vs {}", h1, h2);
+        assert_eq!(h1.beats(&h2), WinState::Win);
+    }
+
+    #[test]
+    fn beats_quads_lose() {
+        let h1 = Hand::new_unchecked(&cards_from_str("3c3d3h3s2d"));
+        let h2 = Hand::new_unchecked(&cards_from_str("4c4d4h4s3c"));
+        println!("{} vs {}", h1, h2);
+        assert_eq!(h1.beats(&h2), WinState::Lose);
+        let h1 = Hand::new_unchecked(&cards_from_str("4c4d4h4s3c"));
+        let h2 = Hand::new_unchecked(&cards_from_str("4c4d4h4s5c"));
+        println!("{} vs {}", h1, h2);
+        assert_eq!(h1.beats(&h2), WinState::Lose);
+    }
+
+    #[test]
+    fn beats_full_house_tie() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_full_house_win() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_full_house_lose() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_flush_tie() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_flush_win() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_flush_lose() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_straight_tie() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_straight_win() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_straight_lose() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_set_tie() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_set_win() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_set_lose() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_two_pair_tie() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_two_pair_win() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_two_pair_lose() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_pair_tie() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_pair_win() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_pair_lose() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_high_card_tie() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_high_card_win() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn beats_high_card_lose() {
+        unimplemented!()
+    }
 }
