@@ -238,11 +238,11 @@ impl Deck {
         self.cards.pop();
     }
 
-    pub fn deal_pocket(&mut self, i: usize) -> Result<[Card; 2], DeckError> {
-        if self.cards.len() <= i {
+    pub fn deal_pocket(&mut self, num_players: u8) -> Result<[Card; 2], DeckError> {
+        if self.cards.len() <= num_players as usize {
             Err(DeckError::OutOfCards)
         } else {
-            Ok([self.draw()?, self.cards.remove(self.cards.len() - i)])
+            Ok([self.draw()?, self.cards.remove(self.cards.len() - (num_players as usize - 1))])
         }
     }
 }
