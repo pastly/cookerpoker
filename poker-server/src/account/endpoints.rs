@@ -3,7 +3,7 @@ use crate::database::models;
 use crate::database::DbConn;
 use rocket::form::Form;
 use rocket::response::Redirect;
-use rocket_dyn_templates::{tera::to_value, tera::Context, Template};
+use rocket_dyn_templates::{tera::Context, Template};
 
 pub fn get_endpoints() -> Vec<rocket::route::Route> {
     routes![
