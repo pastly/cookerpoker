@@ -16,7 +16,7 @@ pub async fn api_to_account(db: DbConn, key: String) -> Result<Account, ApiKeyEr
         accounts
             .filter(api_key.eq(key))
             .first(conn)
-            .map_err(|_| ApiKeyError::Invalid)
+            .map_err(|x| ApiKeyError::from(x))
     });
     account.await
 }
@@ -25,6 +25,17 @@ pub async fn api_to_account(db: DbConn, key: String) -> Result<Account, ApiKeyEr
 pub enum ApiKeyError {
     Missing,
     Invalid,
+    DbError(diesel::result::Error),
+}
+
+impl From<diesel::result::Error> for ApiKeyError {
+    fn from(e: diesel::result::Error) -> Self {
+        use diesel::result::Error::*;
+        match e {
+            NotFound => ApiKeyError::Invalid,
+            _ => ApiKeyError::DbError(e),
+        }
+    }
 }
 
 #[derive(Deref)]
@@ -44,7 +55,7 @@ impl<'r> FromRequest<'r> for User {
 
         match api_to_account(db, key).await {
             Ok(a) => Outcome::Success(User(a)),
-            Err(_) => Outcome::Failure((Status::Forbidden, ApiKeyError::Invalid)),
+            Err(e) => Outcome::Failure((Status::Forbidden, e)),
         }
     }
 }
@@ -66,7 +77,7 @@ impl<'r> FromRequest<'r> for Admin {
 
         let account = match api_to_account(db, key).await {
             Ok(a) => a,
-            Err(_) => return Outcome::Failure((Status::Forbidden, ApiKeyError::Invalid)),
+            Err(e) => return Outcome::Failure((Status::Forbidden, e)),
         };
 
         if account.is_admin == 1 {
@@ -83,7 +94,6 @@ impl Account {
         db: &DbConn,
         change: forms::ModSettled,
     ) -> Result<i32, DbError> {
-        // TODO technically supposed to be inside the transaction, but needs minor refactor
         // TODO record starting and ending balance?
         use crate::database::schema::accounts::dsl::{accounts, monies};
         use crate::database::schema::money_log::dsl::money_log;
@@ -97,7 +107,6 @@ impl Account {
                 diesel::insert_into(money_log).values(nme).execute(conn)?;
                 Ok(nv)
             })
-            .map_err(|x: DbError| DbError::AccountNotFound(format!("{:?}", x)))
         })
         .await
     }
