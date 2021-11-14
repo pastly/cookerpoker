@@ -52,6 +52,19 @@ impl fmt::Display for Suit {
     }
 }
 
+#[cfg(test)]
+impl From<char> for Suit {
+    fn from(c: char) -> Self {
+        match c {
+            CLUB => Self::Club,
+            DIAMOND => Self::Diamond,
+            HEART => Self::Heart,
+            SPADE => Self::Spade,
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Rank {
     R2,
@@ -89,6 +102,28 @@ impl fmt::Display for Rank {
     }
 }
 
+#[cfg(test)]
+impl From<char> for Rank {
+    fn from(c: char) -> Self {
+        match c {
+            '2' => Rank::R2,
+            '3' => Rank::R3,
+            '4' => Rank::R4,
+            '5' => Rank::R5,
+            '6' => Rank::R6,
+            '7' => Rank::R7,
+            '8' => Rank::R8,
+            '9' => Rank::R9,
+            'T' => Rank::RT,
+            'J' => Rank::RJ,
+            'Q' => Rank::RQ,
+            'K' => Rank::RK,
+            'A' => Rank::RA,
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Card {
     rank: Rank,
@@ -99,6 +134,27 @@ impl fmt::Display for Card {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", self.rank, self.suit)
     }
+}
+
+#[cfg(test)]
+impl From<[char; 2]> for Card {
+    fn from(cs: [char; 2]) -> Self {
+        Self {
+            rank: cs[0].into(),
+            suit: cs[1].into(),
+        }
+    }
+}
+
+#[cfg(test)]
+fn cards_from_str(s: &'static str) -> Vec<Card> {
+    let mut v = vec![];
+    let mut s_chars = s.chars();
+    while let Some(r) = s_chars.next() {
+        let s = s_chars.next().expect("Need even number of chars");
+        v.push([r, s].into())
+    }
+    v
 }
 
 impl Card {
@@ -212,7 +268,7 @@ impl Deck {
 
 #[cfg(test)]
 mod tests {
-    use super::{Card, Deck, DeckError, DECK_LEN};
+    use super::*;
     use std::collections::HashMap;
 
     #[test]
@@ -289,5 +345,29 @@ mod tests {
         for _ in 0..8 * DECK_LEN + 10 {
             assert!(d.draw().is_ok());
         }
+    }
+
+    #[test]
+    fn string_empty() {
+        let s = "";
+        let res = cards_from_str(&s);
+        assert_eq!(res.len(), 0);
+    }
+
+    #[test]
+    fn string_single() {
+        let s = "Ah";
+        let res = cards_from_str(&s);
+        assert_eq!(res.len(), 1);
+        let c = res[0];
+        assert_eq!(c.rank(), Rank::RA);
+        assert_eq!(c.suit(), Suit::Heart);
+    }
+
+    #[test]
+    fn string_multi() {
+        let s = "Ah2c6h";
+        let res = cards_from_str(&s);
+        assert_eq!(res.len(), 3);
     }
 }
