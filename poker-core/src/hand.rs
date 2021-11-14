@@ -49,20 +49,24 @@ impl HandClass {
             o => return o.into(),
         };
         assert_eq!(hc1, hc2);
-        let left: [Rank; 5] = [
+        let mut left: [Rank; 5] = [
             c1[0].rank(),
             c1[1].rank(),
             c1[2].rank(),
             c1[3].rank(),
             c1[4].rank(),
         ];
-        let right: [Rank; 5] = [
+        let mut right: [Rank; 5] = [
             c2[0].rank(),
             c2[1].rank(),
             c2[2].rank(),
             c2[3].rank(),
             c2[4].rank(),
         ];
+        left.sort_unstable();
+        left.reverse();
+        right.sort_unstable();
+        right.reverse();
         match hc1 {
             HandClass::StraightFlush => HandClass::beats_straight_flush(left, right),
             HandClass::FourOfAKind => HandClass::beats_quads(left, right),
