@@ -661,9 +661,15 @@ mod test_hand_class {
             assert_eq!(HandClass::which(&cards), HandClass::HighCard);
         }
     }
+}
+
+#[cfg(test)]
+mod test_hand_class_beats {
+    use super::*;
+    use crate::deck::cards_from_str;
 
     #[test]
-    fn beats_straight_flush_tie() {
+    fn straight_flush_tie() {
         let h1 = Hand::new_unchecked(&cards_from_str("AcKcQcJcTc"));
         let h2 = Hand::new_unchecked(&cards_from_str("AdKdQdJdTd"));
         assert_eq!(h1.beats(&h2), WinState::Tie);
@@ -676,7 +682,7 @@ mod test_hand_class {
     }
 
     #[test]
-    fn beats_straight_flush_win() {
+    fn straight_flush_win() {
         let h1 = Hand::new_unchecked(&cards_from_str("AcKcQcJcTc"));
         let h2 = Hand::new_unchecked(&cards_from_str("KdQdJdTd9d"));
         println!("{} vs {}", h1, h2);
@@ -692,7 +698,7 @@ mod test_hand_class {
     }
 
     #[test]
-    fn beats_straight_flush_lose() {
+    fn straight_flush_lose() {
         let h1 = Hand::new_unchecked(&cards_from_str("KdQdJdTd9d"));
         let h2 = Hand::new_unchecked(&cards_from_str("AcKcQcJcTc"));
         println!("{} vs {}", h1, h2);
@@ -704,7 +710,7 @@ mod test_hand_class {
     }
 
     #[test]
-    fn beats_quads_tie() {
+    fn quads_tie() {
         // this should be impossible in typical single deck poker, but check for it anyway since
         // the logic doesn't care
         let h1 = Hand::new_unchecked(&cards_from_str("2c2d2h2s3c"));
@@ -714,7 +720,7 @@ mod test_hand_class {
     }
 
     #[test]
-    fn beats_quads_win() {
+    fn quads_win() {
         let h1 = Hand::new_unchecked(&cards_from_str("4c4d4h4s3c"));
         let h2 = Hand::new_unchecked(&cards_from_str("3c3d3h3s2d"));
         println!("{} vs {}", h1, h2);
@@ -726,7 +732,7 @@ mod test_hand_class {
     }
 
     #[test]
-    fn beats_quads_lose() {
+    fn quads_lose() {
         let h1 = Hand::new_unchecked(&cards_from_str("3c3d3h3s2d"));
         let h2 = Hand::new_unchecked(&cards_from_str("4c4d4h4s3c"));
         println!("{} vs {}", h1, h2);
@@ -738,107 +744,107 @@ mod test_hand_class {
     }
 
     #[test]
-    fn beats_full_house_tie() {
+    fn full_house_tie() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_full_house_win() {
+    fn full_house_win() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_full_house_lose() {
+    fn full_house_lose() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_flush_tie() {
+    fn flush_tie() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_flush_win() {
+    fn flush_win() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_flush_lose() {
+    fn flush_lose() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_straight_tie() {
+    fn straight_tie() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_straight_win() {
+    fn straight_win() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_straight_lose() {
+    fn straight_lose() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_set_tie() {
+    fn set_tie() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_set_win() {
+    fn set_win() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_set_lose() {
+    fn set_lose() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_two_pair_tie() {
+    fn two_pair_tie() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_two_pair_win() {
+    fn two_pair_win() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_two_pair_lose() {
+    fn two_pair_lose() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_pair_tie() {
+    fn pair_tie() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_pair_win() {
+    fn pair_win() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_pair_lose() {
+    fn pair_lose() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_high_card_tie() {
+    fn high_card_tie() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_high_card_win() {
+    fn high_card_win() {
         unimplemented!()
     }
 
     #[test]
-    fn beats_high_card_lose() {
+    fn high_card_lose() {
         unimplemented!()
     }
 }
