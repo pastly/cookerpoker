@@ -7,7 +7,7 @@ CREATE TABLE accounts (
 );
 
 INSERT INTO accounts (account_id, account_name, api_key, is_admin)
-VALUES (2147483647, "test_account", "not_a_real_api_key", 1);
+VALUES (0, "test_account", "not_a_real_api_key", 1);
 
 CREATE TABLE settled_accounts (
     account_id INTEGER NOT NULL PRIMARY KEY,
@@ -17,7 +17,7 @@ CREATE TABLE settled_accounts (
 );
 
 INSERT INTO settled_accounts (account_id)
-VALUES(2147483647);
+VALUES(0);
 
 CREATE TABLE money_log (
     transaction_id INTEGER PRIMARY KEY,

@@ -1,20 +1,24 @@
 pub mod models;
 pub mod schema;
+use rocket::response::Responder;
 use rocket_sync_db_pools::{database, diesel};
 
 #[database("sqlite")]
 pub struct DbConn(diesel::SqliteConnection);
 
-#[derive(Debug)]
+#[derive(Debug, Responder)]
 pub enum DbError {
-    NoSettledBalance,
-    AccountNotFound,
-    Unknown,
+    #[response(status = 500)]
+    NoSettledBalance(String),
+    #[response(status = 400)]
+    AccountNotFound(String),
+    #[response(status = 500)]
+    Unknown(String),
 }
 
 impl std::convert::From<diesel::result::Error> for DbError {
-    fn from(_other: diesel::result::Error) -> Self {
+    fn from(other: diesel::result::Error) -> Self {
         // TODO do this for real
-        DbError::Unknown
+        DbError::Unknown(format!("{:?}", other))
     }
 }

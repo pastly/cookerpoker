@@ -1,8 +1,8 @@
-use super::schema::{money_log, settled_accounts, accounts};
-use crate::account::forms::ModSettled;
+use super::schema::{accounts, money_log, settled_accounts};
+use crate::account::forms;
 use serde::{Deserialize, Serialize};
 
-#[derive(Identifiable, Queryable, Serialize, Deserialize, AsChangeset)]
+#[derive(Identifiable, Queryable, Insertable, Serialize, Deserialize, AsChangeset)]
 #[primary_key(account_id)]
 pub struct SettledAccount {
     pub account_id: i32,
@@ -10,6 +10,12 @@ pub struct SettledAccount {
 }
 
 impl SettledAccount {
+    pub fn new(account_id: i32) -> Self {
+        Self {
+            account_id,
+            monies: 0,
+        }
+    }
     pub fn get_monies(&self) -> i32 {
         self.monies
     }
@@ -21,7 +27,7 @@ impl std::ops::AddAssign<i32> for SettledAccount {
     }
 }
 
-#[derive(Queryable, Serialize, Deserialize)]
+#[derive(Queryable, Serialize, Deserialize, Debug)]
 pub struct Account {
     pub account_id: i32,
     pub account_name: String,
@@ -38,7 +44,7 @@ pub struct NewMoneyLogEntry {
 }
 
 impl NewMoneyLogEntry {
-    pub fn new(a: &Account, form: ModSettled) -> Self {
+    pub fn new(a: &Account, form: forms::ModSettled) -> Self {
         NewMoneyLogEntry {
             account_id: a.account_id,
             monies: form.change,
@@ -51,18 +57,17 @@ impl NewMoneyLogEntry {
 #[table_name = "accounts"]
 pub struct NewAccount {
     account_name: String,
-    api_key: String,
+    pub api_key: String,
     is_admin: i16,
 }
 
-impl NewAccount {
-    pub fn new(account_name: String, is_admin:bool) -> Self {
-        let is_admin = if is_admin {1i16} else {0i16};
+impl From<forms::NewAccount> for NewAccount {
+    fn from(f: forms::NewAccount) -> Self {
+        let is_admin = if f.is_admin { 1i16 } else { 0i16 };
         NewAccount {
-            account_name,
+            account_name: f.account_name,
             is_admin,
-            api_key: poker_core::util::random_string(42)
-
+            api_key: poker_core::util::random_string(42),
         }
     }
 }

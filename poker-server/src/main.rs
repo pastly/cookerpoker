@@ -29,4 +29,4 @@ fn get_all_endpoints() -> Vec<rocket::route::Route> {
     v
 }
 
-// TODO build a function to automatically delete the test admin in release mode. 
+// TODO build a function to automatically delete the test admin in release mode.

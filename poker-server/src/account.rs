@@ -101,7 +101,7 @@ impl Account {
                 diesel::insert_into(money_log).values(nme).execute(conn)?;
                 Ok(())
             })
-            .map_err(|_: DbError| DbError::AccountNotFound)
+            .map_err(|x: DbError| DbError::AccountNotFound(format!("{:?}", x)))
         })
         .await
     }
@@ -114,7 +114,7 @@ impl Account {
             settled_accounts
                 .find(id)
                 .first(conn)
-                .map_err(|_| DbError::NoSettledBalance)
+                .map_err(|x| DbError::NoSettledBalance(format!("{:?}", x)))
         })
         .await
     }
@@ -126,8 +126,14 @@ impl Account {
             accounts
                 .find(id)
                 .first(conn)
-                .map_err(|_| DbError::AccountNotFound)
+                .map_err(|x| DbError::AccountNotFound(format!("{:?}", x)))
         })
         .await
+    }
+
+    pub async fn get_all(db: &DbConn) -> Result<Vec<Account>, DbError> {
+        use crate::database::schema::accounts::dsl::accounts;
+        db.run(|conn| accounts.load(conn).map_err(DbError::from))
+            .await
     }
 }

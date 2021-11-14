@@ -6,6 +6,6 @@ pub struct ModSettled {
 
 #[derive(FromForm)]
 pub struct NewAccount {
-    pub name: String,
+    pub account_name: String,
     pub is_admin: bool,
 }
