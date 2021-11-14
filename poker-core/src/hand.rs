@@ -1,14 +1,33 @@
 use crate::deck::{Card, Rank};
-use itertools::Itertools;
+use itertools::{zip, Itertools};
+use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt;
 
 #[derive(Debug)]
-pub struct Hand {
-    cards: [Card; 5],
+pub enum WinState {
+    Win,
+    Tie,
+    Lose,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+impl From<Ordering> for WinState {
+    fn from(o: Ordering) -> Self {
+        match o {
+            Ordering::Less => WinState::Lose,
+            Ordering::Greater => WinState::Win,
+            Ordering::Equal => WinState::Tie,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Hand {
+    cards: [Card; 5],
+    class: HandClass,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum HandClass {
     HighCard,
     Pair,
@@ -22,7 +41,175 @@ pub enum HandClass {
 }
 
 impl HandClass {
-    pub fn which(hand: &Hand) -> HandClass {
+    fn beats(c1: &[Card], c2: &[Card]) -> WinState {
+        let hc1 = HandClass::which(c1);
+        let hc2 = HandClass::which(c2);
+        match hc1.cmp(&hc2) {
+            Ordering::Equal => {}
+            o => return o.into(),
+        };
+        assert_eq!(hc1, hc2);
+        let left: [Rank; 5] = [
+            c1[0].rank(),
+            c1[1].rank(),
+            c1[2].rank(),
+            c1[3].rank(),
+            c1[4].rank(),
+        ];
+        let right: [Rank; 5] = [
+            c2[0].rank(),
+            c2[1].rank(),
+            c2[2].rank(),
+            c2[3].rank(),
+            c2[4].rank(),
+        ];
+        match hc1 {
+            HandClass::StraightFlush => HandClass::beats_straight_flush(left, right),
+            HandClass::FourOfAKind => HandClass::beats_quads(left, right),
+            HandClass::FullHouse => HandClass::beats_full_house(left, right),
+            HandClass::Flush => HandClass::beats_flush(left, right),
+            HandClass::Straight => HandClass::beats_straight(left, right),
+            HandClass::ThreeOfAKind => HandClass::beats_set(left, right),
+            HandClass::TwoPair => HandClass::beats_two_pair(left, right),
+            HandClass::Pair => HandClass::beats_pair(left, right),
+            HandClass::HighCard => HandClass::beats_high_card(left, right),
+        }
+        .into()
+    }
+
+    fn beats_straight_flush(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
+        // flush part is equal; only need to compare the straight part
+        Self::beats_straight(left, right)
+    }
+
+    fn beats_quads(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
+        // the quads will either be 0-3 or 1-4, and kicker the remainder
+        let (quad1, kick1) = if left[0] == left[3] {
+            (left[0], left[4])
+        } else {
+            (left[4], left[0])
+        };
+        let (quad2, kick2) = if right[0] == right[3] {
+            (right[0], right[4])
+        } else {
+            (right[4], right[0])
+        };
+        match quad1.cmp(&quad2) {
+            Ordering::Equal => kick1.cmp(&kick2),
+            o => o,
+        }
+    }
+
+    fn beats_full_house(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
+        // The logic is the same as for beats_set(), except both "kickers" in a hand are the same
+        Self::beats_set(left, right)
+    }
+
+    fn beats_flush(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
+        Self::beats_high_card(left, right)
+    }
+
+    fn beats_straight(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
+        left[0].cmp(&right[0])
+    }
+
+    fn beats_set(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
+        // The set is either 0-2, 1-3, or 2-4. The kickers ar ethe remainder
+        let (trio1, kick1) = if left[0] == left[2] {
+            (left[0], (left[3], left[4]))
+        } else if left[1] == left[3] {
+            (left[1], (left[0], left[4]))
+        } else {
+            (left[2], (left[0], left[1]))
+        };
+        let (trio2, kick2) = if right[0] == right[2] {
+            (right[0], (right[3], right[4]))
+        } else if right[1] == right[3] {
+            (right[1], (right[0], right[4]))
+        } else {
+            (right[2], (right[0], right[1]))
+        };
+        // Yes, with a single deck the set should never be the same for both hands. But for "future
+        // proofing", I'm goign to check anyway.
+        match trio1.cmp(&trio2) {
+            Ordering::Equal => match kick1.0.cmp(&kick2.0) {
+                Ordering::Equal => kick1.1.cmp(&kick2.1),
+                o => o,
+            },
+            o => o,
+        }
+    }
+
+    fn beats_two_pair(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
+        // find the two pairs by finding the odd ball card instead.
+        // If it's 0th, then 1-2 and 3-4 are the pairs.
+        // if it's 4th, then 0-1 and 2-3 are the pairs.
+        // If it's 2nd, then 0-1 and 3-4 are the pairs.
+        let (pairs1, kick1) = if left[0] != left[1] {
+            ((left[1], left[3]), left[0])
+        } else if left[4] != left[3] {
+            ((left[0], left[2]), left[4])
+        } else {
+            ((left[0], left[3]), left[2])
+        };
+        let (pairs2, kick2) = if right[0] != right[1] {
+            ((right[1], right[3]), right[0])
+        } else if right[4] != right[3] {
+            ((right[0], right[2]), right[4])
+        } else {
+            ((right[0], right[3]), right[2])
+        };
+        match pairs1.0.cmp(&pairs2.0) {
+            Ordering::Equal => match pairs1.1.cmp(&pairs2.1) {
+                Ordering::Equal => kick1.cmp(&kick2),
+                o => o,
+            },
+            o => o,
+        }
+    }
+
+    fn beats_pair(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
+        let (pair1, kick1) = if left[0] == left[1] {
+            (left[0], (left[2], left[3], left[4]))
+        } else if left[1] == left[2] {
+            (left[1], (left[0], left[3], left[4]))
+        } else if left[2] == left[3] {
+            (left[2], (left[0], left[1], left[4]))
+        } else {
+            (left[3], (left[0], left[1], left[2]))
+        };
+        let (pair2, kick2) = if right[0] == right[1] {
+            (right[0], (right[2], right[3], right[4]))
+        } else if right[1] == right[2] {
+            (right[1], (right[0], right[3], right[4]))
+        } else if right[2] == right[3] {
+            (right[2], (right[0], right[1], right[4]))
+        } else {
+            (right[3], (right[0], right[1], right[2]))
+        };
+        match pair1.cmp(&pair2) {
+            Ordering::Equal => match kick1.0.cmp(&kick2.0) {
+                Ordering::Equal => match kick1.1.cmp(&kick2.1) {
+                    Ordering::Equal => kick1.2.cmp(&kick2.2),
+                    o => o,
+                },
+                o => o,
+            },
+            o => o,
+        }
+    }
+
+    fn beats_high_card(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
+        for (l, r) in zip(left.iter(), right.iter()) {
+            match l.cmp(r) {
+                Ordering::Equal => {}
+                o => return o,
+            };
+        }
+        Ordering::Equal
+    }
+
+    fn which(c: &[Card]) -> HandClass {
         // sort a copy, in case the order of the main copy of cards is important (and also because
         // we aren't mutably borrowing the hand)
         //
@@ -31,7 +218,8 @@ impl HandClass {
         // not that $foo is the best thing it can be considered. I can only think of one example,
         // unfortunately. It is: is_straight() doesn't check if the hand is also a flush, thus
         // is_straight_flush() must be called first.
-        let mut cards = hand.cards;
+        assert_eq!(c.len(), 5);
+        let mut cards: [Card; 5] = [c[0], c[1], c[2], c[3], c[4]];
         cards.sort_unstable();
         cards.reverse();
         if Self::is_straight_flush(&cards) {
@@ -193,6 +381,14 @@ impl Hand {
     pub fn new_unchecked(c: &[Card]) -> Self {
         Self {
             cards: [c[0], c[1], c[2], c[3], c[4]],
+            class: HandClass::which(c),
+        }
+    }
+
+    pub fn beats(&self, other: &Self) -> WinState {
+        match self.class.cmp(&other.class) {
+            Ordering::Equal => HandClass::beats(&self.cards, &other.cards),
+            o => o.into(),
         }
     }
 }
@@ -260,14 +456,14 @@ mod test_hand_class {
             [Rank::R5, Rank::R4, Rank::R3, Rank::R2, Rank::RA],
         ] {
             for suit in ALL_SUITS {
-                let hand = Hand::new_unchecked(&[
+                let cards = [
                     Card::new(ranks[0], suit),
                     Card::new(ranks[1], suit),
                     Card::new(ranks[2], suit),
                     Card::new(ranks[3], suit),
                     Card::new(ranks[4], suit),
-                ]);
-                assert_eq!(HandClass::which(&hand), HandClass::StraightFlush);
+                ];
+                assert_eq!(HandClass::which(&cards), HandClass::StraightFlush);
             }
         }
     }
@@ -283,14 +479,14 @@ mod test_hand_class {
                 },
                 Suit::Club,
             );
-            let hand = Hand::new_unchecked(&[
+            let cards = [
                 Card::new(rank, Suit::Club),
                 Card::new(rank, Suit::Diamond),
                 Card::new(rank, Suit::Heart),
                 Card::new(rank, Suit::Spade),
                 extra,
-            ]);
-            assert_eq!(HandClass::which(&hand), HandClass::FourOfAKind);
+            ];
+            assert_eq!(HandClass::which(&cards), HandClass::FourOfAKind);
         }
     }
 
@@ -302,14 +498,14 @@ mod test_hand_class {
                 if rank2 == rank3 {
                     continue;
                 }
-                let hand = Hand::new_unchecked(&[
+                let cards = [
                     Card::new(rank3, Suit::Club),
                     Card::new(rank3, Suit::Diamond),
                     Card::new(rank3, Suit::Heart),
                     Card::new(rank2, Suit::Club),
                     Card::new(rank2, Suit::Diamond),
-                ]);
-                assert_eq!(HandClass::which(&hand), HandClass::FullHouse);
+                ];
+                assert_eq!(HandClass::which(&cards), HandClass::FullHouse);
             }
         }
     }
@@ -323,14 +519,14 @@ mod test_hand_class {
             [Rank::R2, Rank::R4, Rank::R5, Rank::R6, Rank::R7],
         ] {
             for suit in ALL_SUITS {
-                let hand = Hand::new_unchecked(&[
+                let cards = [
                     Card::new(ranks[0], suit),
                     Card::new(ranks[1], suit),
                     Card::new(ranks[2], suit),
                     Card::new(ranks[3], suit),
                     Card::new(ranks[4], suit),
-                ]);
-                assert_eq!(HandClass::which(&hand), HandClass::Flush);
+                ];
+                assert_eq!(HandClass::which(&cards), HandClass::Flush);
             }
         }
     }
@@ -349,14 +545,14 @@ mod test_hand_class {
             [Rank::R6, Rank::R5, Rank::R4, Rank::R3, Rank::R2],
             [Rank::R5, Rank::R4, Rank::R3, Rank::R2, Rank::RA],
         ] {
-            let hand = Hand::new_unchecked(&[
+            let cards = [
                 Card::new(ranks[0], Suit::Club),
                 Card::new(ranks[1], Suit::Club),
                 Card::new(ranks[2], Suit::Club),
                 Card::new(ranks[3], Suit::Club),
                 Card::new(ranks[4], Suit::Spade),
-            ]);
-            assert_eq!(HandClass::which(&hand), HandClass::Straight);
+            ];
+            assert_eq!(HandClass::which(&cards), HandClass::Straight);
         }
     }
 
@@ -371,14 +567,14 @@ mod test_hand_class {
                 Rank::RA => Rank::RK,
                 _ => Rank::RA,
             };
-            let hand = Hand::new_unchecked(&[
+            let cards = [
                 Card::new(rank, Suit::Club),
                 Card::new(rank, Suit::Diamond),
                 Card::new(rank, Suit::Heart),
                 Card::new(r2, Suit::Club),
                 Card::new(r3, Suit::Club),
-            ]);
-            assert_eq!(HandClass::which(&hand), HandClass::ThreeOfAKind);
+            ];
+            assert_eq!(HandClass::which(&cards), HandClass::ThreeOfAKind);
         }
     }
 
@@ -396,14 +592,14 @@ mod test_hand_class {
                 } else {
                     Rank::RQ
                 };
-                let hand = Hand::new_unchecked(&[
+                let cards = [
                     Card::new(r1, Suit::Club),
                     Card::new(r1, Suit::Diamond),
                     Card::new(r2, Suit::Club),
                     Card::new(r2, Suit::Diamond),
                     Card::new(r3, Suit::Spade),
-                ]);
-                assert_eq!(HandClass::which(&hand), HandClass::TwoPair);
+                ];
+                assert_eq!(HandClass::which(&cards), HandClass::TwoPair);
             }
         }
     }
@@ -423,14 +619,14 @@ mod test_hand_class {
                 Rank::R6 => Rank::R7,
                 _ => Rank::R6,
             };
-            let hand = Hand::new_unchecked(&[
+            let cards = [
                 Card::new(r1, Suit::Club),
                 Card::new(r2, Suit::Club),
                 Card::new(r3, Suit::Club),
                 Card::new(rank, Suit::Club),
                 Card::new(rank, Suit::Diamond),
-            ]);
-            assert_eq!(HandClass::which(&hand), HandClass::Pair);
+            ];
+            assert_eq!(HandClass::which(&cards), HandClass::Pair);
         }
     }
 
@@ -441,14 +637,33 @@ mod test_hand_class {
             [Rank::RT, Rank::R8, Rank::R6, Rank::R4, Rank::R2],
             [Rank::R2, Rank::R4, Rank::R5, Rank::R6, Rank::R7],
         ] {
-            let hand = Hand::new_unchecked(&[
+            let cards = [
                 Card::new(ranks[0], Suit::Club),
                 Card::new(ranks[1], Suit::Club),
                 Card::new(ranks[2], Suit::Club),
                 Card::new(ranks[3], Suit::Club),
                 Card::new(ranks[4], Suit::Diamond),
-            ]);
-            assert_eq!(HandClass::which(&hand), HandClass::HighCard);
+            ];
+            assert_eq!(HandClass::which(&cards), HandClass::HighCard);
         }
+    }
+
+    #[test]
+    fn foo_beats() {
+        let h1 = Hand::new_unchecked(&[
+            Card::new(Rank::RA, Suit::Club),
+            Card::new(Rank::RA, Suit::Diamond),
+            Card::new(Rank::RA, Suit::Heart),
+            Card::new(Rank::RA, Suit::Spade),
+            Card::new(Rank::R2, Suit::Club),
+        ]);
+        let h2 = Hand::new_unchecked(&[
+            Card::new(Rank::RK, Suit::Club),
+            Card::new(Rank::RK, Suit::Diamond),
+            Card::new(Rank::RK, Suit::Heart),
+            Card::new(Rank::RK, Suit::Spade),
+            Card::new(Rank::R3, Suit::Club),
+        ]);
+        println!("{:?}", h1.beats(&h2));
     }
 }

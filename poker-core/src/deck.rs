@@ -1,7 +1,7 @@
 use rand::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fmt;
-use serde::{Serialize, Deserialize};
 
 pub const ALL_RANKS: [Rank; 13] = [
     Rank::R2,
