@@ -1,5 +1,5 @@
-use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 
 pub fn random_string(count: usize) -> String {
     let mut rng = thread_rng();
