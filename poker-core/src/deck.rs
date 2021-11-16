@@ -242,7 +242,11 @@ impl Deck {
         if self.cards.len() <= num_players as usize {
             Err(DeckError::OutOfCards)
         } else {
-            Ok([self.draw()?, self.cards.remove(self.cards.len() - (num_players as usize - 1))])
+            Ok([
+                self.draw()?,
+                self.cards
+                    .remove(self.cards.len() - (num_players as usize - 1)),
+            ])
         }
     }
 }
