@@ -436,7 +436,7 @@ pub fn best_of_cards(cards: &[Card]) -> Vec<Hand> {
         return vec![];
     }
     let mut hands: Vec<_> = cards
-        .into_iter()
+        .iter()
         .combinations(5)
         .map(|combo| {
             // .combinations() gives us a Vec<&Card>, but we want Vec<Card>
@@ -446,7 +446,7 @@ pub fn best_of_cards(cards: &[Card]) -> Vec<Hand> {
         .collect();
     // do r.beats(l) instead of l.beats(r) because we want the first items in the list to be better
     // than the ones that follow. Otherwise we'd have to sort and then reverse afterward.
-    hands.sort_unstable_by(|l, r| r.beats(&l).into());
+    hands.sort_unstable_by(|l, r| r.beats(l).into());
     // The best hand is at the front. Return a Vec containing items from the front of the list as
     // long as they tie the best hand.
     let best = hands[0];
