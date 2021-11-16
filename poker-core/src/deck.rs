@@ -20,10 +20,10 @@ pub const ALL_RANKS: [Rank; 13] = [
 ];
 pub const ALL_SUITS: [Suit; 4] = [Suit::Club, Suit::Diamond, Suit::Heart, Suit::Spade];
 const DECK_LEN: usize = ALL_RANKS.len() * ALL_SUITS.len();
-const SPADE: char = 's';
-const HEART: char = 'h';
-const DIAMOND: char = 'd';
-const CLUB: char = 'c';
+pub const SPADE: char = 's';
+pub const HEART: char = 'h';
+pub const DIAMOND: char = 'd';
+pub const CLUB: char = 'c';
 //const SPADE: &str = "♤";
 //const HEART: &str = "♡";
 //const DIAMOND: &str = "♢";

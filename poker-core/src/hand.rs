@@ -21,7 +21,17 @@ impl From<Ordering> for WinState {
     }
 }
 
-#[derive(Debug)]
+impl From<WinState> for Ordering {
+    fn from(ws: WinState) -> Self {
+        match ws {
+            WinState::Lose => Ordering::Less,
+            WinState::Win => Ordering::Greater,
+            WinState::Tie => Ordering::Equal,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
 pub struct Hand {
     cards: [Card; 5],
     class: HandClass,
@@ -404,6 +414,89 @@ impl Hand {
             Ordering::Equal => HandClass::beats(&self.cards, &other.cards),
             o => o.into(),
         }
+    }
+}
+
+/// Checks all 5-card combinations of the given cards, and returns a Vector of the best
+/// 5-card hands. If more than one Hand is returned, they are all equal (WinState::Tie).
+/// If <5 cards are in the given slice, returns an empty vec.
+///
+/// This function checks every single possible combination of five cards. Be mindful of this before
+/// given it a large number of cards.
+///
+///    - 6 choose 5: 6
+///    - 7 choose 5: 21
+///    - 8 choose 5: 56
+///    - 10 choose 5: 252
+///    - 52 choose 5: 2.6 million
+///
+/// The original use case was best 5 card hand given 7 cards.
+pub fn best_of_cards(cards: &[Card]) -> Vec<Hand> {
+    if cards.len() < 5 {
+        return vec![];
+    }
+    let mut hands: Vec<_> = cards
+        .into_iter()
+        .combinations(5)
+        .map(|combo| {
+            // .combinations() gives us a Vec<&Card>, but we want Vec<Card>
+            combo.iter().map(|&c| *c).collect::<Vec<Card>>()
+        })
+        .map(|combo| Hand::new_unchecked(&combo))
+        .collect();
+    // do r.beats(l) instead of l.beats(r) because we want the first items in the list to be better
+    // than the ones that follow. Otherwise we'd have to sort and then reverse afterward.
+    hands.sort_unstable_by(|l, r| r.beats(&l).into());
+    // The best hand is at the front. Return a Vec containing items from the front of the list as
+    // long as they tie the best hand.
+    let best = hands[0];
+    hands
+        .into_iter()
+        .take_while(|h| h.beats(&best) == WinState::Tie)
+        .collect()
+}
+
+#[cfg(test)]
+mod test_best_of_cards {
+    use super::*;
+    use crate::deck::*;
+
+    fn one_best(s: &'static str, hc: HandClass, high_card: Card) {
+        let hands = best_of_cards(&cards_from_str(s));
+        for hand in &hands {
+            println!("{}", hand);
+        }
+        assert_eq!(hands.len(), 1);
+        let hand = hands[0];
+        assert_eq!(hand.class, hc);
+        let card = hand.cards.iter().max().unwrap();
+        assert_eq!(card.rank(), high_card.rank());
+        assert_eq!(card.suit(), high_card.suit());
+    }
+
+    fn multi_best(s: &'static str, hc: HandClass, n: usize) {
+        let hands = best_of_cards(&cards_from_str(s));
+        for hand in &hands {
+            println!("{}", hand);
+        }
+        assert_eq!(hands.len(), n);
+        assert_eq!(hands[0].class, hc);
+    }
+
+    #[test]
+    fn multiple_straights() {
+        one_best("Ac2d3h4s5c6dTh", HandClass::Straight, ['6', DIAMOND].into());
+    }
+
+    #[test]
+    fn multiple_straights_tie() {
+        multi_best("Kc2d3h4s5c6d6h", HandClass::Straight, 2);
+        multi_best("2d3h4s5c6d6h6s", HandClass::Straight, 3);
+    }
+
+    #[test]
+    fn straight_vs_flush() {
+        one_best("Th9s8h7h6h5h2c", HandClass::Flush, ['T', HEART].into());
     }
 }
 
