@@ -1,19 +1,14 @@
-use poker_core::deck::{Card, Deck};
-use poker_core::hand::Hand;
+use poker_core::deck::Deck;
+use poker_core::hand::best_of_cards;
 
 fn main() {
-    let mut d = Deck::new();
-    let c1 = d.draw().unwrap();
-    let c2 = d.draw().unwrap();
-    println!("{}{}", c1, c2);
-
-    let cards: Vec<Card> = vec![
-        d.draw().unwrap(),
-        d.draw().unwrap(),
-        d.draw().unwrap(),
-        d.draw().unwrap(),
-        d.draw().unwrap(),
-    ];
-    let hand = Hand::new(&cards).unwrap();
-    println!("{}", hand);
+    let n = 7;
+    let reps = 1;
+    for rep in 0..reps {
+        let mut d = Deck::new();
+        let cards: Vec<_> = (0..n).map(|_| d.draw().unwrap()).collect();
+        for item in best_of_cards(&cards) {
+            println!("{} {}", rep, item);
+        }
+    }
 }
