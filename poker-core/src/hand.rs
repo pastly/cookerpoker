@@ -435,7 +435,7 @@ mod test_hand {
 #[cfg(test)]
 mod test_hand_class {
     use super::*;
-    use crate::deck::{cards_from_str, Rank, Suit};
+    use crate::deck::{Rank, Suit};
 
     const ALL_RANKS: [Rank; 13] = [
         Rank::R2,
@@ -668,183 +668,175 @@ mod test_hand_class_beats {
     use super::*;
     use crate::deck::cards_from_str;
 
+    fn win_lose(s1: &'static str, s2: &'static str, hc: HandClass) {
+        let h1 = Hand::new_unchecked(&cards_from_str(s1));
+        let h2 = Hand::new_unchecked(&cards_from_str(s2));
+        assert_eq!(h1.class, hc);
+        assert_eq!(h2.class, hc);
+        println!("win? {} vs {}", h1, h2);
+        assert_eq!(h1.beats(&h2), WinState::Win);
+        println!("lose? {} vs {}", h2, h1);
+        assert_eq!(h2.beats(&h1), WinState::Lose);
+    }
+
+    fn tie(s1: &'static str, s2: &'static str, hc: HandClass) {
+        let h1 = Hand::new_unchecked(&cards_from_str(s1));
+        let h2 = Hand::new_unchecked(&cards_from_str(s2));
+        assert_eq!(h1.class, hc);
+        assert_eq!(h2.class, hc);
+        println!("tie? {} vs {}", h1, h2);
+        assert_eq!(h1.beats(&h2), WinState::Tie);
+    }
+
     #[test]
     fn straight_flush_tie() {
-        let h1 = Hand::new_unchecked(&cards_from_str("AcKcQcJcTc"));
-        let h2 = Hand::new_unchecked(&cards_from_str("AdKdQdJdTd"));
-        assert_eq!(h1.beats(&h2), WinState::Tie);
-        let h1 = Hand::new_unchecked(&cards_from_str("KcQcJcTc9c"));
-        let h2 = Hand::new_unchecked(&cards_from_str("KdQdJdTd9d"));
-        assert_eq!(h1.beats(&h2), WinState::Tie);
-        let h1 = Hand::new_unchecked(&cards_from_str("5c4c3c2cAc"));
-        let h2 = Hand::new_unchecked(&cards_from_str("5d4d3d2dAd"));
-        assert_eq!(h1.beats(&h2), WinState::Tie);
+        for (s1, s2) in [
+            ("AcKcQcJcTc", "AdKdQdJdTd"),
+            ("KcQcJcTc9c", "KdQdJdTd9d"),
+            ("5c4c3c2cAc", "5d4d3d2dAd"),
+        ] {
+            tie(s1, s2, HandClass::StraightFlush);
+        }
     }
 
     #[test]
-    fn straight_flush_win() {
-        let h1 = Hand::new_unchecked(&cards_from_str("AcKcQcJcTc"));
-        let h2 = Hand::new_unchecked(&cards_from_str("KdQdJdTd9d"));
-        println!("{} vs {}", h1, h2);
-        assert_eq!(h1.beats(&h2), WinState::Win);
-        let h1 = Hand::new_unchecked(&cards_from_str("6c5c4c3c2c"));
-        let h2 = Hand::new_unchecked(&cards_from_str("5d4d3d2dAd"));
-        println!("{} vs {}", h1, h2);
-        assert_eq!(h1.beats(&h2), WinState::Win);
-        let h1 = Hand::new_unchecked(&cards_from_str("AcKcQcJcTc"));
-        let h2 = Hand::new_unchecked(&cards_from_str("5d4d3d2dAd"));
-        println!("{} vs {}", h1, h2);
-        assert_eq!(h1.beats(&h2), WinState::Win);
-    }
-
-    #[test]
-    fn straight_flush_lose() {
-        let h1 = Hand::new_unchecked(&cards_from_str("KdQdJdTd9d"));
-        let h2 = Hand::new_unchecked(&cards_from_str("AcKcQcJcTc"));
-        println!("{} vs {}", h1, h2);
-        assert_eq!(h1.beats(&h2), WinState::Lose);
-        let h1 = Hand::new_unchecked(&cards_from_str("5d4d3d2dAd"));
-        let h2 = Hand::new_unchecked(&cards_from_str("6c5c4c3c2c"));
-        println!("{} vs {}", h1, h2);
-        assert_eq!(h1.beats(&h2), WinState::Lose);
+    fn straight_flush() {
+        for (s1, s2) in [
+            ("AcKcQcJcTc", "KdQdJdTd9d"),
+            ("6c5c4c3c2c", "5d4d3d2dAd"),
+            ("AcKcQcJcTc", "5d4d3d2dAd"),
+        ] {
+            win_lose(s1, s2, HandClass::StraightFlush);
+        }
     }
 
     #[test]
     fn quads_tie() {
         // this should be impossible in typical single deck poker, but check for it anyway since
         // the logic doesn't care
-        let h1 = Hand::new_unchecked(&cards_from_str("2c2d2h2s3c"));
-        let h2 = Hand::new_unchecked(&cards_from_str("2c2d2h2s3d"));
-        println!("{} vs {}", h1, h2);
-        assert_eq!(h1.beats(&h2), WinState::Tie);
+        for (s1, s2) in [("2c2d2h2s3c", "2c2d2h2s3d")] {
+            tie(s1, s2, HandClass::FourOfAKind);
+        }
     }
 
     #[test]
-    fn quads_win() {
-        let h1 = Hand::new_unchecked(&cards_from_str("4c4d4h4s3c"));
-        let h2 = Hand::new_unchecked(&cards_from_str("3c3d3h3s2d"));
-        println!("{} vs {}", h1, h2);
-        assert_eq!(h1.beats(&h2), WinState::Win);
-        let h1 = Hand::new_unchecked(&cards_from_str("4c4d4h4s5c"));
-        let h2 = Hand::new_unchecked(&cards_from_str("4c4d4h4s3c"));
-        println!("{} vs {}", h1, h2);
-        assert_eq!(h1.beats(&h2), WinState::Win);
-    }
-
-    #[test]
-    fn quads_lose() {
-        let h1 = Hand::new_unchecked(&cards_from_str("3c3d3h3s2d"));
-        let h2 = Hand::new_unchecked(&cards_from_str("4c4d4h4s3c"));
-        println!("{} vs {}", h1, h2);
-        assert_eq!(h1.beats(&h2), WinState::Lose);
-        let h1 = Hand::new_unchecked(&cards_from_str("4c4d4h4s3c"));
-        let h2 = Hand::new_unchecked(&cards_from_str("4c4d4h4s5c"));
-        println!("{} vs {}", h1, h2);
-        assert_eq!(h1.beats(&h2), WinState::Lose);
+    fn quads() {
+        for (s1, s2) in [("4c4d4h4s3c", "3c3d3h3s2d"), ("4c4d4h4s5c", "4c4d4h4s3c")] {
+            win_lose(s1, s2, HandClass::FourOfAKind);
+        }
     }
 
     #[test]
     fn full_house_tie() {
-        unimplemented!()
+        for (s1, s2) in [("AcAdAhKcKd", "AdAhAsKhKs")] {
+            tie(s1, s2, HandClass::FullHouse);
+        }
     }
 
     #[test]
-    fn full_house_win() {
-        unimplemented!()
-    }
-
-    #[test]
-    fn full_house_lose() {
-        unimplemented!()
+    fn full_house() {
+        for (s1, s2) in [("4c4d4h3s3c", "3c3d3h2s2d"), ("4c4d4h5s5c", "4c4d4h3s3c")] {
+            win_lose(s1, s2, HandClass::FullHouse);
+        }
     }
 
     #[test]
     fn flush_tie() {
-        unimplemented!()
+        for (s1, s2) in [("AsKsQsJs2s", "AdKdQdJd2d")] {
+            tie(s1, s2, HandClass::Flush);
+        }
     }
 
     #[test]
-    fn flush_win() {
-        unimplemented!()
-    }
-
-    #[test]
-    fn flush_lose() {
-        unimplemented!()
+    fn flush() {
+        for (s1, s2) in [("AsKsQsJs3s", "AdKdQdJd2d"), ("As6s5s4s3s", "Kd7d6d5d4d")] {
+            win_lose(s1, s2, HandClass::Flush);
+        }
     }
 
     #[test]
     fn straight_tie() {
-        unimplemented!()
+        for (s1, s2) in [("AsKsQsJsTd", "AcKcQcJcTs")] {
+            tie(s1, s2, HandClass::Straight);
+        }
     }
 
     #[test]
-    fn straight_win() {
-        unimplemented!()
-    }
-
-    #[test]
-    fn straight_lose() {
-        unimplemented!()
+    fn straight() {
+        for (s1, s2) in [
+            ("AsKsQsJsTd", "KcQcJcTc9s"),
+            ("AsKsQsJsTd", "Ac2c3c4c5s"),
+            ("6s5s4s3s2d", "Ac2c3c4c5s"),
+        ] {
+            win_lose(s1, s2, HandClass::Straight);
+        }
     }
 
     #[test]
     fn set_tie() {
-        unimplemented!()
+        for (s1, s2) in [("AcAdAh4s3d", "AsAcAd4c3s"), ("3c3d3hAsKd", "3s3c3dAcKs")] {
+            tie(s1, s2, HandClass::ThreeOfAKind);
+        }
     }
 
     #[test]
-    fn set_win() {
-        unimplemented!()
-    }
-
-    #[test]
-    fn set_lose() {
-        unimplemented!()
+    fn set() {
+        for (s1, s2) in [
+            ("AcAdAh4s3d", "AsAcAd3c2s"),
+            ("9c9d9hTsJd", "9s9c9d2c3s"),
+            ("9c9d9h6s3d", "9s9c9d3c2s"),
+        ] {
+            win_lose(s1, s2, HandClass::ThreeOfAKind);
+        }
     }
 
     #[test]
     fn two_pair_tie() {
-        unimplemented!()
+        for (s1, s2) in [("AsAsKsKsTd", "AcAcKcKcTs")] {
+            tie(s1, s2, HandClass::TwoPair);
+        }
     }
 
     #[test]
-    fn two_pair_win() {
-        unimplemented!()
-    }
-
-    #[test]
-    fn two_pair_lose() {
-        unimplemented!()
+    fn two_pair() {
+        for (s1, s2) in [("AsAsKsKsJd", "AcAcKcKcTs"), ("AsAsKsKsJd", "AcAcQcQcKs")] {
+            win_lose(s1, s2, HandClass::TwoPair);
+        }
     }
 
     #[test]
     fn pair_tie() {
-        unimplemented!()
+        for (s1, s2) in [("AcAd5h4s3d", "AcAd5s4c3h"), ("2c2d5h4s3d", "2c2d5s4c3h")] {
+            tie(s1, s2, HandClass::Pair);
+        }
     }
 
     #[test]
-    fn pair_win() {
-        unimplemented!()
-    }
-
-    #[test]
-    fn pair_lose() {
-        unimplemented!()
+    fn pair() {
+        for (s1, s2) in [
+            ("AcAdKh4s3d", "AcAd5h4s3d"),
+            ("AcAd5h4s3d", "AcAd5h4s2d"),
+            ("2c2d6h4s3d", "2c2d5h4s3d"),
+        ] {
+            win_lose(s1, s2, HandClass::Pair);
+        }
     }
 
     #[test]
     fn high_card_tie() {
-        unimplemented!()
+        for (s1, s2) in [("KcQdJhTs5c", "KdQhJsTc5d")] {
+            tie(s1, s2, HandClass::HighCard);
+        }
     }
 
     #[test]
-    fn high_card_win() {
-        unimplemented!()
-    }
-
-    #[test]
-    fn high_card_lose() {
-        unimplemented!()
+    fn high_card() {
+        for (s1, s2) in [
+            ("Ac7d6h5s4d", "Ac6d5h4s3d"),
+            ("AcKdQhJs7d", "AcKdQhJs3d"),
+            ("8c7d6h4s3d", "7c6d5h3s2d"),
+        ] {
+            win_lose(s1, s2, HandClass::HighCard);
+        }
     }
 }
