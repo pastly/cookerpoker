@@ -320,6 +320,30 @@ mod tests {
     }
 
     #[test]
+    fn deal_pockets_1() {
+        let mut d = Deck::new();
+        let expect = [d.cards[51], d.cards[50]];
+        let actual = d.deal_pockets(1).unwrap();
+        assert_eq!(actual[0], expect);
+    }
+
+    #[test]
+    fn deal_pockets_2() {
+        let mut d = Deck::new();
+        println!("46 {}", d.cards[46]);
+        println!("47 {}", d.cards[47]);
+        println!("48 {}", d.cards[48]);
+        println!("49 {}", d.cards[49]);
+        println!("50 {}", d.cards[50]);
+        println!("51 {}", d.cards[51]);
+        let expect1 = [d.cards[51], d.cards[49]];
+        let expect2 = [d.cards[50], d.cards[48]];
+        let actual = d.deal_pockets(2).unwrap();
+        assert_eq!(actual[0], expect1);
+        assert_eq!(actual[1], expect2);
+    }
+
+    #[test]
     fn deal_pockets() {
         let mut d = Deck::new();
         let v = d.deal_pockets(10).expect("Can't deal pockets?");
