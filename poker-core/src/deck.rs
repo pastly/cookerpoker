@@ -178,6 +178,7 @@ impl Card {
 pub enum DeckError {
     OutOfCards,
     TooManyPlayers,
+    CantDealToNoPlayers,
 }
 
 impl Error for DeckError {}
@@ -186,7 +187,8 @@ impl fmt::Display for DeckError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DeckError::OutOfCards => write!(f, "No more cards in deck"),
-            &DeckError::TooManyPlayers => write!(f, "Too many players to deal"),
+            DeckError::TooManyPlayers => write!(f, "Too many players to deal"),
+            DeckError::CantDealToNoPlayers => write!(f, "Need at least one player"),
         }
     }
 }
@@ -228,6 +230,8 @@ impl Deck {
     pub fn deal_pockets(&mut self, num_players: u8) -> Result<Vec<[Card; 2]>, DeckError> {
         if num_players > MAX_PLAYERS {
             return Err(DeckError::TooManyPlayers);
+        } else if num_players == 1 {
+            return Err(DeckError::CantDealToNoPlayers);
         } else {
             let mut v = Vec::new();
             // Range only works in positive direction
