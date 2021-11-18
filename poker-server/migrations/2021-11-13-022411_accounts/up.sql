@@ -22,7 +22,7 @@ CREATE TABLE money_log (
 
 CREATE TABLE player_meta (
     account_id INTEGER NOT NULL PRIMARY KEY,
-    player_name TEXT NOT NULL DEFAULT "anonymouse",
+    player_name TEXT,
     email TEXT,
     FOREIGN KEY (account_id)
         REFERENCES accounts (id)
@@ -30,12 +30,15 @@ CREATE TABLE player_meta (
 
 CREATE TABLE game_tables (
     id INTEGER NOT NULL PRIMARY KEY,
+    table_owner INTEGER NOT NULL,
     table_type SMALLINT NOT NULL DEFAULT 0,
     table_name TEXT NOT NULL,
-    table_state INTEGER NOT NULL DEFAULT 0,
+    table_state SMALLINT NOT NULL DEFAULT 0,
     hand_num INTEGER NOT NULL DEFAULT 0,
     buy_in INTEGER NOT NULL,
-    small_blind INTEGER NOT NULL
+    small_blind INTEGER NOT NULL,
+    FOREIGN KEY (table_owner)
+        REFERENCES accounts (id)
 );
 
 CREATE TABLE seated (

@@ -11,9 +11,10 @@ table! {
 table! {
     game_tables (id) {
         id -> Integer,
+        table_owner -> Integer,
         table_type -> SmallInt,
         table_name -> Text,
-        table_state -> Integer,
+        table_state -> SmallInt,
         hand_num -> Integer,
         buy_in -> Integer,
         small_blind -> Integer,
@@ -33,7 +34,7 @@ table! {
 table! {
     player_meta (account_id) {
         account_id -> Integer,
-        player_name -> Text,
+        player_name -> Nullable<Text>,
         email -> Nullable<Text>,
     }
 }
@@ -45,9 +46,16 @@ table! {
     }
 }
 
+joinable!(game_tables -> accounts (table_owner));
 joinable!(money_log -> accounts (account_id));
 joinable!(player_meta -> accounts (account_id));
 joinable!(seated -> accounts (account_id));
 joinable!(seated -> game_tables (table_id));
 
-allow_tables_to_appear_in_same_query!(accounts, game_tables, money_log, player_meta, seated,);
+allow_tables_to_appear_in_same_query!(
+    accounts,
+    game_tables,
+    money_log,
+    player_meta,
+    seated,
+);
