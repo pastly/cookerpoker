@@ -31,7 +31,7 @@ CREATE TABLE player_meta (
 CREATE TABLE game_tables (
     id INTEGER NOT NULL PRIMARY KEY,
     table_owner INTEGER NOT NULL,
-    table_type SMALLINT NOT NULL DEFAULT 0,
+    table_type SMALLINT NOT NULL DEFAULT 1,
     table_name TEXT NOT NULL,
     table_state SMALLINT NOT NULL DEFAULT 0,
     hand_num INTEGER NOT NULL DEFAULT 0,

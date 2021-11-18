@@ -14,12 +14,9 @@
             </tr>
         {% endfor %}
     </table>
-    <form method=POST>
+    <form action="/table" method=POST>
         <label for="name">Table Name</label>
         <input type="Text" id="table_name" name="table_name">
-        <label for="table_type"></label>
-        <input type="radio" id="tourny" name="table_type">
-        <input type="radio" id="open" name="table_type">
         <input type="submit" value="submit">
     </form>
 </html>

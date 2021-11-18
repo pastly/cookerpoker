@@ -65,15 +65,15 @@ impl From<forms::NewAccount> for NewAccount {
 #[derive(Insertable)]
 #[table_name = "game_tables"]
 pub struct NewTable {
+    table_owner: i32,
     table_name: String,
-    table_type: i16,
 }
 
 impl NewTable {
-    pub fn new(table_name: String, table_type: TableType) -> Self {
+    pub fn new(table_owner: i32, table_name: String) -> Self {
         NewTable {
+            table_owner,
             table_name,
-            table_type: table_type.into(),
         }
     }
 }

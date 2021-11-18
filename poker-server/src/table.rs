@@ -14,16 +14,16 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize)]
 pub struct RenderedTable {
     pub id: i32,
-    pub table_name: String,
-    pub table_state: String,
+    pub name: String,
+    pub state: String,
 }
 
 impl From<GameTable> for RenderedTable {
     fn from(gt: GameTable) -> Self {
         Self {
             id: gt.id,
-            table_name: gt.table_name,
-            table_state: format!(
+            name: gt.table_name,
+            state: format!(
                 "{}",
                 TableState::try_from(gt.table_state).expect("Bad table state loaded from DB!")
             ),

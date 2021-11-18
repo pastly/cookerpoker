@@ -1,11 +1,11 @@
 use super::*;
-use crate::account::{Account, Admin, User};
-use crate::database::models::GameTable;
-use crate::database::{DbConn, DbError};
-use derive_more::Deref;
+use crate::account::User;
+use crate::database::models::{GameTable, NewTable};
+use crate::database::{schema::game_tables, DbConn, DbError};
+use diesel::prelude::*;
 use rocket::form::Form;
 use rocket::response::Redirect;
-use rocket_dyn_templates::{tera::to_value, tera::Context, Template};
+use rocket_dyn_templates::{tera::Context, Template};
 
 pub fn get_endpoints() -> Vec<rocket::route::Route> {
     routes![
@@ -17,7 +17,7 @@ pub fn get_endpoints() -> Vec<rocket::route::Route> {
 }
 
 // TODO GameTableError
-#[get("/table")]
+#[get("/tables")]
 pub async fn get_tables(db: DbConn, u: User) -> Result<Template, DbError> {
     let uid = u.id;
     let tables: Vec<RenderedTable> = db
@@ -31,8 +31,22 @@ pub async fn get_tables(db: DbConn, u: User) -> Result<Template, DbError> {
     Ok(Template::render("list_tables", &c.into_json()))
 }
 
-#[post("/table")]
-pub async fn new_table(db: DbConn, _a: Admin) -> () {}
+#[post("/table", data = "<nt>")]
+pub async fn new_table(
+    db: DbConn,
+    u: User,
+    nt: Form<forms::NewTable>,
+) -> Result<Redirect, DbError> {
+    let ntf = nt.into_inner();
+    let nt = NewTable::new(u.id, ntf.table_name);
+    db.run(move |conn| {
+        diesel::insert_into(game_tables::table)
+            .values(&nt)
+            .execute(conn)
+    })
+    .await?;
+    Ok(Redirect::to("/tables"))
+}
 
 #[get("/table/<id>")]
 pub async fn get_table_settings(db: DbConn, _u: User, id: i32) -> () {}
