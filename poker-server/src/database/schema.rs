@@ -52,10 +52,4 @@ joinable!(player_meta -> accounts (account_id));
 joinable!(seated -> accounts (account_id));
 joinable!(seated -> game_tables (table_id));
 
-allow_tables_to_appear_in_same_query!(
-    accounts,
-    game_tables,
-    money_log,
-    player_meta,
-    seated,
-);
+allow_tables_to_appear_in_same_query!(accounts, game_tables, money_log, player_meta, seated,);

@@ -1,8 +1,8 @@
 use super::schema::{accounts, game_tables, money_log};
 use crate::account::forms;
-use serde::{Deserialize, Serialize};
+use diesel::dsl::{Eq, Filter, Or, Select};
 use diesel::prelude::*;
-use diesel::dsl::{Eq, Select, Filter, Or};
+use serde::{Deserialize, Serialize};
 
 #[derive(Identifiable, Queryable, Insertable, Serialize, Deserialize, Debug)]
 pub struct Account {
@@ -85,12 +85,21 @@ pub struct GameTable {
     pub table_type: i16,
     pub table_name: String,
     pub table_state: i16,
-    pub hand_num: i32, 
+    pub hand_num: i32,
     pub buy_in: i32,
     pub small_blind: i32,
 }
 
-pub type GameTableAllColumns = (game_tables::id, game_tables::table_owner, game_tables::table_type, game_tables::table_name, game_tables::table_state, game_tables::hand_num, game_tables::buy_in, game_tables::small_blind);
+pub type GameTableAllColumns = (
+    game_tables::id,
+    game_tables::table_owner,
+    game_tables::table_type,
+    game_tables::table_name,
+    game_tables::table_state,
+    game_tables::hand_num,
+    game_tables::buy_in,
+    game_tables::small_blind,
+);
 
 use crate::table::{TableError, TableType};
 pub type SelectAllTables = Select<game_tables::table, GameTableAllColumns>;
@@ -107,14 +116,18 @@ impl GameTable {
     pub fn all() -> SelectAllTables {
         game_tables::dsl::game_tables.select(game_tables::all_columns)
     }
-    
+
     pub fn get_open() -> OpenTableFilter {
-        use game_tables::dsl;
         use crate::table::TableState;
-        
-        Self::all().filter(dsl::table_state.eq(TableState::GameOpenStarted.i()).or(dsl::table_state.eq(TableState::GameOpenNotStarted.i())))
+        use game_tables::dsl;
+
+        Self::all().filter(
+            dsl::table_state
+                .eq(TableState::GameOpenStarted.i())
+                .or(dsl::table_state.eq(TableState::GameOpenNotStarted.i())),
+        )
     }
-    
+
     pub fn get_open_or_my_tables(table_owner: i32) -> OpenOrMyTables {
         use game_tables::dsl;
         Self::get_open().or_filter(dsl::table_owner.eq(table_owner))

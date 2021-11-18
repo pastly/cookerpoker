@@ -20,7 +20,12 @@ pub fn get_endpoints() -> Vec<rocket::route::Route> {
 #[get("/table")]
 pub async fn get_tables(db: DbConn, u: User) -> Result<Template, DbError> {
     let uid = u.id;
-    let tables: Vec<RenderedTable> = db.run(move |conn| GameTable::get_open_or_my_tables(uid).get_results::<GameTable>(conn)).await.map_err(|x| DbError::from(x))?.into_iter().map(|x| RenderedTable::from(x)).collect();
+    let tables: Vec<RenderedTable> = db
+        .run(move |conn| GameTable::get_open_or_my_tables(uid).get_results::<GameTable>(conn))
+        .await?
+        .into_iter()
+        .map(|x| RenderedTable::from(x))
+        .collect();
     let mut c = Context::new();
     c.insert("tables", &tables);
     Ok(Template::render("list_tables", &c.into_json()))

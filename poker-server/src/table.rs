@@ -23,7 +23,10 @@ impl From<GameTable> for RenderedTable {
         Self {
             id: gt.id,
             table_name: gt.table_name,
-            table_state: format!("{}", TableState::try_from(gt.table_state).expect("Bad table state loaded from DB!"))
+            table_state: format!(
+                "{}",
+                TableState::try_from(gt.table_state).expect("Bad table state loaded from DB!")
+            ),
         }
     }
 }
@@ -57,7 +60,7 @@ impl Into<i16> for TableState {
         match self {
             Self::GameNotReady => 0,
             Self::GameOpenNotStarted => 1,
-            Self::GameOpenStarted => 2, 
+            Self::GameOpenStarted => 2,
             Self::GameClosed => 3,
             Self::GameFinished => 4,
         }

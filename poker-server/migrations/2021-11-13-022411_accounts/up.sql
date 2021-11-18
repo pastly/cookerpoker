@@ -35,8 +35,8 @@ CREATE TABLE game_tables (
     table_name TEXT NOT NULL,
     table_state SMALLINT NOT NULL DEFAULT 0,
     hand_num INTEGER NOT NULL DEFAULT 0,
-    buy_in INTEGER NOT NULL,
-    small_blind INTEGER NOT NULL,
+    buy_in INTEGER NOT NULL DEFAULT 500,
+    small_blind INTEGER NOT NULL DEFAULT 5,
     FOREIGN KEY (table_owner)
         REFERENCES accounts (id)
 );
