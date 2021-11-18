@@ -8,9 +8,9 @@ edition = "2021"
 [dependencies]
 rocket = { version = "0.5.0-rc.1", features = ["tls"] }
 poker-core = { path = "../poker-core" }
-diesel = { version = "1.0", features = ["sqlite"] }
-derive_more = "0.99"
-rocket_dyn_templates = { version = "0.1.0-rc.1", features = ["tera"]}
-rocket_sync_db_pools = { version = "0.1.0-rc.1", default-features = false, features = ["diesel_sqlite_pool"]}
-tera = "1"
-serde = { version = "1.0", features = ["derive"]}
+diesel = { version = "1.4.8", features = ["sqlite"] }
+derive_more = "0.99.16"
+rocket_dyn_templates = { version = "0.1.0-rc.1", features = ["tera"] }
+rocket_sync_db_pools = { version = "0.1.0-rc.1", default-features = false, features = ["diesel_sqlite_pool"] }
+tera = "1.15.0"
+serde = { version = "1.0.130", features = ["derive"] }
