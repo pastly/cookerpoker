@@ -1,6 +1,5 @@
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::char::MAX;
 use std::error::Error;
 use std::fmt;
 
