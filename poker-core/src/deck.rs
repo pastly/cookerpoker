@@ -1,5 +1,6 @@
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::char::MAX;
 use std::error::Error;
 use std::fmt;
 
@@ -24,6 +25,9 @@ pub const SPADE: char = 's';
 pub const HEART: char = 'h';
 pub const DIAMOND: char = 'd';
 pub const CLUB: char = 'c';
+/// TECHNICALLY this could be 22. 
+/// 22x2(pockets)+3(burn)+5(table) = DECK_LEN
+pub const MAX_PLAYERS: u8 = 21;
 //const SPADE: &str = "♤";
 //const HEART: &str = "♡";
 //const DIAMOND: &str = "♢";
@@ -174,6 +178,7 @@ impl Card {
 #[derive(PartialEq, Debug)]
 pub enum DeckError {
     OutOfCards,
+    TooManyPlayers
 }
 
 impl Error for DeckError {}
@@ -182,6 +187,7 @@ impl fmt::Display for DeckError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DeckError::OutOfCards => write!(f, "No more cards in deck"),
+            &DeckError::TooManyPlayers => write!(f, "Too many players to deal"),
         }
     }
 }
@@ -238,15 +244,18 @@ impl Deck {
         self.cards.pop();
     }
 
-    pub fn deal_pocket(&mut self, num_players: u8) -> Result<[Card; 2], DeckError> {
-        if self.cards.len() <= num_players as usize {
-            Err(DeckError::OutOfCards)
+    pub fn deal_pockets(&mut self, num_players: u8) -> Result<Vec<[Card; 2]>, DeckError> {
+        if num_players > MAX_PLAYERS {
+            return Err(DeckError::TooManyPlayers)
         } else {
-            Ok([
-                self.draw()?,
-                self.cards
-                    .remove(self.cards.len() - (num_players as usize - 1)),
-            ])
+            let mut v = Vec::new();
+            // Range only works in positive direction
+            for i in (1..=num_players).rev() {
+                let c1 = self.draw()?;
+                let c2 = self.cards.remove(self.cards.len() - i as usize);
+                v.push([c1, c2])
+            }
+            Ok(v)
         }
     }
 }
@@ -316,19 +325,9 @@ mod tests {
     #[test]
     fn deal_pockets() {
         let mut d = Deck::new();
-        let mut v = Vec::new();
-        for _ in 0..10 {
-            v.append(
-                &mut d
-                    .deal_pocket(10)
-                    .expect("Can't deal pockets?")
-                    .into_iter()
-                    .collect::<Vec<Card>>(),
-            );
-        }
+        let v = d.deal_pockets(10)
+                    .expect("Can't deal pockets?");
         assert_eq!(d.cards.len(), DECK_LEN - 20);
-        assert_eq!(v.len(), 20);
-        v.dedup();
-        assert_eq!(v.len(), 20);
+        assert_eq!(v.len(), 10);
     }
 }
