@@ -230,7 +230,7 @@ impl Deck {
     pub fn deal_pockets(&mut self, num_players: u8) -> Result<Vec<[Card; 2]>, DeckError> {
         if num_players > MAX_PLAYERS {
             return Err(DeckError::TooManyPlayers);
-        } else if num_players == 1 {
+        } else if num_players < 1 {
             return Err(DeckError::CantDealToNoPlayers);
         } else {
             let mut v = Vec::new();
