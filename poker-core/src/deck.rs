@@ -25,7 +25,7 @@ pub const SPADE: char = 's';
 pub const HEART: char = 'h';
 pub const DIAMOND: char = 'd';
 pub const CLUB: char = 'c';
-/// TECHNICALLY this could be 22. 
+/// TECHNICALLY this could be 22.
 /// 22x2(pockets)+3(burn)+5(table) = DECK_LEN
 pub const MAX_PLAYERS: u8 = 21;
 //const SPADE: &str = "♤";
@@ -178,7 +178,7 @@ impl Card {
 #[derive(PartialEq, Debug)]
 pub enum DeckError {
     OutOfCards,
-    TooManyPlayers
+    TooManyPlayers,
 }
 
 impl Error for DeckError {}
@@ -200,7 +200,14 @@ pub struct Deck {
 impl Deck {
     /// Generate a new single deck of cards, shuffled
     pub fn new() -> Self {
-        let mut d = Self::with_length(1);
+        use itertools::Itertools;
+        let c: Vec<Card> = ALL_RANKS
+            .iter()
+            .cartesian_product(ALL_SUITS.iter())
+            .map(|x| Card::new(*x.0, *x.1))
+            .collect();
+        assert_eq!(c.len(), DECK_LEN);
+        let mut d = Deck { cards: c };
         d.shuffle();
         d
     }
@@ -208,31 +215,6 @@ impl Deck {
     /// Shuffle the deck of cards in-place, and reset its `next` index to 0
     pub fn shuffle(&mut self) {
         self.cards.shuffle(&mut thread_rng());
-    }
-
-    /// Generate a new shuffled multi-deck with `l * DECK_LEN` cards
-    pub fn with_length(l: usize) -> Self {
-        assert!(l >= 1);
-        // generate 1 Vec<Card>
-        let single = {
-            let mut v = Vec::with_capacity(DECK_LEN);
-            for suit in ALL_SUITS.iter() {
-                for rank in ALL_RANKS.iter() {
-                    v.push(Card::new(*rank, *suit));
-                }
-            }
-            v
-        };
-        // append copies of the single deck to the output multi-deck
-        let mut multi = Vec::with_capacity(l * DECK_LEN);
-        for _ in 0..l {
-            multi.append(&mut single.clone());
-        }
-        assert_eq!(multi.len(), multi.capacity());
-        let mut d = Self { cards: multi };
-        // shuffle it
-        d.shuffle();
-        d
     }
 
     /// Draw the topmost card and return it, or return and error if, e.g., there are no more cards.
@@ -246,7 +228,7 @@ impl Deck {
 
     pub fn deal_pockets(&mut self, num_players: u8) -> Result<Vec<[Card; 2]>, DeckError> {
         if num_players > MAX_PLAYERS {
-            return Err(DeckError::TooManyPlayers)
+            return Err(DeckError::TooManyPlayers);
         } else {
             let mut v = Vec::new();
             // Range only works in positive direction
@@ -323,10 +305,25 @@ mod tests {
     }
 
     #[test]
+    fn is_shuffled() {
+        let mut d = Deck::new();
+        let top = d.draw().unwrap();
+        let next = d.draw().unwrap();
+        let third = d.draw().unwrap();
+        let fourth = d.draw().unwrap();
+        if top.rank() == Rank::RA
+            && next.rank() == Rank::RA
+            && third.rank() == Rank::RA
+            && fourth.rank() == Rank::RA
+        {
+            panic!("Top four cards were all aces! This indicates the deck was not shuffled. There is a *very* small chance this is a false positive.")
+        }
+    }
+
+    #[test]
     fn deal_pockets() {
         let mut d = Deck::new();
-        let v = d.deal_pockets(10)
-                    .expect("Can't deal pockets?");
+        let v = d.deal_pockets(10).expect("Can't deal pockets?");
         assert_eq!(d.cards.len(), DECK_LEN - 20);
         assert_eq!(v.len(), 10);
     }
