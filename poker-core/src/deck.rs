@@ -229,9 +229,9 @@ impl Deck {
 
     pub fn deal_pockets(&mut self, num_players: u8) -> Result<Vec<[Card; 2]>, DeckError> {
         if num_players > MAX_PLAYERS {
-            return Err(DeckError::TooManyPlayers);
-        } else if num_players == 1 {
-            return Err(DeckError::CantDealToNoPlayers);
+            Err(DeckError::TooManyPlayers)
+        } else if num_players < 1 {
+            Err(DeckError::CantDealToNoPlayers)
         } else {
             let mut v = Vec::new();
             // Range only works in positive direction
@@ -328,6 +328,8 @@ mod tests {
         let mut d = Deck::new();
         let expect = [d.cards[51], d.cards[50]];
         let actual = d.deal_pockets(1).unwrap();
+        println!("{:?} expect", expect);
+        println!("{:?} actual", actual);
         assert_eq!(actual[0], expect);
     }
 
@@ -340,11 +342,38 @@ mod tests {
         println!("49 {}", d.cards[49]);
         println!("50 {}", d.cards[50]);
         println!("51 {}", d.cards[51]);
-        let expect1 = [d.cards[51], d.cards[49]];
-        let expect2 = [d.cards[50], d.cards[48]];
+        let expect0 = [d.cards[51], d.cards[49]];
+        let expect1 = [d.cards[50], d.cards[48]];
         let actual = d.deal_pockets(2).unwrap();
-        assert_eq!(actual[0], expect1);
-        assert_eq!(actual[1], expect2);
+        println!("{:?}", actual[0]);
+        println!("{:?}", actual[1]);
+        assert_eq!(actual[0], expect0);
+        assert_eq!(actual[1], expect1);
+    }
+
+    #[test]
+    fn deal_pockets_10() {
+        let mut d = Deck::new();
+        let expect0 = [d.cards[51 - 0], d.cards[51 - 10]];
+        //        1              -1             -11
+        //        2              -2             -12
+        //              ...             ...
+        //        8              -8             -18
+        let expect9 = [d.cards[51 - 9], d.cards[51 - 19]];
+        let actual = d.deal_pockets(10).unwrap();
+        assert_eq!(actual[0], expect0);
+        assert_eq!(actual[9], expect9);
+    }
+
+    #[test]
+    fn deal_pockets_max() {
+        let mut d = Deck::new();
+        let n = MAX_PLAYERS as usize;
+        let expect0 = [d.cards[51 - 0], d.cards[51 - n]];
+        let expectn = [d.cards[51 - (n - 1)], d.cards[51 - n - (n - 1)]];
+        let actual = d.deal_pockets(n as u8).unwrap();
+        assert_eq!(actual[0], expect0);
+        assert_eq!(actual[actual.len() - 1], expectn);
     }
 
     #[test]
