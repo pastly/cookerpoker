@@ -63,7 +63,7 @@ impl<'r> FromRequest<'r> for Admin {
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let db = req.guard::<DbConn>().await.unwrap();
 
-        let key = match req.cookies().get("api-key"){
+        let key = match req.cookies().get("api-key") {
             Some(key) => key.value().to_string(),
             _ => return Outcome::Failure((Status::BadRequest, ApiKeyError::Missing)),
         };

@@ -7,9 +7,8 @@ pub mod database;
 mod endpoints;
 pub mod models;
 pub use database::{schema, DbConn};
+use rocket::fs::FileServer;
 use rocket_dyn_templates::Template;
-use rocket::fs::{FileServer};
-
 
 #[launch]
 fn rocket() -> _ {
@@ -18,7 +17,6 @@ fn rocket() -> _ {
         .attach(Template::fairing())
         .mount("/", FileServer::from("./static"))
         .mount("/", get_all_endpoints())
-        
 }
 
 fn get_all_endpoints() -> Vec<rocket::route::Route> {

@@ -1,8 +1,6 @@
 #![allow(unused_variables)]
 #![allow(clippy::unused_unit)]
-use super::logic::{
-    table::{AdminOrTableOwner, RenderedTable},
-};
+use super::logic::table::{AdminOrTableOwner, RenderedTable};
 use super::*;
 use crate::database::schema::game_tables;
 use crate::models::tables::{GameTable, NewTable};
