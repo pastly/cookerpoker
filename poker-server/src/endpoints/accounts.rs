@@ -1,5 +1,4 @@
 use super::*;
-use logic::account::{Admin, User};
 use models::accounts::{Account, NewAccount};
 
 pub fn get_endpoints() -> Vec<rocket::route::Route> {

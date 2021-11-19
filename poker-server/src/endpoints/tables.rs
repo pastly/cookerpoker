@@ -1,7 +1,6 @@
 #![allow(unused_variables)]
 #![allow(clippy::unused_unit)]
 use super::logic::{
-    account::User,
     table::{AdminOrTableOwner, RenderedTable},
 };
 use super::*;

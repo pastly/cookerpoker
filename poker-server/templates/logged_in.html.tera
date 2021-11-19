@@ -1,0 +1,11 @@
+<html>
+    <title>Poker</title>
+    <p>Welcome {{ account.account_name }}</p>
+    <ul>
+        <li><a href="/monies">Check my balance</a></li>
+        <li><a href="/tables">List open tables</a></li>
+        {% if account.is_admin %}
+        <li><a href="/accounts">View accounts (Admin only)</a></li>
+        {% endif %}
+    </ul>
+</html>

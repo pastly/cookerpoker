@@ -8,24 +8,21 @@ mod endpoints;
 pub mod models;
 pub use database::{schema, DbConn};
 use rocket_dyn_templates::Template;
+use rocket::fs::{FileServer};
 
-#[get("/")]
-fn index() -> &'static str {
-    "This will eventually serve the poker client"
-}
 
 #[launch]
 fn rocket() -> _ {
     rocket::build()
         .attach(DbConn::fairing())
         .attach(Template::fairing())
+        .mount("/", FileServer::from("./static"))
         .mount("/", get_all_endpoints())
+        
 }
 
 fn get_all_endpoints() -> Vec<rocket::route::Route> {
-    let mut v = routes![index];
-    v.append(&mut endpoints::get_all_endpoints());
-    v
+    endpoints::get_all_endpoints()
 }
 
 // TODO build a function to automatically delete the test admin in release mode.
