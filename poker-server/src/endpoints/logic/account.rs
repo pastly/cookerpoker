@@ -32,7 +32,7 @@ impl From<diesel::result::Error> for ApiKeyError {
 }
 
 #[derive(Deref)]
-pub struct User(pub Account);
+pub struct User(Account);
 
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for User {
@@ -54,7 +54,7 @@ impl<'r> FromRequest<'r> for User {
 }
 
 #[derive(Deref)]
-pub struct Admin(pub Account);
+pub struct Admin(Account);
 
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for Admin {
