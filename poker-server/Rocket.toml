@@ -11,5 +11,5 @@ port = 8000
 port = 80
 secret_key = "TODOPROPERSECRETKEYGENERATION"
 
-[global.databases]
+[debug.databases]
 sqlite = { url = "test.db" }
