@@ -3,11 +3,10 @@ extern crate rocket;
 #[macro_use]
 extern crate diesel;
 
-mod account;
-mod database;
-mod table;
-
-use database::DbConn;
+mod endpoints;
+pub mod models;
+pub mod database;
+pub use database::{DbConn, schema};
 use rocket_dyn_templates::Template;
 
 #[get("/")]
@@ -25,8 +24,7 @@ fn rocket() -> _ {
 
 fn get_all_endpoints() -> Vec<rocket::route::Route> {
     let mut v = routes![index];
-    v.append(&mut table::get_endpoints());
-    v.append(&mut account::get_endpoints());
+    v.append(&mut endpoints::get_all_endpoints());
     v
 }
 

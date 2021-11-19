@@ -1,11 +1,7 @@
 use super::*;
-use crate::account::User;
-use crate::database::models::{GameTable, NewTable};
-use crate::database::{schema::game_tables, DbConn, DbError};
-use diesel::prelude::*;
-use rocket::form::Form;
-use rocket::response::Redirect;
-use rocket_dyn_templates::{tera::Context, Template};
+use super::logic::{table::{RenderedTable, AdminOrTableOwner}, account::User};
+use crate::models::tables::{GameTable, NewTable};
+use crate::database::{schema::game_tables};
 
 pub fn get_endpoints() -> Vec<rocket::route::Route> {
     routes![

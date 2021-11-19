@@ -1,9 +1,6 @@
 use super::*;
-use crate::database::models;
-use crate::database::DbConn;
-use rocket::form::Form;
-use rocket::response::Redirect;
-use rocket_dyn_templates::{tera::Context, Template};
+use models::accounts::{Account, NewAccount};
+use logic::account::{Admin, User};
 
 pub fn get_endpoints() -> Vec<rocket::route::Route> {
     routes![
@@ -69,7 +66,7 @@ async fn new_account(
     f: Form<forms::NewAccount>,
 ) -> Result<String, DbError> {
     use crate::database::schema::accounts::dsl::{accounts, api_key};
-    let na = models::NewAccount::from(f.into_inner());
+    let na = NewAccount::from(f.into_inner());
     conn.run::<_, Result<String, DbError>>(|conn| {
         let api = na.api_key.clone();
         diesel::insert_into(accounts).values(na).execute(conn)?;

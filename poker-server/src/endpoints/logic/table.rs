@@ -1,15 +1,8 @@
-pub mod endpoints;
-pub mod forms;
-
-use crate::account::{api_to_account, ApiKeyError};
-pub use crate::database::models::{Account, GameTable};
-use crate::database::{DbConn, DbError};
-use derive_more::{Deref, Display};
+use super::*;
+use super::account::{api_to_account, ApiKeyError};
+pub use crate::models::{accounts::Account, tables::GameTable};
 use diesel::prelude::*;
-pub use endpoints::get_endpoints;
 use rocket::http::Status;
-use rocket::request::{FromRequest, Outcome, Request};
-use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RenderedTable {

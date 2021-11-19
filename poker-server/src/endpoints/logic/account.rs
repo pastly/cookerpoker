@@ -1,13 +1,10 @@
-pub use crate::database::models::{Account, NewMoneyLogEntry};
+use super::*;
+pub use crate::models::accounts::{Account, NewMoneyLogEntry};
 use crate::database::{DbConn, DbError};
 use derive_more::Deref;
 use diesel::prelude::*;
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome, Request};
-
-pub mod endpoints;
-pub mod forms;
-pub use endpoints::get_endpoints;
 
 ///TODO I think there is a better way to do this. Return the dsl directly
 pub async fn api_to_account(db: DbConn, key: String) -> Result<Account, ApiKeyError> {

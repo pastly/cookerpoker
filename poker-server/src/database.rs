@@ -1,6 +1,4 @@
-pub mod models;
 pub mod schema;
-use crate::account::ApiKeyError;
 use rocket::response::Responder;
 use rocket_sync_db_pools::{database, diesel};
 
