@@ -3,10 +3,10 @@ extern crate rocket;
 #[macro_use]
 extern crate diesel;
 
+pub mod database;
 mod endpoints;
 pub mod models;
-pub mod database;
-pub use database::{DbConn, schema};
+pub use database::{schema, DbConn};
 use rocket_dyn_templates::Template;
 
 #[get("/")]

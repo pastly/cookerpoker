@@ -1,7 +1,12 @@
+#![allow(unused_variables)]
+#![allow(clippy::unused_unit)]
+use super::logic::{
+    account::User,
+    table::{AdminOrTableOwner, RenderedTable},
+};
 use super::*;
-use super::logic::{table::{RenderedTable, AdminOrTableOwner}, account::User};
+use crate::database::schema::game_tables;
 use crate::models::tables::{GameTable, NewTable};
-use crate::database::{schema::game_tables};
 
 pub fn get_endpoints() -> Vec<rocket::route::Route> {
     routes![
@@ -20,7 +25,7 @@ pub async fn get_tables(db: DbConn, u: User) -> Result<Template, DbError> {
         .run(move |conn| GameTable::get_open_or_my_tables(uid).get_results::<GameTable>(conn))
         .await?
         .into_iter()
-        .map(|x| RenderedTable::from(x))
+        .map(RenderedTable::from)
         .collect();
     let mut c = Context::new();
     c.insert("tables", &tables);

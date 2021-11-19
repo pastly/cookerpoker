@@ -1,7 +1,6 @@
-use super::*;
 use super::account::{api_to_account, ApiKeyError};
+use super::*;
 pub use crate::models::{accounts::Account, tables::GameTable};
-use diesel::prelude::*;
 use rocket::http::Status;
 
 #[derive(Debug, Clone, Serialize)]
@@ -26,36 +25,37 @@ impl From<GameTable> for RenderedTable {
 
 #[derive(Debug, Clone, Copy, Display)]
 pub enum TableState {
-    GameNotReady,
-    GameOpenNotStarted,
+    NotReady,
+    OpenNotStarted,
     ///Should only be used for 'open' tables
-    GameOpenStarted,
-    GameClosed,
-    GameFinished,
+    OpenStarted,
+    Closed,
+    Finished,
 }
 
 impl TryFrom<i16> for TableState {
     type Error = TableError;
     fn try_from(f: i16) -> Result<Self, TableError> {
         match f {
-            0 => Ok(Self::GameNotReady),
-            1 => Ok(Self::GameOpenNotStarted),
-            2 => Ok(Self::GameOpenStarted),
-            3 => Ok(Self::GameClosed),
-            4 => Ok(Self::GameFinished),
+            0 => Ok(Self::NotReady),
+            1 => Ok(Self::OpenNotStarted),
+            2 => Ok(Self::OpenStarted),
+            3 => Ok(Self::Closed),
+            4 => Ok(Self::Finished),
             _ => Err(TableError::InvalidTableState),
         }
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<i16> for TableState {
     fn into(self) -> i16 {
         match self {
-            Self::GameNotReady => 0,
-            Self::GameOpenNotStarted => 1,
-            Self::GameOpenStarted => 2,
-            Self::GameClosed => 3,
-            Self::GameFinished => 4,
+            Self::NotReady => 0,
+            Self::OpenNotStarted => 1,
+            Self::OpenStarted => 2,
+            Self::Closed => 3,
+            Self::Finished => 4,
         }
     }
 }
@@ -91,6 +91,7 @@ impl TryFrom<i16> for TableType {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<i16> for TableType {
     fn into(self) -> i16 {
         match self {

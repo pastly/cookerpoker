@@ -1,5 +1,5 @@
 use super::*;
-use schema::{game_tables};
+use schema::game_tables;
 
 #[derive(Insertable)]
 #[table_name = "game_tables"]
@@ -62,8 +62,8 @@ impl GameTable {
 
         Self::all().filter(
             dsl::table_state
-                .eq(TableState::GameOpenStarted.i())
-                .or(dsl::table_state.eq(TableState::GameOpenNotStarted.i())),
+                .eq(TableState::OpenStarted.i())
+                .or(dsl::table_state.eq(TableState::OpenNotStarted.i())),
         )
     }
 

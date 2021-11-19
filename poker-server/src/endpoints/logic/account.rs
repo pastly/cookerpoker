@@ -1,10 +1,6 @@
 use super::*;
 pub use crate::models::accounts::{Account, NewMoneyLogEntry};
-use crate::database::{DbConn, DbError};
-use derive_more::Deref;
-use diesel::prelude::*;
 use rocket::http::Status;
-use rocket::request::{FromRequest, Outcome, Request};
 
 ///TODO I think there is a better way to do this. Return the dsl directly
 pub async fn api_to_account(db: DbConn, key: String) -> Result<Account, ApiKeyError> {
@@ -13,7 +9,7 @@ pub async fn api_to_account(db: DbConn, key: String) -> Result<Account, ApiKeyEr
         accounts
             .filter(api_key.eq(key))
             .first(conn)
-            .map_err(|x| ApiKeyError::from(x))
+            .map_err(ApiKeyError::from)
     });
     account.await
 }
