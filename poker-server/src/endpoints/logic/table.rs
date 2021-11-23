@@ -1,6 +1,7 @@
-use super::account::{cookie_to_account, ApiKeyError};
+use super::account::cookie_to_account;
 use super::*;
 pub use crate::models::{accounts::Account, tables::GameTable};
+use crate::AppError;
 use rocket::http::Status;
 use schema::game_tables;
 
@@ -34,7 +35,7 @@ impl From<GameTable> for RenderedTable {
     }
 }
 
-#[derive(Debug, Clone, Copy, Display)]
+#[derive(Debug, Clone, Copy, Display, FromFormField)]
 pub enum TableState {
     NotReady,
     OpenNotStarted,
@@ -53,7 +54,7 @@ impl TryFrom<i16> for TableState {
             2 => Ok(Self::OpenStarted),
             3 => Ok(Self::Closed),
             4 => Ok(Self::Finished),
-            _ => Err(TableError::InvalidTableState),
+            _ => Err(TableError::InvalidTableState(TableState::get_error())),
         }
     }
 }
@@ -77,7 +78,7 @@ impl TableState {
         self.into()
     }
 
-    pub const fn get_all_as_str() -> [&'static str; 5] {
+    pub const fn get_all_as_slice() -> [&'static str; 5] {
         [
             "NotReady",
             "OpenNotStarted",
@@ -86,6 +87,11 @@ impl TableState {
             "Finished",
         ]
     }
+
+    pub const fn get_error() -> &'static str {
+        // TODO figure out how to do this from slice
+        "Invalid TableState. Valid values are: NotReady, OpenNotStarted, OpenStarted, Closed, Finished"
+    }
 }
 
 impl TableType {
@@ -93,8 +99,12 @@ impl TableType {
     pub fn i(self) -> i16 {
         self.into()
     }
-    pub const fn get_all_as_str() -> [&'static str; 2] {
+    pub const fn get_all_as_slice() -> [&'static str; 2] {
         ["Tournament", "Open"]
+    }
+    pub const fn get_error() -> &'static str {
+        // TODO figure out how to do this from slice
+        "Invalid TableType. Valid values are: Tournament, Open"
     }
 }
 
@@ -110,7 +120,7 @@ impl TryFrom<i16> for TableType {
         match f {
             0 => Ok(Self::Tournament),
             1 => Ok(Self::Open),
-            _ => Err(TableError::InvalidTableType),
+            _ => Err(TableError::InvalidTableType(TableType::get_error())),
         }
     }
 }
@@ -125,20 +135,29 @@ impl Into<i16> for TableType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Responder)]
 pub enum TableError {
-    InvalidTableType,
-    InvalidTableState,
-    TableNotFound,
-    DbError(diesel::result::Error),
+    #[response(status = 400)]
+    InvalidTableType(&'static str),
+    #[response(status = 400)]
+    InvalidTableState(&'static str),
+    #[response(status = 404)]
+    TableNotFound(()),
+    #[response(status = 400)]
+    TableNameAlreadyTaken(&'static str),
+    #[response(status = 500)]
+    UnknownDbError(String),
 }
 
-impl From<diesel::result::Error> for TableError {
+impl std::convert::From<diesel::result::Error> for TableError {
     fn from(e: diesel::result::Error) -> Self {
-        use diesel::result::Error::*;
+        use diesel::result::{DatabaseErrorKind, Error};
         match e {
-            NotFound => TableError::TableNotFound,
-            _ => TableError::DbError(e),
+            Error::NotFound => TableError::TableNotFound(()),
+            Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
+                TableError::TableNameAlreadyTaken("Table name already in use")
+            }
+            _ => TableError::UnknownDbError(e.to_string()),
         }
     }
 }
@@ -146,15 +165,14 @@ impl From<diesel::result::Error> for TableError {
 #[derive(Deref)]
 pub struct AdminOrTableOwner(pub Account);
 
-// TODO replace with master error type, should return ApiKEyError or TableError
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for AdminOrTableOwner {
-    type Error = ApiKeyError;
+    type Error = AppError;
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let db = req.guard::<DbConn>().await.unwrap();
 
-        let account = match cookie_to_account(&db, &req.cookies()).await {
+        let account = match cookie_to_account(&db, req.cookies()).await {
             Ok(a) => a,
             Err(e) => return Outcome::Failure((Status::Forbidden, e)),
         };
@@ -171,12 +189,12 @@ impl<'r> FromRequest<'r> for AdminOrTableOwner {
                     game_tables::table
                         .find(t_id)
                         .first(conn)
-                        .map_err(TableError::from)
+                        .map_err(|_| TableError::TableNotFound(()))
                 })
                 .await;
             let t = match t {
                 Ok(x) => x,
-                Err(e) => return Outcome::Failure((Status::NotFound, ApiKeyError::Missing)),
+                Err(e) => return Outcome::Failure((Status::NotFound, AppError::from(e))),
             };
             if t.table_owner == account.id {
                 Outcome::Success(AdminOrTableOwner(account))

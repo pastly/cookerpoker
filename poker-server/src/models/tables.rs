@@ -17,7 +17,7 @@ impl NewTable {
     }
 }
 
-#[derive(Identifiable, Queryable, Serialize)]
+#[derive(Identifiable, Queryable, Serialize, AsChangeset)]
 pub struct GameTable {
     pub id: i32,
     pub table_owner: i32,
@@ -70,5 +70,18 @@ impl GameTable {
     pub fn get_open_or_my_tables(table_owner: i32) -> OpenOrMyTables {
         use game_tables::dsl;
         Self::get_open().or_filter(dsl::table_owner.eq(table_owner))
+    }
+
+    pub fn update_settings(
+        &mut self,
+        form: crate::endpoints::forms::tables::UpdateTableSettings,
+    ) -> Result<(), crate::endpoints::logic::table::TableError> {
+        // TODO Sanity Check. i.e. fail on thousand dollar buy ins.
+        self.table_name = form.name;
+        self.table_type = form.table_type.into();
+        self.table_state = form.state.into();
+        self.buy_in = form.buy_in;
+        self.small_blind = form.small_blind;
+        Ok(())
     }
 }

@@ -13,11 +13,9 @@ pub fn get_endpoints() -> Vec<rocket::route::Route> {
 }
 
 #[get("/monies/<id>")]
-async fn get_id_monies(conn: DbConn, _a: Admin, id: i32) -> Result<Template, DbError> {
+async fn get_id_monies(conn: DbConn, _a: Admin, id: i32) -> Result<Template, AppError> {
     //TODO Repleace id with request guard?
-    let a = Account::find(&conn, id)
-        .await
-        .map_err(|x| DbError::AccountNotFound(format!("{:?}", x)))?;
+    let a = Account::find(&conn, id).await.map_err(AppError::from)?;
     let mut c = Context::new();
     c.insert("account_name", &a.account_name);
     c.insert("monies", &a.monies());
@@ -30,7 +28,7 @@ async fn post_id_monies(
     _a: Admin,
     id: i32,
     change: Form<forms::ModSettled>,
-) -> Result<Redirect, DbError> {
+) -> Result<Redirect, AppError> {
     let a = Account::find(&conn, id).await?;
     a.mod_settled_balance(&conn, change.into_inner()).await?;
     Ok(Redirect::to(format!("/monies/{}", id)))
@@ -63,10 +61,10 @@ async fn new_account(
     conn: DbConn,
     _a: Admin,
     f: Form<forms::NewAccount>,
-) -> Result<String, DbError> {
+) -> Result<String, AppError> {
     use crate::database::schema::accounts::dsl::{accounts, api_key};
     let na = NewAccount::from(f.into_inner());
-    conn.run::<_, Result<String, DbError>>(|conn| {
+    conn.run::<_, Result<String, AppError>>(|conn| {
         let api = na.api_key.clone();
         diesel::insert_into(accounts).values(na).execute(conn)?;
         // Dirty read because Diesel doesn't support SQLite's RETURNING yet

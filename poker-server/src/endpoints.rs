@@ -1,6 +1,8 @@
-pub use crate::database::{DbConn, DbError};
+pub use super::AppError;
+pub use crate::database::DbConn;
 pub use crate::models;
 pub use diesel::prelude::*;
+pub use logic::{account::ApiKeyError, table::TableError};
 pub use logic::{
     account::{Admin, User},
     table::GameTable,

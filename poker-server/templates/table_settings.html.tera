@@ -1,6 +1,6 @@
 <html>
     {% if is_disabled != "disabled" %}
-        <form action=post>
+        <form method=post>
     {% endif %}
         <title>Table Settings</title>
         <p>Table Type - <select name="table_type" {{ is_disabled }}> {% for type in table_types %} 
