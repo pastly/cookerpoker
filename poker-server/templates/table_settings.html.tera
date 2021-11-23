@@ -1,8 +1,9 @@
-<html>
+{% extends "base" %}
+    {% block title %}Table Settings{% endblock title %}
+    {% block content %}
     {% if is_disabled != "disabled" %}
         <form method=post>
     {% endif %}
-        <title>Table Settings</title>
         <p>Table Type - <select name="table_type" {{ is_disabled }}> {% for type in table_types %} 
         <option value={{ type }} {% if type == table.table_type %}selected{% endif %}>{{ type }}</option>> </p>
         {% endfor %} </select>
@@ -17,5 +18,4 @@
         <input type="submit" value="Submit">
     </form>
     {% endif %}
-    
-</html>
+{% endblock content %}

@@ -1,5 +1,6 @@
-<html>
-    <title>Poker</title>
+{% extends "base" %}
+    {% block title %}Poker{% endblock title %}
+    {% block content %}
     <p>Welcome {{ account.account_name }}</p>
     <ul>
         <li><a href="/monies">Check my balance</a></li>
@@ -8,4 +9,4 @@
         <li><a href="/accounts">View accounts (Admin only)</a></li>
         {% endif %}
     </ul>
-</html>
+    {% endblock content %}

@@ -1,5 +1,6 @@
-<html>
-    <title>Table List</title>
+{% extends "base" %}
+    {% block title %}Table List{% endblock title %}
+    {% block content %}
     <table>
         <tr>
             <th>Table State</th>
@@ -21,4 +22,4 @@
         <input type="Text" id="table_name" name="table_name">
         <input type="submit" value="submit">
     </form>
-</html>
+{% endblock content %}

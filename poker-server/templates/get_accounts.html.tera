@@ -1,5 +1,6 @@
-<html>
-    <title>Accounts</title>
+{% extends "base" %}
+    {% block title %}Accounts{% endblock title %}
+    {% block content %}
     <table>
         <tr>
             <th>Is Admin</th>
@@ -21,4 +22,4 @@
         <input type="checkbox" id="id_admin" name="is_admin">
         <input type="submit" value="submit">
     </form>
-</html>
+    {% endblock context %}
