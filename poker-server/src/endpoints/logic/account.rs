@@ -1,10 +1,17 @@
 use super::*;
 pub use crate::models::accounts::{Account, NewMoneyLogEntry};
-use rocket::http::Status;
+use rocket::http::{CookieJar, Status};
 
 ///TODO I think there is a better way to do this. Return the dsl directly
-pub async fn api_to_account(db: DbConn, key: String) -> Result<Account, ApiKeyError> {
+pub async fn cookie_to_account(
+    db: &DbConn,
+    cookies: &'_ CookieJar<'_>,
+) -> Result<Account, ApiKeyError> {
     use crate::database::schema::accounts::dsl::{accounts, api_key};
+    let key = match cookies.get("api-key") {
+        Some(key) => key.value().to_string(),
+        None => return Err(ApiKeyError::Missing),
+    };
     let account = db.run(|conn| {
         accounts
             .filter(api_key.eq(key))
@@ -41,15 +48,12 @@ impl<'r> FromRequest<'r> for User {
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let db = req.guard::<DbConn>().await.unwrap();
 
-        let key = match req.cookies().get("api-key") {
-            Some(key) => key.value().to_string(),
-            _ => return Outcome::Forward(()),
+        let account = match cookie_to_account(&db, &req.cookies()).await {
+            Ok(a) => a,
+            Err(e) => return Outcome::Failure((Status::Forbidden, e)),
         };
 
-        match api_to_account(db, key).await {
-            Ok(a) => Outcome::Success(User(a)),
-            Err(e) => Outcome::Failure((Status::Forbidden, e)),
-        }
+        Outcome::Success(User(account))
     }
 }
 
@@ -63,12 +67,7 @@ impl<'r> FromRequest<'r> for Admin {
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let db = req.guard::<DbConn>().await.unwrap();
 
-        let key = match req.cookies().get("api-key") {
-            Some(key) => key.value().to_string(),
-            _ => return Outcome::Failure((Status::BadRequest, ApiKeyError::Missing)),
-        };
-
-        let account = match api_to_account(db, key).await {
+        let account = match cookie_to_account(&db, req.cookies()).await {
             Ok(a) => a,
             Err(e) => return Outcome::Failure((Status::Forbidden, e)),
         };
@@ -111,7 +110,7 @@ impl Account {
             accounts
                 .find(id)
                 .first(conn)
-                .map_err(|x| DbError::AccountNotFound(format!("{:?}", x)))
+                .map_err(|x| DbError::AccountNotFound(x.to_string()))
         })
         .await
     }

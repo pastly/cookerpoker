@@ -4,13 +4,15 @@
         <tr>
             <th>Table State</th>
             <th>Table name</th>
+            <th>View Table Settings</th>
             <th>Join table</th>
         </tr>
         {% for table in tables %}
             <tr>
                 <td>{{ table.state }}</td>
                 <td>{{ table.name }}</td>
-                <td><a href="/table/{{ table.id }}">Join not implemented</a></td>
+                <td><a href="/table/{{ table.id }}"">View Table Settings</td>
+                <td><a href="/table/{{ table.id }}/join">Join not implemented</a></td>
             </tr>
         {% endfor %}
     </table>

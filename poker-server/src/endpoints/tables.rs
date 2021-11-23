@@ -1,6 +1,6 @@
 #![allow(unused_variables)]
 #![allow(clippy::unused_unit)]
-use super::logic::table::{AdminOrTableOwner, RenderedTable};
+use super::logic::table::{AdminOrTableOwner, RenderedTable, TableState, TableType};
 use super::*;
 use crate::database::schema::game_tables;
 use crate::models::tables::{GameTable, NewTable};
@@ -11,6 +11,7 @@ pub fn get_endpoints() -> Vec<rocket::route::Route> {
         new_table,
         get_table_settings,
         update_table_settings,
+        mod_table_settings,
     ]
 }
 
@@ -46,8 +47,39 @@ pub async fn new_table(
     Ok(Redirect::to("/tables"))
 }
 
+#[get("/table/<id>", rank = 2)]
+pub async fn get_table_settings(db: DbConn, _u: User, id: i32) -> Result<Template, DbError> {
+    let t: GameTable = db
+        .run(move |conn| game_tables::table.find(id).first(conn))
+        .await?;
+    let mut c = Context::new();
+    c.insert("table", &RenderedTable::from(t));
+    c.insert("is_disabled", "disabled");
+    Ok(Template::render("table_settings", &c.into_json()))
+}
+
 #[get("/table/<id>")]
-pub async fn get_table_settings(db: DbConn, _u: User, id: i32) -> () {}
+pub async fn mod_table_settings(
+    db: DbConn,
+    _u: AdminOrTableOwner,
+    id: i32,
+) -> Result<Template, DbError> {
+    let t: GameTable = db
+        .run(move |conn| game_tables::table.find(id).first(conn))
+        .await?;
+    let mut c = Context::new();
+    c.insert("table", &RenderedTable::from(t));
+    c.insert("is_disabled", "");
+    c.insert("table_types", &TableType::get_all_as_str());
+    c.insert("table_states", &TableState::get_all_as_str());
+    Ok(Template::render("table_settings", &c.into_json()))
+}
 
 #[post("/table/<id>")]
-pub async fn update_table_settings(db: DbConn, _a: AdminOrTableOwner, id: i32) -> () {}
+pub async fn update_table_settings(
+    db: DbConn,
+    _a: AdminOrTableOwner,
+    id: i32,
+) -> Result<Redirect, DbError> {
+    unimplemented!()
+}
