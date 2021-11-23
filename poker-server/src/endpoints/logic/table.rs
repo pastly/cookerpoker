@@ -81,7 +81,7 @@ impl TableState {
         [
             "NotReady",
             "OpenNotStarted",
-            "OpenSTarted",
+            "OpenStarted",
             "Closed",
             "Finished",
         ]
