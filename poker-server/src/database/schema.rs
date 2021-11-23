@@ -25,6 +25,7 @@ table! {
     money_log (id) {
         id -> Nullable<Integer>,
         account_id -> Integer,
+        made_by -> Integer,
         monies -> Integer,
         execution_time -> Nullable<Timestamp>,
         reason -> Text,
@@ -47,7 +48,6 @@ table! {
 }
 
 joinable!(game_tables -> accounts (table_owner));
-joinable!(money_log -> accounts (account_id));
 joinable!(player_meta -> accounts (account_id));
 joinable!(seated -> accounts (account_id));
 joinable!(seated -> game_tables (table_id));

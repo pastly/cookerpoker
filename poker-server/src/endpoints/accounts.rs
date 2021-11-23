@@ -25,12 +25,14 @@ async fn get_id_monies(conn: DbConn, _a: Admin, id: i32) -> Result<Template, App
 #[post("/monies/<id>", data = "<change>")]
 async fn post_id_monies(
     conn: DbConn,
-    _a: Admin,
+    admin: Admin,
     id: i32,
     change: Form<forms::ModSettled>,
 ) -> Result<Redirect, AppError> {
-    let a = Account::find(&conn, id).await?;
-    a.mod_settled_balance(&conn, change.into_inner()).await?;
+    let target = Account::find(&conn, id).await?;
+    target
+        .mod_settled_balance(&admin, &conn, change.into_inner())
+        .await?;
     Ok(Redirect::to(format!("/monies/{}", id)))
 }
 

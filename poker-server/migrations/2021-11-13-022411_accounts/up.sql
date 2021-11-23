@@ -13,11 +13,14 @@ VALUES ("test_account", "not_a_real_api_key", 1);
 CREATE TABLE money_log (
     id INTEGER PRIMARY KEY,
     account_id INTEGER NOT NULL,
+    made_by INTEGER NOT NULL,
     monies INTEGER NOT NULL,
     execution_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     reason TEXT NOT NULL,
     FOREIGN KEY (account_id)
-        REFERENCES accounts (id)
+        REFERENCES accounts (id),
+    FOREIGN KEY(account_id)
+        REFERENCES accounts(id)
 );
 
 CREATE TABLE player_meta (

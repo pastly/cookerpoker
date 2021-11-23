@@ -75,15 +75,17 @@ impl<'r> FromRequest<'r> for Admin {
 impl Account {
     pub async fn mod_settled_balance(
         &self,
+        admin: &Admin,
         db: &DbConn,
         change: forms::ModSettled,
     ) -> Result<i32, AppError> {
         // TODO record starting and ending balance?
         use crate::database::schema::accounts::dsl::{accounts, monies};
         use crate::database::schema::money_log::dsl::money_log;
-        let nme = NewMoneyLogEntry::new(self, change);
+        let nme = NewMoneyLogEntry::new(admin, self, change);
         db.run(move |conn| {
             conn.transaction::<i32, AppError, _>(|| {
+                // Reload self to verify current balance inside transaction
                 let a: Account = accounts.find(nme.account_id).first(conn)?;
                 let ov = a.monies();
                 let nv = ov + nme.monies;

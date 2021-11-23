@@ -28,14 +28,16 @@ pub struct NewMoneyLogEntry {
     pub account_id: i32,
     pub reason: String,
     pub monies: i32,
+    pub made_by: i32,
 }
 
 impl NewMoneyLogEntry {
-    pub fn new(a: &Account, form: forms::ModSettled) -> Self {
+    pub fn new(me: &Account, target: &Account, form: forms::ModSettled) -> Self {
         NewMoneyLogEntry {
-            account_id: a.id,
+            account_id: target.id,
             monies: form.change,
             reason: form.reason,
+            made_by: me.id,
         }
     }
 }
