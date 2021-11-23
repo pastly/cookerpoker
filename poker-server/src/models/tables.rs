@@ -1,4 +1,5 @@
 use super::*;
+use crate::endpoints::logic::table::{TableError, TableState, TableType};
 use schema::game_tables;
 
 #[derive(Insertable)]
@@ -40,7 +41,6 @@ pub type GameTableAllColumns = (
     game_tables::small_blind,
 );
 
-use crate::endpoints::logic::table::{TableError, TableType};
 pub type SelectAllTables = Select<game_tables::table, GameTableAllColumns>;
 pub type CheckOpenTableEq = Eq<game_tables::table_state, i16>;
 pub type CheckTableOwner = Eq<game_tables::table_owner, i32>;
@@ -57,7 +57,6 @@ impl GameTable {
     }
 
     pub fn get_open() -> OpenTableFilter {
-        use crate::endpoints::logic::table::TableState;
         use game_tables::dsl;
 
         Self::all().filter(
@@ -75,13 +74,19 @@ impl GameTable {
     pub fn update_settings(
         &mut self,
         form: crate::endpoints::forms::tables::UpdateTableSettings,
-    ) -> Result<(), crate::endpoints::logic::table::TableError> {
+    ) -> Result<(), TableError> {
         // TODO Sanity Check. i.e. fail on thousand dollar buy ins.
-        self.table_name = form.name;
-        self.table_type = form.table_type.into();
-        self.table_state = form.state.into();
-        self.buy_in = form.buy_in;
-        self.small_blind = form.small_blind;
-        Ok(())
+        if self.table_state == TableState::NotReady.i() {
+            self.table_name = form.name;
+            self.table_type = form.table_type.into();
+            self.table_state = form.state.into();
+            self.buy_in = form.buy_in;
+            self.small_blind = form.small_blind;
+            Ok(())
+        } else {
+            Err(TableError::CannotModifyStartedGames(
+                "Game is in progress. It cannot be modified",
+            ))
+        }
     }
 }

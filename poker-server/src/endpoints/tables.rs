@@ -92,17 +92,13 @@ pub async fn update_table_settings(
     let mut t: GameTable = db
         .run(move |conn| game_tables::table.find(id).first(conn))
         .await?;
-    if t.table_state == TableState::NotReady.i() {
-        t.update_settings(settings.into_inner()).unwrap();
-        db.run(move |conn| {
-            diesel::update(&t)
-                .set(&t)
-                .execute(conn)
-                .map_err(TableError::from)
-        })
-        .await?;
-        Ok(Redirect::to(format!("/table/{}", id)))
-    } else {
-        Err(TableError::CannotModifyStartedGames("Table is open and cannot be modified.").into())
-    }
+    t.update_settings(settings.into_inner())?;
+    db.run(move |conn| {
+        diesel::update(&t)
+            .set(&t)
+            .execute(conn)
+            .map_err(TableError::from)
+    })
+    .await?;
+    Ok(Redirect::to(format!("/table/{}", id)))
 }
