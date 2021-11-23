@@ -135,7 +135,7 @@ impl Into<i16> for TableType {
     }
 }
 
-#[derive(Debug, Responder)]
+#[derive(Debug, Responder, PartialEq)]
 pub enum TableError {
     #[response(status = 400)]
     InvalidTableType(&'static str),
@@ -145,6 +145,8 @@ pub enum TableError {
     TableNotFound(()),
     #[response(status = 400)]
     TableNameAlreadyTaken(&'static str),
+    #[response(status = 400)]
+    CannotModifyStartedGames(&'static str),
     #[response(status = 500)]
     UnknownDbError(String),
 }
