@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     {% block head %}
-    <link rel="stylesheet" href="mvp.css" />
+    <link rel="stylesheet" href="/mvp.css" />
     <title>{% block title %}{% endblock title %}</title>
     {% endblock head %}
 </head>
