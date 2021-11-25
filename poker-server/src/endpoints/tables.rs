@@ -1,11 +1,8 @@
-#![allow(unused_variables)]
-#![allow(clippy::unused_unit)]
-use logic::forms::UpdateTableSettings;
-
 use super::logic::table::{AdminOrTableOwner, RenderedTable, TableState, TableType};
 use super::*;
 use crate::database::schema::game_tables;
 use crate::models::tables::{GameTable, NewTable};
+use logic::forms::UpdateTableSettings;
 
 pub fn get_endpoints() -> Vec<rocket::route::Route> {
     routes![
@@ -40,14 +37,13 @@ pub async fn new_table(
 ) -> Result<Redirect, AppError> {
     let ntf = nt.into_inner();
     let nt = NewTable::new(u.id, ntf.table_name);
-    let r = db
-        .run(move |conn| {
-            diesel::insert_into(game_tables::table)
-                .values(&nt)
-                .execute(conn)
-                .map_err(TableError::from)
-        })
-        .await?;
+    db.run(move |conn| {
+        diesel::insert_into(game_tables::table)
+            .values(&nt)
+            .execute(conn)
+            .map_err(TableError::from)
+    })
+    .await?;
     Ok(Redirect::to("/tables"))
 }
 
