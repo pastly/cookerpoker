@@ -31,7 +31,7 @@ impl From<WinState> for Ordering {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Hand {
     cards: [Card; 5],
     class: HandClass,
@@ -417,6 +417,18 @@ impl Hand {
     }
 }
 
+impl Ord for Hand {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.beats(other).into()
+    }
+}
+
+impl PartialOrd for Hand {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 /// Checks all 5-card combinations of the given cards, and returns a Vector of the best
 /// 5-card hands. If more than one Hand is returned, they are all equal (WinState::Tie).
 /// If <5 cards are in the given slice, returns an empty vec.
@@ -503,6 +515,7 @@ mod test_best_of_cards {
 #[cfg(test)]
 mod test_hand {
     use super::*;
+    use crate::deck::cards_from_str;
     use crate::deck::Deck;
     use std::iter;
 
@@ -522,6 +535,29 @@ mod test_hand {
         let cards: Vec<Card> = iter::repeat_with(|| deck.draw().unwrap()).take(5).collect();
         let hand = Hand::new(&cards);
         assert!(hand.is_ok());
+    }
+
+    /// Verify that the first hand is greater than (wins compared to) the second hand. Also verify
+    /// the other equality properties that would also be true.
+    fn beats_helper1(s1: &'static str, s2: &'static str) {
+        let h1 = Hand::new_unchecked(&cards_from_str(s1));
+        let h2 = Hand::new_unchecked(&cards_from_str(s2));
+        assert!(h1 > h2);
+        assert!(h2 < h1);
+        assert_eq!(h1, h1.clone());
+        assert_eq!(h2, h2.clone());
+        // same as above, but without Ord/PartialOrd wrapper
+        assert_eq!(h1.beats(&h2), WinState::Win);
+        assert_eq!(h2.beats(&h1), WinState::Lose);
+        assert_eq!(h1.beats(&h1.clone()), WinState::Tie);
+        assert_eq!(h2.beats(&h2.clone()), WinState::Tie);
+    }
+
+    #[test]
+    fn beats() {
+        for (s1, s2) in [("AsKsQsJsTs", "KdQdJdTd9d"), ("AsKsQsJsTs", "Td8s6d4d2d")] {
+            beats_helper1(s1, s2);
+        }
     }
 }
 
