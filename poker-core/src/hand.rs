@@ -1,6 +1,7 @@
 use crate::deck::{Card, Rank};
 use itertools::{zip, Itertools};
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 
@@ -372,6 +373,7 @@ impl HandClass {
 #[derive(PartialEq, Debug)]
 pub enum HandError {
     NotFiveCards(usize),
+    NotTwoCards(usize),
 }
 
 impl Error for HandError {}
@@ -380,6 +382,7 @@ impl fmt::Display for HandError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotFiveCards(n) => write!(f, "Five cards are requied, but {} were given", n),
+            Self::NotTwoCards(n) => write!(f, "Two cards are requied, but {} were given", n),
         }
     }
 }
@@ -468,6 +471,77 @@ pub fn best_of_cards(cards: &[Card]) -> Vec<Hand> {
         .collect()
 }
 
+/// Order all the given hands and return them, best-to-worst.
+///
+/// Arguments:
+///
+///   - pockets: Mapping between Account ID and their pocket 2 cards
+///   - community: The 5 community cards
+///
+/// Returns (if no error):
+///
+///   A Vec where each item is a Vec of (Account ID, Hand) tuples. The outer vec is the ordering
+///   (best-to-worst), and inner vecs are so ties can be represented.
+///
+/// Errors:
+///
+///   - HandError::NotTwoCards if any pocket isn't two cards long
+///   - HandError::NotFiveCards if the community isn't five cards long
+pub fn best_hands<AID: Copy>(
+    pockets: HashMap<AID, [Card; 2]>,
+    community: [Card; 5],
+) -> Result<Vec<Vec<(AID, Hand)>>, HandError> {
+    if pockets.is_empty() {
+        // This check is important, as later we pull out the best hand before iterating over the
+        // rest.
+        return Ok(vec![]);
+    }
+    if community.len() != 5 {
+        return Err(HandError::NotFiveCards(community.len()));
+    }
+    // Get the best possible 5-card hand for each pocket
+    let mut hands = vec![];
+    for (account_id, pocket) in pockets.iter() {
+        if pocket.len() != 2 {
+            return Err(HandError::NotTwoCards(pocket.len()));
+        }
+        let mut cards = Vec::with_capacity(7);
+        cards.extend_from_slice(pocket);
+        cards.extend_from_slice(&community);
+        assert_eq!(cards.len(), 7);
+        let hand = best_of_cards(&cards)[0];
+        hands.push((account_id, hand));
+    }
+    // Do left beats right, as in this function we want the best to be at the end of the list,
+    // which is the opposite of what we often do in other functions.
+    hands.sort_by(|l, r| l.1.beats(&r.1).into());
+    // We have all hands sorted now. It is time to coalesce ties together by wrapping all hands
+    // with a vec of length one and tie-ing hands together into a vec of length >1
+    let mut ret: Vec<Vec<(AID, Hand)>> = vec![];
+    let mut inner: Vec<(AID, Hand)> = vec![];
+    let mut current_best = hands[hands.len() - 1].1;
+    while let Some((account_id, hand)) = hands.pop() {
+        match hand.cmp(&current_best) {
+            Ordering::Equal => {
+                inner.push((*account_id, hand));
+            }
+            Ordering::Less => {
+                ret.push(inner.clone());
+                inner.truncate(0);
+                inner.push((*account_id, hand));
+                current_best = hand;
+            }
+            Ordering::Greater => {
+                unreachable!();
+            }
+        };
+    }
+    if !inner.is_empty() {
+        ret.push(inner);
+    }
+    Ok(ret)
+}
+
 #[cfg(test)]
 mod test_best_of_cards {
     use super::*;
@@ -509,6 +583,40 @@ mod test_best_of_cards {
     #[test]
     fn straight_vs_flush() {
         one_best("Th9s8h7h6h5h2c", HandClass::Flush, ['T', HEART].into());
+    }
+}
+
+#[cfg(test)]
+mod test_best_hands {
+    use super::*;
+
+    #[test]
+    fn basic() {
+        let mut map: HashMap<i32, [Card; 2]> = HashMap::new();
+        map.insert(1, [['A', 'c'].into(), ['A', 'd'].into()]);
+        map.insert(2, [['A', 'h'].into(), ['A', 's'].into()]);
+        map.insert(3, [['K', 'h'].into(), ['K', 's'].into()]);
+        let comm = [
+            ['2', 'c'].into(),
+            ['3', 'd'].into(),
+            ['5', 'h'].into(),
+            ['9', 's'].into(),
+            ['T', 'c'].into(),
+        ];
+        let ret = best_hands(map, comm).unwrap();
+        for (idx, inner) in ret.iter().enumerate() {
+            println!("{}:", idx);
+            for h in inner {
+                println!("    {} {}", h.0, h.1);
+            }
+        }
+        assert_eq!(ret.len(), 2);
+        assert_eq!(ret[0].len(), 2);
+        assert_eq!(ret[1].len(), 1);
+        assert_eq!(ret[0][0].1.class, HandClass::Pair);
+        assert_eq!(ret[0][0].1.cards[0].rank(), Rank::RA);
+        assert_eq!(ret[1][0].1.class, HandClass::Pair);
+        assert_eq!(ret[1][0].1.cards[0].rank(), Rank::RK);
     }
 }
 
