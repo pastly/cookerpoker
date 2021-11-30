@@ -245,7 +245,7 @@ impl Pot {
             self.side_pot().update_max(new_max);
         } else {
             let ov = self.max_in;
-            if new_max == i32::MAX || new_max <= 1 {
+            if new_max == i32::MAX || new_max < 1 {
                 return;
             }
             if new_max > self.max_in {
@@ -394,8 +394,6 @@ impl From<deck::DeckError> for GameError {
 
 #[cfg(test)]
 mod tests {
-    use rocket::figment::error::Actual;
-
     use super::*;
 
     #[test]
