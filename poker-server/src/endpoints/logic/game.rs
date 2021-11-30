@@ -199,18 +199,18 @@ impl SeatedPlayer {
 #[derive(Debug)]
 pub struct Pot {
     players_in: HashMap<i32, i32>,
-    pub current_bet: i32,
     max_in: i32,
     side_pot: Option<Box<Pot>>,
+    is_settled: bool,
 }
 
 impl Pot {
-    pub fn new(current_bet: i32) -> Self {
+    pub fn new() -> Self {
         Pot {
             players_in: HashMap::new(),
             max_in: i32::MAX,
             side_pot: None,
-            current_bet,
+            is_settled: false,
         }
     }
 
@@ -219,53 +219,80 @@ impl Pot {
     }
 
     fn overflowing_add(&mut self, player: i32, amount: i32) {
+        if self.is_settled {
+            self.side_pot().overflowing_add(player, amount);
+        } else {
         let ov = self.players_in.get(&player).copied().unwrap_or_default();
         let nv = ov + amount;
         if nv > self.max_in {
             self.players_in.insert(player, self.max_in);
             let o = nv - self.max_in;
-            self.side_pot(self.current_bet).overflowing_add(player, o);
+            self.side_pot().overflowing_add(player, o);
         } else {
             self.players_in.insert(player, nv);
-        }
+        }}
     }
 
-    fn side_pot(&mut self, current_bet: i32) -> &mut Pot {
+    fn side_pot(&mut self) -> &mut Pot {
         if self.side_pot.is_some() {
             self.side_pot.as_mut().unwrap()
         } else {
-            self.side_pot = Some(Box::new(Pot::new(current_bet)));
+            self.side_pot = Some(Box::new(Pot::new()));
             self.side_pot.as_mut().unwrap()
         }
     }
 
-<<<<<<< HEAD
     fn update_max(&mut self, new_max: i32) {
-        if new_max == i32::MAX {
-            return
-        }
+        if self.is_settled {
+            self.side_pot().update_max(new_max);
+        } else {
         let ov = self.max_in;
-        self.side_pot(self.current_bet).update_max(ov);
-        self.max_in = new_max;
+        if new_max == i32::MAX || new_max <= 1 {
+            return;
+        }
+        if new_max > self.max_in {
+            self.side_pot().update_max(new_max)
+        } else if new_max < self.max_in {
+            self.max_in = new_max;
+            if ov != i32::MAX {
+                self.side_pot().update_max(ov - new_max);
+            }
+        }
+    }
     }
 
-=======
->>>>>>> 657a9304df2b16ce7fc682b49face86454da7e21
+    pub fn finalize_round(&mut self) {
+        self.is_settled = true;
+        match self.side_pot.as_mut() {
+            Some(x) => x.finalize_round(),
+            _ => ()
+        }
+    }
+
     /// Detected a change in max_bet that could have consquences, forcing a rebuild
-    fn overflow(&mut self) -> Result<i32, PotError> {
-        let mut needs_reset = false;
+    fn overflow(&mut self) {
+        if self.is_settled {
+            self.side_pot().overflow();
+        } else {
         for (player, value) in self.players_in.clone() {
             if value > self.max_in {
                 let delta = value - self.max_in;
                 self.players_in.insert(player, self.max_in);
                 self.overflowing_add(player, delta);
-                needs_reset = true;
             }
         }
-        if needs_reset {
+    }
+    }
 
+    /// Takes a vector of player Ids and returns the count of them that are in the current pot
+    fn num_players_in(&self, hand: &Vec<i32>) -> i32 {
+        let mut r = 0;
+        for i in hand {
+            if self.players_in.contains_key(i) {
+                r += 1;
+            }
         }
-        Ok(0)
+        r
     }
 
     pub fn payout(self, ranked_hands: &Vec<Vec<i32>>) -> HashMap<i32, i32> {
@@ -273,15 +300,19 @@ impl Pot {
         let value = self.value();
         let mut paid_out = false;
         for best_hand in ranked_hands {
-            let payout = value / best_hand.len() as i32;
+            let hands_in = self.num_players_in(best_hand);
+            if hands_in == 0 {
+                continue;
+            }
+            let payout = value / self.num_players_in(best_hand) as i32;
             for player in best_hand.iter() {
                 if self.players_in.contains_key(player) {
                     hm.insert(*player, payout);
                     paid_out = true;
-                }
-                if best_hand.len() > 1 && value % 2 == 1 {
-                    // TODO Randomize
-                    hm.insert(best_hand[0], payout + 1);
+                    if best_hand.len() > 1 && value % 2 == 1 {
+                        // TODO Randomize
+                        hm.insert(best_hand[0], payout + 1);
+                    }
                 }
             }
             if paid_out {
@@ -296,61 +327,45 @@ impl Pot {
         hm
     }
 
-    pub fn bet(&mut self, player: i32, action: PotAction) -> Result<i32, PotError> {
+    /// Takes the players TOTAL bet. I.e. Bet(10), Bet(20) = bet of 20.
+    pub fn bet(&mut self, player: i32, action: PotAction) -> i32 {
+        if self.is_settled {
+            self.side_pot().bet(player, action)
+        } else {
         let ov = self.players_in.get(&player).copied().unwrap_or_default();
         let value = match action {
             PotAction::AllIn(v) => {
-                let nv = ov + v;
-                let below = nv - 1;
-                let above = nv + 1;
-                if self.max_in < nv {
-                    match &mut self.side_pot {
-                        Some(x) => x.bet(player, PotAction::AllIn(v)),
-<<<<<<< HEAD
-                        None => {self.update_max(nv);self.overflow() },
-                    }
+                if v > self.max_in  {
+                    // Top off the current pot
+                    let nv = v - self.max_in - ov;
+                    self.players_in.insert(player, self.max_in);
+                    self.side_pot().bet(player, PotAction::AllIn(nv))
+                } else if v == self.max_in {
+                    v
                 } else {
                     self.update_max(v);
-=======
-                        None => self.overflow(),
-                    }
-                } else {
-                    self.max_in = v;
->>>>>>> 657a9304df2b16ce7fc682b49face86454da7e21
-                    self.overflow()?;
-                    Ok(v)
+                    self.overflow();
+                    v
                 }
             }
-            PotAction::Bet(v) => {
-                if v < self.current_bet {
-                    Err(PotError::BetLowerThanCall)
-                } else {
-                    Ok(v)
-                }
-            }
-            PotAction::Call(v) => {
-                if v != self.current_bet {
-                    Err(PotError::InvalidCall)
-                } else {
-                    Ok(v)
-                }
-            }
-            _ => Err(PotError::BadAction),
-        }?;
-        self.overflowing_add(player, value);
-        Ok(0)
+            PotAction::Bet(v) => v,
+            PotAction::Call(v) => v,
+            _ => unreachable!(),
+        };
+        self.overflowing_add(player, value - ov);
+        0
     }
+}
 }
 
 impl Default for Pot {
     fn default() -> Self {
-                    Pot {
-                players_in: HashMap::new(),
-                max_in: i32::MAX,
-                side_pot: None,
-                current_bet: 0,
-            }
-        
+        Pot {
+            players_in: HashMap::new(),
+            max_in: i32::MAX,
+            side_pot: None,
+            is_settled: false
+        }
     }
 }
 
@@ -377,32 +392,32 @@ impl From<deck::DeckError> for GameError {
 mod tests {
     use rocket::figment::error::Actual;
 
-    use super::*;
+    use super::*; 
 
     #[test]
     fn basic_pot() {
-        let mut p = Pot::new(5);
-        p.bet(1, PotAction::Bet(5)).unwrap();
-        p.bet(2, PotAction::Call(5)).unwrap();
-        p.bet(3, PotAction::Call(5)).unwrap();
+        let mut p = Pot::new();
+        p.bet(1, PotAction::Bet(5));
+        p.bet(2, PotAction::Call(5));
+        p.bet(3, PotAction::Call(5));
         let payout = p.payout(&vec![vec![1]]);
         assert_eq!(payout[&1], 15);
     }
 
     #[test]
     fn multi_winners() {
-        let mut p = Pot::new(5);
-        p.bet(1, PotAction::Bet(5)).unwrap();
-        p.bet(2, PotAction::Bet(5)).unwrap();
-        p.bet(3, PotAction::Bet(5)).unwrap();
+        let mut p = Pot::new();
+        p.bet(1, PotAction::Bet(5));
+        p.bet(2, PotAction::Bet(5));
+        p.bet(3, PotAction::Bet(5));
         let payout = p.payout(&vec![vec![1, 2]]);
         assert_eq!(payout[&1], 8);
         assert_eq!(payout[&2], 7);
 
-        let mut p = Pot::new(5);
-        p.bet(1, PotAction::Bet(5)).unwrap();
-        p.bet(2, PotAction::Bet(5)).unwrap();
-        p.bet(3, PotAction::Bet(6)).unwrap();
+        let mut p = Pot::new();
+        p.bet(1, PotAction::Bet(5));
+        p.bet(2, PotAction::Bet(5));
+        p.bet(3, PotAction::Bet(6));
         let payout = p.payout(&vec![vec![1, 2]]);
         assert_eq!(payout[&1], 8);
         assert_eq!(payout[&2], 8);
@@ -410,24 +425,24 @@ mod tests {
 
     #[test]
     fn all_in_blind() {
-        let mut p = Pot::new(5);
-        p.bet(1, PotAction::AllIn(5)).unwrap();
-        p.bet(2, PotAction::Bet(10)).unwrap();
-        p.bet(3, PotAction::AllIn(8)).unwrap();
+        let mut p = Pot::new();
+        p.bet(1, PotAction::AllIn(5));
+        p.bet(2, PotAction::Bet(10));
+        p.bet(3, PotAction::AllIn(8));
         dbg!(&p);
         let payout = p.payout(&vec![vec![1], vec![2, 3]]);
         dbg!(&payout);
         assert_eq!(payout[&1], 15);
-        assert_eq!(payout[&2], 2);
-        assert_eq!(payout[&3], 6);
+        assert_eq!(payout[&2], 5);
+        assert_eq!(payout[&3], 3);
     }
 
     #[test]
     fn side_pot_payout() {
-        let mut p = Pot::new(5);
-        p.bet(1, PotAction::Bet(10)).unwrap();
-        p.bet(2, PotAction::AllIn(5)).unwrap();
-        p.bet(3, PotAction::Bet(10)).unwrap();
+        let mut p = Pot::new();
+        p.bet(1, PotAction::Bet(10));
+        p.bet(2, PotAction::AllIn(5));
+        p.bet(3, PotAction::Bet(10));
         let payout = p.payout(&vec![vec![2], vec![1, 3]]);
         assert_eq!(payout[&2], 15);
         assert_eq!(payout[&1], 5);
@@ -436,11 +451,10 @@ mod tests {
 
     #[test]
     fn overflowing_side_pot() {
-        let mut p = Pot::new(5);
-        p.bet(1, PotAction::Bet(10)).unwrap();
-        p.bet(2, PotAction::AllIn(5)).unwrap();
-        p.bet(3, PotAction::AllIn(3)).unwrap();
-        p.bet(3, PotAction::AllIn(3)).unwrap();
+        let mut p = Pot::new();
+        p.bet(1, PotAction::Bet(10));
+        p.bet(2, PotAction::AllIn(5));
+        p.bet(3, PotAction::AllIn(3));
         dbg!(&p);
         let payout = p.payout(&vec![vec![3], vec![2], vec![1]]);
         dbg!(&payout);
@@ -448,5 +462,31 @@ mod tests {
         assert_eq!(payout[&2], 4);
         // 1 overbet and was returned pot nobody else could claim
         assert_eq!(payout[&1], 5);
+    }
+
+    #[test]
+    fn multi_round_pot() {
+        let mut p = Pot::new();
+        p.bet(1, PotAction::Bet(5));
+        p.bet(2, PotAction::Call(5));
+        p.bet(3, PotAction::Call(5));
+        p.finalize_round();
+        // 5,5,5 = 15 in pot
+        p.bet(1, PotAction::Bet(5));
+        p.bet(2, PotAction::Bet(10));
+        p.bet(3, PotAction::AllIn(8));
+        p.bet(1, PotAction::Call(10));
+        p.finalize_round();
+        // 15 + 8,8,8 + 2,2 = 43 in pot
+        p.bet(1, PotAction::Bet(10));
+        p.bet(2, PotAction::AllIn(6));
+        // 43 + 6,6 + 4 = 59 in pot
+        dbg!(&p);
+        let payout = p.payout(&vec![vec![3], vec![2], vec![1]]);
+        dbg!(&payout);
+        assert_eq!(payout[&3], 39);
+        assert_eq!(payout[&2], 16);
+        // 1 overbet and was returned pot nobody else could claim
+        assert_eq!(payout[&1], 4);
     }
 }
