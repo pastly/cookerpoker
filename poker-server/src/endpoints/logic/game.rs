@@ -239,6 +239,15 @@ impl Pot {
         }
     }
 
+    fn update_max(&mut self, new_max: i32) {
+        if new_max == i32::MAX {
+            return
+        }
+        let ov = self.max_in;
+        self.side_pot(self.current_bet).update_max(ov);
+        self.max_in = new_max;
+    }
+
     /// Detected a change in max_bet that could have consquences, forcing a rebuild
     fn overflow(&mut self) -> Result<i32, PotError> {
         let mut needs_reset = false;
@@ -294,10 +303,10 @@ impl Pot {
                 if self.max_in < nv {
                     match &mut self.side_pot {
                         Some(x) => x.bet(player, PotAction::AllIn(v)),
-                        None => self.overflow(),
+                        None => {self.update_max(nv);self.overflow() },
                     }
                 } else {
-                    self.max_in = v;
+                    self.update_max(v);
                     self.overflow()?;
                     Ok(v)
                 }
