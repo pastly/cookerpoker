@@ -260,6 +260,8 @@ impl Pot {
     }
 
     /// Parent MUST call this in between betting rounds.
+    /// Closes the betting round of all open pots. Next betting roung will create a fresh pot.
+    /// This prevents confusion between max_in and net betting rounds.
     pub fn finalize_round(&mut self) {
         self.is_settled = true;
         if let Some(x) = self.side_pot.as_mut() {
@@ -300,6 +302,7 @@ impl Pot {
         let mut paid_out = false;
         for best_hand in ranked_hands {
             let hands_in = self.num_players_in(best_hand);
+            // Prevents divide by zero below
             if hands_in == 0 {
                 continue;
             }
