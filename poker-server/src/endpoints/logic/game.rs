@@ -196,6 +196,10 @@ impl SeatedPlayer {
     }
 }
 
+/// Handles all pot related operations.
+/// Only tracks monies committed to the pot.
+/// As such, does no error handling and cannot fail.
+/// Parent must validate player has enough monies, and track the state of the betting round.
 #[derive(Debug)]
 pub struct Pot {
     players_in: HashMap<i32, i32>,
@@ -205,15 +209,8 @@ pub struct Pot {
 }
 
 impl Pot {
-    pub fn new() -> Self {
-        Pot {
-            players_in: HashMap::new(),
-            max_in: i32::MAX,
-            side_pot: None,
-            is_settled: false,
-        }
-    }
-
+    /// Returns the total value in this pot
+    /// Not particularily useful due to each betting round spinning off a side pot
     pub fn value(&self) -> i32 {
         self.players_in.values().sum()
     }
@@ -222,22 +219,23 @@ impl Pot {
         if self.is_settled {
             self.side_pot().overflowing_add(player, amount);
         } else {
-        let ov = self.players_in.get(&player).copied().unwrap_or_default();
-        let nv = ov + amount;
-        if nv > self.max_in {
-            self.players_in.insert(player, self.max_in);
-            let o = nv - self.max_in;
-            self.side_pot().overflowing_add(player, o);
-        } else {
-            self.players_in.insert(player, nv);
-        }}
+            let ov = self.players_in.get(&player).copied().unwrap_or_default();
+            let nv = ov + amount;
+            if nv > self.max_in {
+                self.players_in.insert(player, self.max_in);
+                let o = nv - self.max_in;
+                self.side_pot().overflowing_add(player, o);
+            } else {
+                self.players_in.insert(player, nv);
+            }
+        }
     }
 
     fn side_pot(&mut self) -> &mut Pot {
         if self.side_pot.is_some() {
             self.side_pot.as_mut().unwrap()
         } else {
-            self.side_pot = Some(Box::new(Pot::new()));
+            self.side_pot = Some(Box::new(Pot::default()));
             self.side_pot.as_mut().unwrap()
         }
     }
@@ -246,26 +244,26 @@ impl Pot {
         if self.is_settled {
             self.side_pot().update_max(new_max);
         } else {
-        let ov = self.max_in;
-        if new_max == i32::MAX || new_max <= 1 {
-            return;
-        }
-        if new_max > self.max_in {
-            self.side_pot().update_max(new_max)
-        } else if new_max < self.max_in {
-            self.max_in = new_max;
-            if ov != i32::MAX {
-                self.side_pot().update_max(ov - new_max);
+            let ov = self.max_in;
+            if new_max == i32::MAX || new_max <= 1 {
+                return;
+            }
+            if new_max > self.max_in {
+                self.side_pot().update_max(new_max)
+            } else if new_max < self.max_in {
+                self.max_in = new_max;
+                if ov != i32::MAX {
+                    self.side_pot().update_max(ov - new_max);
+                }
             }
         }
     }
-    }
 
+    /// Parent MUST call this in between betting rounds. 
     pub fn finalize_round(&mut self) {
         self.is_settled = true;
-        match self.side_pot.as_mut() {
-            Some(x) => x.finalize_round(),
-            _ => ()
+        if let Some(x) = self.side_pot.as_mut() {
+            x.finalize_round();
         }
     }
 
@@ -274,18 +272,18 @@ impl Pot {
         if self.is_settled {
             self.side_pot().overflow();
         } else {
-        for (player, value) in self.players_in.clone() {
-            if value > self.max_in {
-                let delta = value - self.max_in;
-                self.players_in.insert(player, self.max_in);
-                self.overflowing_add(player, delta);
+            for (player, value) in self.players_in.clone() {
+                if value > self.max_in {
+                    let delta = value - self.max_in;
+                    self.players_in.insert(player, self.max_in);
+                    self.overflowing_add(player, delta);
+                }
             }
         }
     }
-    }
 
     /// Takes a vector of player Ids and returns the count of them that are in the current pot
-    fn num_players_in(&self, hand: &Vec<i32>) -> i32 {
+    fn num_players_in(&self, hand: &[i32]) -> i32 {
         let mut r = 0;
         for i in hand {
             if self.players_in.contains_key(i) {
@@ -295,7 +293,8 @@ impl Pot {
         r
     }
 
-    pub fn payout(self, ranked_hands: &Vec<Vec<i32>>) -> HashMap<i32, i32> {
+    /// Consumes the pot and returns the total payout. 
+    pub fn payout(self, ranked_hands: &[Vec<i32>]) -> HashMap<i32, i32> {
         let mut hm: HashMap<i32, i32> = HashMap::new();
         let value = self.value();
         let mut paid_out = false;
@@ -320,42 +319,47 @@ impl Pot {
             }
         }
         assert_eq!(hm.values().sum::<i32>(), self.value());
-        match self.side_pot {
-            Some(x) => poker_core::util::merge_hashmap(&mut hm, x.payout(ranked_hands)),
-            None => (),
+        if let Some(x) = self.side_pot {
+            poker_core::util::merge_hashmap(&mut hm, x.payout(ranked_hands));
         }
         hm
     }
 
-    /// Takes the players TOTAL bet. I.e. Bet(10), Bet(20) = bet of 20.
+    /// Takes the players TOTAL bet. I.e. Bet(10), Call(20) = bet of 20.
+    /// As such, parent must track the current betting round.
+    /// 
+    /// # Panics
+    /// 
+    /// As this struct is only intended to work with commited funds,
+    /// this function will panic if it recieves [`PotAction::Fold`] or [`PotAction::Check`].
     pub fn bet(&mut self, player: i32, action: PotAction) -> i32 {
         if self.is_settled {
             self.side_pot().bet(player, action)
         } else {
-        let ov = self.players_in.get(&player).copied().unwrap_or_default();
-        let value = match action {
-            PotAction::AllIn(v) => {
-                if v > self.max_in  {
-                    // Top off the current pot
-                    let nv = v - self.max_in - ov;
-                    self.players_in.insert(player, self.max_in);
-                    self.side_pot().bet(player, PotAction::AllIn(nv))
-                } else if v == self.max_in {
-                    v
-                } else {
-                    self.update_max(v);
-                    self.overflow();
-                    v
+            let ov = self.players_in.get(&player).copied().unwrap_or_default();
+            let value = match action {
+                PotAction::AllIn(v) => {
+                    if v > self.max_in {
+                        // Top off the current pot
+                        let nv = v - self.max_in - ov;
+                        self.players_in.insert(player, self.max_in);
+                        self.side_pot().bet(player, PotAction::AllIn(nv))
+                    } else if v == self.max_in {
+                        v
+                    } else {
+                        self.update_max(v);
+                        self.overflow();
+                        v
+                    }
                 }
-            }
-            PotAction::Bet(v) => v,
-            PotAction::Call(v) => v,
-            _ => unreachable!(),
-        };
-        self.overflowing_add(player, value - ov);
-        0
+                PotAction::Bet(v) => v,
+                PotAction::Call(v) => v,
+                _ => unreachable!(),
+            };
+            self.overflowing_add(player, value - ov);
+            0
+        }
     }
-}
 }
 
 impl Default for Pot {
@@ -364,7 +368,7 @@ impl Default for Pot {
             players_in: HashMap::new(),
             max_in: i32::MAX,
             side_pot: None,
-            is_settled: false
+            is_settled: false,
         }
     }
 }
@@ -392,11 +396,11 @@ impl From<deck::DeckError> for GameError {
 mod tests {
     use rocket::figment::error::Actual;
 
-    use super::*; 
+    use super::*;
 
     #[test]
     fn basic_pot() {
-        let mut p = Pot::new();
+        let mut p = Pot::default();
         p.bet(1, PotAction::Bet(5));
         p.bet(2, PotAction::Call(5));
         p.bet(3, PotAction::Call(5));
@@ -406,7 +410,7 @@ mod tests {
 
     #[test]
     fn multi_winners() {
-        let mut p = Pot::new();
+        let mut p = Pot::default();
         p.bet(1, PotAction::Bet(5));
         p.bet(2, PotAction::Bet(5));
         p.bet(3, PotAction::Bet(5));
@@ -414,7 +418,7 @@ mod tests {
         assert_eq!(payout[&1], 8);
         assert_eq!(payout[&2], 7);
 
-        let mut p = Pot::new();
+        let mut p = Pot::default();
         p.bet(1, PotAction::Bet(5));
         p.bet(2, PotAction::Bet(5));
         p.bet(3, PotAction::Bet(6));
@@ -425,7 +429,7 @@ mod tests {
 
     #[test]
     fn all_in_blind() {
-        let mut p = Pot::new();
+        let mut p = Pot::default();
         p.bet(1, PotAction::AllIn(5));
         p.bet(2, PotAction::Bet(10));
         p.bet(3, PotAction::AllIn(8));
@@ -439,7 +443,7 @@ mod tests {
 
     #[test]
     fn side_pot_payout() {
-        let mut p = Pot::new();
+        let mut p = Pot::default();
         p.bet(1, PotAction::Bet(10));
         p.bet(2, PotAction::AllIn(5));
         p.bet(3, PotAction::Bet(10));
@@ -451,7 +455,7 @@ mod tests {
 
     #[test]
     fn overflowing_side_pot() {
-        let mut p = Pot::new();
+        let mut p = Pot::default();
         p.bet(1, PotAction::Bet(10));
         p.bet(2, PotAction::AllIn(5));
         p.bet(3, PotAction::AllIn(3));
@@ -466,7 +470,7 @@ mod tests {
 
     #[test]
     fn multi_round_pot() {
-        let mut p = Pot::new();
+        let mut p = Pot::default();
         p.bet(1, PotAction::Bet(5));
         p.bet(2, PotAction::Call(5));
         p.bet(3, PotAction::Call(5));
