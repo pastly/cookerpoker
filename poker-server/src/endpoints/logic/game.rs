@@ -259,7 +259,7 @@ impl Pot {
         }
     }
 
-    /// Parent MUST call this in between betting rounds. 
+    /// Parent MUST call this in between betting rounds.
     pub fn finalize_round(&mut self) {
         self.is_settled = true;
         if let Some(x) = self.side_pot.as_mut() {
@@ -293,7 +293,7 @@ impl Pot {
         r
     }
 
-    /// Consumes the pot and returns the total payout. 
+    /// Consumes the pot and returns the total payout.
     pub fn payout(self, ranked_hands: &[Vec<i32>]) -> HashMap<i32, i32> {
         let mut hm: HashMap<i32, i32> = HashMap::new();
         let value = self.value();
@@ -327,9 +327,9 @@ impl Pot {
 
     /// Takes the players TOTAL bet. I.e. Bet(10), Call(20) = bet of 20.
     /// As such, parent must track the current betting round.
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// As this struct is only intended to work with commited funds,
     /// this function will panic if it recieves [`PotAction::Fold`] or [`PotAction::Check`].
     pub fn bet(&mut self, player: i32, action: PotAction) -> i32 {
