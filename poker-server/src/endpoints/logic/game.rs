@@ -335,11 +335,6 @@ impl Pot {
 
     /// Takes the players TOTAL bet. I.e. Bet(10), Call(20) = bet of 20.
     /// As such, parent must track the current betting round.
-    ///
-    /// # Panics
-    ///
-    /// As this struct is only intended to work with commited funds,
-    /// this function will panic if it recieves [`PotAction::Fold`] or [`PotAction::Check`].
     pub fn bet(&mut self, player: i32, action: PotAction) -> i32 {
         if self.is_settled {
             self.side_pot().bet(player, action)
@@ -362,7 +357,8 @@ impl Pot {
                 }
                 PotAction::Bet(v) => v,
                 PotAction::Call(v) => v,
-                _ => unreachable!(),
+                // Folds and calls have no effect on the pot.
+                _ => return 0,
             };
             self.overflowing_add(player, value - ov);
             0
