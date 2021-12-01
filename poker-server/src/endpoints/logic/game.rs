@@ -296,6 +296,11 @@ impl Pot {
     }
 
     /// Consumes the pot and returns the total payout.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the pot would pay out a different amount than is in the pot.
+    /// This indicates a failure of the payout function and should be investigated.
     pub fn payout(self, ranked_hands: &[Vec<i32>]) -> HashMap<i32, i32> {
         let mut hm: HashMap<i32, i32> = HashMap::new();
         let value = self.value();
@@ -426,6 +431,18 @@ mod tests {
         let payout = p.payout(&vec![vec![1, 2]]);
         assert_eq!(payout[&1], 8);
         assert_eq!(payout[&2], 8);
+    }
+
+    #[test]
+    fn over_bet() {
+        let mut p = Pot::default();
+        p.bet(1, PotAction::Bet(5));
+        p.bet(2, PotAction::Bet(5));
+        p.bet(3, PotAction::Bet(6));
+        let payout = p.payout(&vec![vec![1, 2], vec![3]]);
+        assert_eq!(payout[&1], 8);
+        assert_eq!(payout[&2], 7);
+        assert_eq!(payout[&3], 1);
     }
 
     #[test]
