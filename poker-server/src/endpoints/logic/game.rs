@@ -13,7 +13,7 @@ use table::TableType;
 const MAX_PLAYERS: usize = 12;
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub enum PotAction {
+pub enum BetAction {
     Check,
     Fold,
     Call(i32),
@@ -21,6 +21,7 @@ pub enum PotAction {
     AllIn(i32),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum BetStatus {
     Folded,
     Waiting,
@@ -28,13 +29,39 @@ pub enum BetStatus {
     AllIn(i32),
 }
 
-pub enum GameState {
-    Dealing,
-    Betting(i32),
-    Winner(i32),
-    WinnerDuringBet(i32),
+impl BetStatus {
+    /// Convience function so you don't have to match the enum.
+    pub fn is_folded(&self) -> bool {
+        match self {
+            &BetStatus::Folded => true,
+            _ => false,
+        }
+    }
 }
 
+impl Default for BetStatus {
+    fn default() -> Self {
+        BetStatus::Waiting
+    }
+}
+
+#[derive(Debug)]
+pub enum GameState {
+    Dealing,
+    Betting(BetRound),
+    Winner(i32, i32),
+    WinnerDuringBet(i32, i32),
+}
+
+#[derive(Debug)]
+pub enum BetRound {
+    PreFlop(i32),
+    Flop(i32),
+    Turn(i32),
+    River(i32),
+}
+
+#[derive(Debug)]
 pub struct GameInProgress {
     table_type: TableType,
     pub table_cards: [Option<Card>; 5],
@@ -71,69 +98,122 @@ pub struct GameInProgress {
 
 #[derive(Debug)]
 pub struct SeatedPlayers {
-    players: [SeatedPlayer; MAX_PLAYERS],
+    players: [Option<SeatedPlayer>; MAX_PLAYERS],
     last_better: usize,
-    dealer: usize,
-    small_blind: usize,
-    big_blind: usize,
+    dealer_token: usize,
+    small_blind_token: usize,
+    big_blind_token: usize,
+}
+
+impl Default for SeatedPlayers {
+    fn default() -> Self {
+        SeatedPlayers {
+            players: [None; MAX_PLAYERS],
+            last_better: 0,
+            dealer_token: 0,
+            small_blind_token: 1,
+            big_blind_token: 2,
+        }
+    }
 }
 
 impl SeatedPlayers {
     /// Moves betting round forward and returns account id of next better
     /// Returns None if betting round is over.
-    pub fn next_better(&mut self) -> Option<i32> {
-        // Don't want to ask last better to bet again
-        self.last_better += 1;
-        let np = self.player_after(self.last_better).ok()?;
-        self.players.get(np).map(|x| x.id)
+    fn next_better(&mut self, current_bet: i32) -> Option<i32> {
+        if self.pot_is_right(current_bet) || self.betting_players_iter().count() == 1 {
+            None
+        } else {
+            //TODO this doesn't work
+            //Need to find self.last_better's place in self.betting_players_iteR() (even if they are no longer in it)
+            //Then call .cycle() on iter
+            //Then .next()
+            //Assert new better is not the same as the old
+            let ov = if self.last_better == MAX_PLAYERS - 1 {
+                0
+            } else {
+                self.last_better
+            };
+            let (i, aid) = self
+                .betting_players_iter()
+                .map(|(i, x)| (i, x.id))
+                .skip_while(|(i, _)| i <= &ov)
+                .cycle()
+                .next()
+                .unwrap();
+            self.last_better = i;
+            Some(aid)
+        }
+    }
+
+    pub fn bet(&mut self, player: i32, action: BetAction) -> Result<i32, BetError> {
+        unimplemented!()
+    }
+
+    /// Returns an iterator over all seated players, preserving seat index
+    pub fn players_iter(&self) -> impl Iterator<Item = (usize, &SeatedPlayer)> + Clone + '_ {
+        self.players
+            .iter()
+            .enumerate()
+            .filter(|(x, y)| y.is_some())
+            .map(|(x, y)| (x, y.as_ref().unwrap()))
+    }
+
+    /// Returns a mutable iterator over all seated players, preserving seat index
+    pub fn players_iter_mut(&mut self) -> impl Iterator<Item = (usize, &mut SeatedPlayer)> + '_ {
+        self.players
+            .iter_mut()
+            .enumerate()
+            .filter(|(x, y)| y.is_some())
+            .map(|(x, y)| (x, y.as_mut().unwrap()))
+    }
+
+    /// Returns an iterator over players still in the betting, preserving seat index
+    pub fn betting_players_iter(
+        &self,
+    ) -> impl Iterator<Item = (usize, &SeatedPlayer)> + Clone + '_ {
+        self.players_iter().filter(|(x, y)| y.is_betting())
+    }
+
+    /// Checks all seated players BetStatus and validates that the pot is ready to be finalized
+    pub fn pot_is_right(&self, current_bet: i32) -> bool {
+        for (_, player) in self.betting_players_iter() {
+            match player.bet_status {
+                BetStatus::In(x) => {
+                    if x == current_bet {
+                        continue;
+                    } else {
+                        return false;
+                    }
+                }
+                BetStatus::Waiting => return false,
+                _ => unreachable!(),
+            }
+        }
+        true
     }
 
     /// Returns the next active player after the supplied index
-    /// Player must not have folded and have more than 0 monies
+    /// Basically wraps [`Self::betting_players_in`]
     fn player_after(&self, i: usize) -> Result<usize, GameError> {
         //Brute force until I figure out a better way
         for np in i..MAX_PLAYERS {
-            if self.players[i].has_monies() && !self.players[i].is_folded {
+            if self.players[i].has_monies() && !self.players[i].is_folded() {
                 return Ok(np);
             }
         }
         for np in 0..i {
-            if self.players[i].has_monies() && !self.players[i].is_folded {
+            if self.players[i].has_monies() && !self.players[i].is_folded() {
                 return Ok(np);
             }
         }
         Err(GameError::NotEnoughPlayers)
     }
 
-    /// Returns the number of players still in.
-    /// Returning a value of 1 means the round is over
-    /// Should never return 0, as that would indicate the hand winner folded
-    pub fn num_players_still_in(&self) -> u8 {
-        let r = self.players.len() as u8
-            - 1u8
-            - self
-                .players
-                .iter()
-                .fold(0u8, |c, s| if s.is_folded { c + 1 } else { c });
-        assert_ne!(r, 0);
-        r
-    }
-
     fn unfold_all(&mut self) {
-        for player in self.players.iter_mut() {
-            player.is_folded = false;
+        for (_, player) in self.players_iter_mut() {
+            player.bet_status = BetStatus::default();
         }
-    }
-
-    /// Returns a vector of account ids for players that are still active
-    pub fn get_active_players(&self) -> Vec<i32> {
-        let mut v = Vec::new();
-        for player in self.players.iter() {
-            if player.has_monies() && !player.is_folded {
-                v.push(player.id);
-            }
-        }
-        v
     }
 
     pub fn end_hand(&mut self) -> Result<(), GameError> {
@@ -143,25 +223,27 @@ impl SeatedPlayers {
 
     ///
     pub fn start_hand(&mut self) -> Result<Vec<i32>, GameError> {
-        self.last_better = self.dealer;
-        self.fold_broke_players();
+        self.last_better = self.dealer_token;
+        self.auto_fold_players();
         self.rotate_tokens()?;
-        Ok(self.get_active_players())
+        Ok(self.betting_players_iter().map(|(_, y)| y.id).collect())
     }
 
-    fn fold_broke_players(&mut self) {
-        for player in self.players.iter_mut() {
-            if !player.has_monies() {
-                player.is_folded = true;
+    fn auto_fold_players(&mut self) {
+        for (_, player) in self.players_iter() {
+            if !player.has_monies() || player.auto_fold {
+                player.bet_status = BetStatus::Folded;
             }
         }
     }
 
     fn rotate_tokens(&mut self) -> Result<(), GameError> {
-        self.dealer = self.player_after(self.dealer)?;
-        self.small_blind = self.player_after(self.dealer)?;
-        // Dealer can also be big blind
-        self.big_blind = self.player_after(self.small_blind).unwrap_or(self.dealer);
+        self.dealer_token = self.player_after(self.dealer_token)?;
+        self.small_blind_token = self.player_after(self.dealer_token)?;
+        // dealer_token can also be big blind
+        self.big_blind_token = self
+            .player_after(self.small_blind_token)
+            .unwrap_or(self.dealer_token);
         Ok(())
     }
 }
@@ -171,28 +253,40 @@ pub struct SeatedPlayer {
     pub id: i32,
     pub pocket: Option<[Card; 2]>,
     monies: i32,
-    pub is_folded: bool,
+    pub bet_status: BetStatus,
+    pub auto_fold: bool,
 }
 
 impl SeatedPlayer {
-    pub fn bet(&mut self, bet: i32) -> Result<i32, PotError> {
+    pub fn bet(&mut self, bet: i32) -> Result<i32, BetError> {
         unimplemented!()
     }
-    /*if self.monies == 0 {
-            return Err(PotError::HasNoMoney);
+
+    pub fn new(id: i32, monies: i32) -> Self {
+        SeatedPlayer {
+            id,
+            pocket: None,
+            monies,
+            bet_status: BetStatus::Folded,
+            auto_fold: false,
         }
-        let d = self.monies - bet;
-        if d.is_positive() {
-            self.monies -= bet;
-            Ok(bet)
-        } else {
-            // Does not have enogh to match bet. All in.
-            self.monies = 0;
-            Err(Action::AllIn(self.monies))
-        }
-    }*/
+    }
     pub fn has_monies(&self) -> bool {
         self.monies >= 0
+    }
+
+    pub fn is_folded(&self) -> bool {
+        self.bet_status.is_folded()
+    }
+
+    /// Returns true is player is still in the betting
+    /// Notably, all_in players are no longer better, and excluded
+    pub fn is_betting(&self) -> bool {
+        match self.bet_status {
+            BetStatus::In(x) => true,
+            BetStatus::Waiting => true,
+            _ => false,
+        }
     }
 }
 
@@ -335,18 +429,18 @@ impl Pot {
 
     /// Takes the players TOTAL bet. I.e. Bet(10), Call(20) = bet of 20.
     /// As such, parent must track the current betting round.
-    pub fn bet(&mut self, player: i32, action: PotAction) -> i32 {
+    pub fn bet(&mut self, player: i32, action: BetAction) -> i32 {
         if self.is_settled {
             self.side_pot().bet(player, action)
         } else {
             let ov = self.players_in.get(&player).copied().unwrap_or_default();
             let value = match action {
-                PotAction::AllIn(v) => {
+                BetAction::AllIn(v) => {
                     if v > self.max_in {
                         // Top off the current pot
                         let nv = v - self.max_in - ov;
                         self.players_in.insert(player, self.max_in);
-                        self.side_pot().bet(player, PotAction::AllIn(nv))
+                        self.side_pot().bet(player, BetAction::AllIn(nv))
                     } else if v == self.max_in {
                         v
                     } else {
@@ -355,8 +449,8 @@ impl Pot {
                         v
                     }
                 }
-                PotAction::Bet(v) => v,
-                PotAction::Call(v) => v,
+                BetAction::Bet(v) => v,
+                BetAction::Call(v) => v,
                 // Folds and calls have no effect on the pot.
                 _ => return 0,
             };
@@ -378,21 +472,29 @@ impl Default for Pot {
 }
 
 #[derive(Debug)]
-pub enum PotError {
+pub enum BetError {
     HasNoMoney,
     BetLowerThanCall,
     InvalidCall,
+    PlayerIsNotBetting,
     BadAction,
 }
 
 pub enum GameError {
     DeckError(deck::DeckError),
+    BetError(BetError),
     NotEnoughPlayers,
 }
 
 impl From<deck::DeckError> for GameError {
     fn from(d: deck::DeckError) -> Self {
         GameError::DeckError(d)
+    }
+}
+
+impl From<BetError> for GameError {
+    fn from(d: BetError) -> Self {
+        GameError::BetError(d)
     }
 }
 
@@ -403,9 +505,9 @@ mod tests {
     #[test]
     fn basic_pot() {
         let mut p = Pot::default();
-        p.bet(1, PotAction::Bet(5));
-        p.bet(2, PotAction::Call(5));
-        p.bet(3, PotAction::Call(5));
+        p.bet(1, BetAction::Bet(5));
+        p.bet(2, BetAction::Call(5));
+        p.bet(3, BetAction::Call(5));
         let payout = p.payout(&vec![vec![1]]);
         assert_eq!(payout[&1], 15);
     }
@@ -413,17 +515,17 @@ mod tests {
     #[test]
     fn multi_winners() {
         let mut p = Pot::default();
-        p.bet(1, PotAction::Bet(5));
-        p.bet(2, PotAction::Bet(5));
-        p.bet(3, PotAction::Bet(5));
+        p.bet(1, BetAction::Bet(5));
+        p.bet(2, BetAction::Bet(5));
+        p.bet(3, BetAction::Bet(5));
         let payout = p.payout(&vec![vec![1, 2]]);
         assert_eq!(payout[&1], 8);
         assert_eq!(payout[&2], 7);
 
         let mut p = Pot::default();
-        p.bet(1, PotAction::Bet(5));
-        p.bet(2, PotAction::Bet(5));
-        p.bet(3, PotAction::Bet(6));
+        p.bet(1, BetAction::Bet(5));
+        p.bet(2, BetAction::Bet(5));
+        p.bet(3, BetAction::Bet(6));
         let payout = p.payout(&vec![vec![1, 2]]);
         assert_eq!(payout[&1], 8);
         assert_eq!(payout[&2], 8);
@@ -432,9 +534,9 @@ mod tests {
     #[test]
     fn over_bet() {
         let mut p = Pot::default();
-        p.bet(1, PotAction::Bet(5));
-        p.bet(2, PotAction::Bet(5));
-        p.bet(3, PotAction::Bet(6));
+        p.bet(1, BetAction::Bet(5));
+        p.bet(2, BetAction::Bet(5));
+        p.bet(3, BetAction::Bet(6));
         let payout = p.payout(&vec![vec![1, 2], vec![3]]);
         assert_eq!(payout[&1], 8);
         assert_eq!(payout[&2], 7);
@@ -444,9 +546,9 @@ mod tests {
     #[test]
     fn all_in_blind() {
         let mut p = Pot::default();
-        p.bet(1, PotAction::AllIn(5));
-        p.bet(2, PotAction::Bet(10));
-        p.bet(3, PotAction::AllIn(8));
+        p.bet(1, BetAction::AllIn(5));
+        p.bet(2, BetAction::Bet(10));
+        p.bet(3, BetAction::AllIn(8));
         dbg!(&p);
         let payout = p.payout(&vec![vec![1], vec![2, 3]]);
         dbg!(&payout);
@@ -458,9 +560,9 @@ mod tests {
     #[test]
     fn side_pot_payout() {
         let mut p = Pot::default();
-        p.bet(1, PotAction::Bet(10));
-        p.bet(2, PotAction::AllIn(5));
-        p.bet(3, PotAction::Bet(10));
+        p.bet(1, BetAction::Bet(10));
+        p.bet(2, BetAction::AllIn(5));
+        p.bet(3, BetAction::Bet(10));
         let payout = p.payout(&vec![vec![2], vec![1, 3]]);
         assert_eq!(payout[&2], 15);
         assert_eq!(payout[&1], 5);
@@ -470,9 +572,9 @@ mod tests {
     #[test]
     fn overflowing_side_pot() {
         let mut p = Pot::default();
-        p.bet(1, PotAction::Bet(10));
-        p.bet(2, PotAction::AllIn(5));
-        p.bet(3, PotAction::AllIn(3));
+        p.bet(1, BetAction::Bet(10));
+        p.bet(2, BetAction::AllIn(5));
+        p.bet(3, BetAction::AllIn(3));
         dbg!(&p);
         let payout = p.payout(&vec![vec![3], vec![2], vec![1]]);
         dbg!(&payout);
@@ -485,19 +587,19 @@ mod tests {
     #[test]
     fn multi_round_pot() {
         let mut p = Pot::default();
-        p.bet(1, PotAction::Bet(5));
-        p.bet(2, PotAction::Call(5));
-        p.bet(3, PotAction::Call(5));
+        p.bet(1, BetAction::Bet(5));
+        p.bet(2, BetAction::Call(5));
+        p.bet(3, BetAction::Call(5));
         p.finalize_round();
         // 5,5,5 = 15 in pot
-        p.bet(1, PotAction::Bet(5));
-        p.bet(2, PotAction::Bet(10));
-        p.bet(3, PotAction::AllIn(8));
-        p.bet(1, PotAction::Call(10));
+        p.bet(1, BetAction::Bet(5));
+        p.bet(2, BetAction::Bet(10));
+        p.bet(3, BetAction::AllIn(8));
+        p.bet(1, BetAction::Call(10));
         p.finalize_round();
         // 15 + 8,8,8 + 2,2 = 43 in pot
-        p.bet(1, PotAction::Bet(10));
-        p.bet(2, PotAction::AllIn(6));
+        p.bet(1, BetAction::Bet(10));
+        p.bet(2, BetAction::AllIn(6));
         // 43 + 6,6 + 4 = 59 in pot
         dbg!(&p);
         let payout = p.payout(&vec![vec![3], vec![2], vec![1]]);

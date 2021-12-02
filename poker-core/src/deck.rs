@@ -193,7 +193,7 @@ impl fmt::Display for DeckError {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Deck {
     cards: Vec<Card>,
 }
