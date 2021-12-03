@@ -185,16 +185,15 @@ impl SeatedPlayers {
             .skip_while(move |(x, _)| x <= &si)
     }
 
-    /// Checks all seated players BetStatus and validates that the pot is ready to be finalized
+    /// Checks all seated players `BetStatus` and validates that the pot is ready to be finalized
     pub fn pot_is_right(&self, current_bet: i32) -> bool {
         for (_, player) in self.betting_players_iter() {
             match player.bet_status {
                 BetStatus::In(x) => {
                     if x == current_bet {
                         continue;
-                    } else {
-                        return false;
                     }
+                    return false;
                 }
                 BetStatus::Waiting => return false,
                 _ => unreachable!(),
@@ -280,7 +279,7 @@ impl SeatedPlayer {
     }
 
     /// Returns true is player is still in the betting
-    /// Notably, all_in players are no longer better, and excluded
+    /// Notably, `all_in` players are no longer better, and excluded
     pub fn is_betting(&self) -> bool {
         matches!(self.bet_status, BetStatus::In(_) | BetStatus::Waiting)
     }
@@ -354,7 +353,7 @@ impl Pot {
 
     /// Parent MUST call this in between betting rounds.
     /// Closes the betting round of all open pots. Next betting roung will create a fresh pot.
-    /// This prevents confusion between max_in and net betting rounds.
+    /// This prevents confusion between max_in and next betting rounds.
     pub fn finalize_round(&mut self) {
         self.is_settled = true;
         if let Some(x) = self.side_pot.as_mut() {
@@ -448,8 +447,7 @@ impl Pot {
                         v
                     }
                 },
-                BetAction::Bet(v) => v,
-                BetAction::Call(v) => v,
+                BetAction::Bet(v) | BetAction::Call(v) => v,
                 // Folds and calls have no effect on the pot.
                 _ => return 0,
             };
