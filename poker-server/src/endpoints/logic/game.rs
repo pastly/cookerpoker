@@ -32,10 +32,7 @@ pub enum BetStatus {
 impl BetStatus {
     /// Convience function so you don't have to match the enum.
     pub fn is_folded(&self) -> bool {
-        match self {
-            &BetStatus::Folded => true,
-            _ => false,
-        }
+        matches!(self, &BetStatus::Folded)
     }
 }
 
@@ -285,11 +282,7 @@ impl SeatedPlayer {
     /// Returns true is player is still in the betting
     /// Notably, all_in players are no longer better, and excluded
     pub fn is_betting(&self) -> bool {
-        match self.bet_status {
-            BetStatus::In(x) => true,
-            BetStatus::Waiting => true,
-            _ => false,
-        }
+        matches!(self.bet_status, BetStatus::In(_) | BetStatus::Waiting)
     }
 }
 
@@ -338,20 +331,23 @@ impl Pot {
     }
 
     fn update_max(&mut self, new_max: i32) {
+        use std::cmp::Ordering;
         if self.is_settled {
             self.side_pot().update_max(new_max);
         } else {
-            let ov = self.max_in;
             if new_max == i32::MAX || new_max < 1 {
                 return;
             }
-            if new_max > self.max_in {
-                self.side_pot().update_max(new_max)
-            } else if new_max < self.max_in {
-                self.max_in = new_max;
-                if ov != i32::MAX {
-                    self.side_pot().update_max(ov - new_max);
+            match new_max.cmp(&self.max_in) {
+                Ordering::Greater => self.side_pot().update_max(new_max),
+                Ordering::Less => {
+                    let ov = self.max_in;
+                    self.max_in = new_max;
+                    if ov != i32::MAX {
+                        self.side_pot().update_max(ov - new_max);
+                    }
                 }
+                Ordering::Equal => (),
             }
         }
     }
@@ -433,25 +429,25 @@ impl Pot {
     /// Takes the players TOTAL bet. I.e. Bet(10), Call(20) = bet of 20.
     /// As such, parent must track the current betting round.
     pub fn bet(&mut self, player: i32, action: BetAction) -> i32 {
+        use std::cmp::Ordering;
         if self.is_settled {
             self.side_pot().bet(player, action)
         } else {
             let ov = self.players_in.get(&player).copied().unwrap_or_default();
             let value = match action {
-                BetAction::AllIn(v) => {
-                    if v > self.max_in {
-                        // Top off the current pot
+                BetAction::AllIn(v) => match v.cmp(&self.max_in) {
+                    Ordering::Greater => {
                         let nv = v - self.max_in - ov;
                         self.players_in.insert(player, self.max_in);
                         self.side_pot().bet(player, BetAction::AllIn(nv))
-                    } else if v == self.max_in {
-                        v
-                    } else {
+                    }
+                    Ordering::Equal => v,
+                    Ordering::Less => {
                         self.update_max(v);
                         self.overflow();
                         v
                     }
-                }
+                },
                 BetAction::Bet(v) => v,
                 BetAction::Call(v) => v,
                 // Folds and calls have no effect on the pot.
