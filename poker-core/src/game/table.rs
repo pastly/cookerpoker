@@ -5,7 +5,6 @@ use super::pot::Pot;
 use super::GameError;
 use derive_more::Display;
 
-
 impl TableType {
     /// Helper function because dumb
     pub fn i(self) -> i16 {
@@ -77,7 +76,7 @@ pub struct GameInProgress {
 }
 
 impl GameInProgress {
-    fn start_round(&mut self) -> Result<(), GameError> {
+    pub fn start_round(&mut self) -> Result<(), GameError> {
         self.state = GameState::Dealing;
         self.d = Deck::new();
         // TODO save seed

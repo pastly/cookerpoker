@@ -25,10 +25,14 @@ pub enum BetError {
     BadAction,
 }
 
+#[derive(Debug)]
 pub enum GameError {
     DeckError(deck::DeckError),
     BetError(BetError),
     NotEnoughPlayers,
+    SeatTaken,
+    PlayerAlreadySeated,
+    InvalidSeat,
 }
 
 impl From<deck::DeckError> for GameError {
