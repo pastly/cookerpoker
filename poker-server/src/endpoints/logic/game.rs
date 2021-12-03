@@ -237,7 +237,7 @@ impl SeatedPlayers {
         if self.betting_players_iter().count() < 3 {
             return Err(GameError::NotEnoughPlayers);
         }
-        let od = self.dealer_token.clone();
+        let od = self.dealer_token;
         let v = self
             .betting_players_iter_after(od)
             .map(|(x, _)| x)
