@@ -25,7 +25,7 @@ pub const HEART: char = 'h';
 pub const DIAMOND: char = 'd';
 pub const CLUB: char = 'c';
 /// TECHNICALLY this could be 22.
-/// 22x2(pockets)+3(burn)+5(table) = DECK_LEN
+/// 22x2(pockets)+3(burn)+5(table) = `DECK_LEN`
 pub const MAX_PLAYERS: u8 = 21;
 //const SPADE: &str = "♤";
 //const HEART: &str = "♡";
@@ -200,6 +200,10 @@ pub struct Deck {
 
 impl Deck {
     /// Generate a new single deck of cards, shuffled
+    ///
+    /// # Panics
+    ///
+    /// Panics if somehow less than 52 cards were generated
     pub fn new() -> Self {
         use itertools::Itertools;
         let c: Vec<Card> = ALL_RANKS
@@ -238,7 +242,7 @@ impl Deck {
             for i in (1..=num_players).rev() {
                 let c1 = self.draw()?;
                 let c2 = self.cards.remove(self.cards.len() - i as usize);
-                v.push([c1, c2])
+                v.push([c1, c2]);
             }
             Ok(v)
         }

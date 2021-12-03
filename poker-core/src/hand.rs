@@ -433,7 +433,7 @@ impl PartialOrd for Hand {
 }
 
 /// Checks all 5-card combinations of the given cards, and returns a Vector of the best
-/// 5-card hands. If more than one Hand is returned, they are all equal (WinState::Tie).
+/// 5-card hands. If more than one Hand is returned, they are all equal (`WinState::Tie`).
 /// If <5 cards are in the given slice, returns an empty vec.
 ///
 /// This function checks every single possible combination of five cards. Be mindful of this before
@@ -485,10 +485,10 @@ pub fn best_of_cards(cards: &[Card]) -> Vec<Hand> {
 ///
 /// Errors:
 ///
-///   - HandError::NotTwoCards if any pocket isn't two cards long
-///   - HandError::NotFiveCards if the community isn't five cards long
+///   - `HandError::NotTwoCards` if any pocket isn't two cards long
+///   - `HandError::NotFiveCards` if the community isn't five cards long
 pub fn best_hands<AID: Copy>(
-    pockets: HashMap<AID, [Card; 2]>,
+    pockets: &HashMap<AID, [Card; 2]>,
     community: [Card; 5],
 ) -> Result<Vec<Vec<(AID, Hand)>>, HandError> {
     if pockets.is_empty() {
@@ -501,7 +501,7 @@ pub fn best_hands<AID: Copy>(
     }
     // Get the best possible 5-card hand for each pocket
     let mut hands = vec![];
-    for (account_id, pocket) in pockets.iter() {
+    for (account_id, pocket) in pockets {
         if pocket.len() != 2 {
             return Err(HandError::NotTwoCards(pocket.len()));
         }
@@ -603,7 +603,7 @@ mod test_best_hands {
             ['9', 's'].into(),
             ['T', 'c'].into(),
         ];
-        let ret = best_hands(map, comm).unwrap();
+        let ret = best_hands(&map, comm).unwrap();
         for (idx, inner) in ret.iter().enumerate() {
             println!("{}:", idx);
             for h in inner {
