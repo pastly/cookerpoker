@@ -242,7 +242,7 @@ impl SeatedPlayer {
             BetAction::Check => unimplemented!(),
             _ => bet,
         };
-        self.bet_status = BetStatus::from(r.clone());
+        self.bet_status = BetStatus::from(r);
         Ok(r)
     }
 

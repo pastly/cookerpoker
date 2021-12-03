@@ -1,10 +1,10 @@
 use super::deck::{Card, Deck};
 use super::players::SeatedPlayers;
 use super::pot::Pot;
-use super::BetAction;
+
 use super::GameError;
 use derive_more::Display;
-use serde::{Deserialize, Serialize};
+
 
 impl TableType {
     /// Helper function because dumb
@@ -83,7 +83,7 @@ impl GameInProgress {
         // TODO save seed
 
         // Handles auto folds and moving the tokens
-        let seated_players = self.seated_players.start_hand()?;
+        let _seated_players = self.seated_players.start_hand()?;
 
         // Reset the pot
         self.pots = Pot::default();
@@ -97,7 +97,7 @@ impl GameInProgress {
 
         // Deal the pockets
         let np = self.seated_players.betting_players_iter().count() as u8;
-        let pockets = self.d.deal_pockets(np)?;
+        let _pockets = self.d.deal_pockets(np)?;
 
         Ok(())
     }
