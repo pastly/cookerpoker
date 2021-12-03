@@ -108,7 +108,10 @@ pub struct SeatedPlayers {
 impl Default for SeatedPlayers {
     fn default() -> Self {
         SeatedPlayers {
-            players: [None; MAX_PLAYERS],
+            //Apparently you can't do [None; MAX_PLAYERS] if the SeatedPlayer type doesn't implement copy.
+            players: [
+                None, None, None, None, None, None, None, None, None, None, None, None,
+            ],
             last_better: 0,
             dealer_token: 0,
             small_blind_token: 1,
@@ -175,6 +178,16 @@ impl SeatedPlayers {
         self.players_iter().filter(|(x, y)| y.is_betting())
     }
 
+    pub fn betting_players_iter_after(
+        &self,
+        i: usize,
+    ) -> impl Iterator<Item = (usize, &SeatedPlayer)> + Clone + '_ {
+        let si = if i >= MAX_PLAYERS - 1 { 0 } else { i };
+        self.betting_players_iter()
+            .cycle()
+            .skip_while(move |(x, _)| x <= &si)
+    }
+
     /// Checks all seated players BetStatus and validates that the pot is ready to be finalized
     pub fn pot_is_right(&self, current_bet: i32) -> bool {
         for (_, player) in self.betting_players_iter() {
@@ -191,23 +204,6 @@ impl SeatedPlayers {
             }
         }
         true
-    }
-
-    /// Returns the next active player after the supplied index
-    /// Basically wraps [`Self::betting_players_in`]
-    fn player_after(&self, i: usize) -> Result<usize, GameError> {
-        //Brute force until I figure out a better way
-        for np in i..MAX_PLAYERS {
-            if self.players[i].has_monies() && !self.players[i].is_folded() {
-                return Ok(np);
-            }
-        }
-        for np in 0..i {
-            if self.players[i].has_monies() && !self.players[i].is_folded() {
-                return Ok(np);
-            }
-        }
-        Err(GameError::NotEnoughPlayers)
     }
 
     fn unfold_all(&mut self) {
@@ -230,7 +226,7 @@ impl SeatedPlayers {
     }
 
     fn auto_fold_players(&mut self) {
-        for (_, player) in self.players_iter() {
+        for (_, player) in self.players_iter_mut() {
             if !player.has_monies() || player.auto_fold {
                 player.bet_status = BetStatus::Folded;
             }
@@ -238,12 +234,19 @@ impl SeatedPlayers {
     }
 
     fn rotate_tokens(&mut self) -> Result<(), GameError> {
-        self.dealer_token = self.player_after(self.dealer_token)?;
-        self.small_blind_token = self.player_after(self.dealer_token)?;
+        if self.betting_players_iter().count() < 3 {
+            return Err(GameError::NotEnoughPlayers);
+        }
+        let od = self.dealer_token.clone();
+        let v = self
+            .betting_players_iter_after(od)
+            .map(|(x, _)| x)
+            .collect::<Vec<usize>>();
+        let mut iter = v.iter();
+        self.dealer_token = *iter.next().ok_or(GameError::NotEnoughPlayers)?;
         // dealer_token can also be big blind
-        self.big_blind_token = self
-            .player_after(self.small_blind_token)
-            .unwrap_or(self.dealer_token);
+        self.small_blind_token = *iter.next().ok_or(GameError::NotEnoughPlayers)?;
+        self.big_blind_token = *iter.next().ok_or(GameError::NotEnoughPlayers)?;
         Ok(())
     }
 }
