@@ -2,7 +2,7 @@ use super::deck::{Card, Deck};
 use super::players::SeatedPlayers;
 use super::pot::Pot;
 
-use super::GameError;
+use super::{BetAction, GameError};
 use derive_more::Display;
 
 impl TableType {
@@ -72,6 +72,7 @@ pub struct GameInProgress {
     pub pots: Pot,
     pub state: GameState,
     pub small_blind: i32,
+    pub current_bet: i32,
     d: Deck,
 }
 
@@ -99,6 +100,22 @@ impl GameInProgress {
         let _pockets = self.d.deal_pockets(np)?;
 
         Ok(())
+    }
+
+    pub fn bet(&mut self, player: i32, ba: BetAction) -> Result<i32, GameError> {
+        // Convert check into related call
+        let ba = if matches!(ba, BetAction::Check) {
+            BetAction::Call(self.current_bet)
+        } else {
+            ba
+        };
+        // Make sure calls equal the current bet
+        // Make sure bets are >= current bet
+        // Call seated player bet
+        // Update Pot
+        // Play pending action for next better
+        // Determine if this was the final bet and round is over
+        unimplemented!()
     }
 
     /// Simple abstraction so can make big blinds that are not x2 later

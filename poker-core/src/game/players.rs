@@ -353,4 +353,12 @@ mod tests {
         let r = sp.sit_down(1, 10, 1);
         assert!(r.is_err());
     }
+
+    #[test]
+    fn seat_taken() {
+        let mut sp = SeatedPlayers::default();
+        sp.sit_down(1, 10, 0).unwrap();
+        let r = sp.sit_down(2, 10, 0);
+        assert!(r.is_err());
+    }
 }
