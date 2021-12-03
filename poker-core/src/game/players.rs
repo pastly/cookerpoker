@@ -90,8 +90,8 @@ impl SeatedPlayers {
     /// Needed in this struct because next_better is private
     pub fn blinds_bet(&mut self, sb: i32, bb: i32) -> Result<i32, BetError> {
         let sbp = self.next_better();
-        let bbp = self.bet(sbp, BetAction::Bet(sb))?;
-        let r = self.bet(bbp, BetAction::Bet(bb))?;
+        let bbp = self.bet(sbp, BetAction::Bet(sb))?.1;
+        let r = self.bet(bbp, BetAction::Bet(bb))?.1;
         Ok(r)
     }
 
@@ -106,20 +106,20 @@ impl SeatedPlayers {
     /// * Validation that the bet meets the current bet amount
     ///
     /// Returns the account id of the next better.
-    pub fn bet(&mut self, player: i32, action: BetAction) -> Result<i32, BetError> {
+    pub fn bet(&mut self, player: i32, action: BetAction) -> Result<(BetAction, i32), BetError> {
         // Check player is even in the betting
         let p: &mut SeatedPlayer = self.player_by_id(player).ok_or(BetError::PlayerNotFound)?;
         if !p.is_betting() {
             return Err(BetError::PlayerIsNotBetting);
         }
         // Call player.bet()
-        p.bet(action)?;
+        let ba = p.bet(action)?;
 
         // Move the betting round forward
         let nb = self.next_better();
 
-        // Return
-        Ok(nb)
+        // Return the BetAction to be committed to the Pot, and the next better
+        Ok((ba, nb))
     }
 
     /// Returns an iterator over all seated players, preserving seat index
