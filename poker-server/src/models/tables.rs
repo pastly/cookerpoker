@@ -82,7 +82,7 @@ impl GameTable {
         // TODO Sanity Check. i.e. fail on thousand dollar buy ins.
         if self.table_state == TableState::NotReady.i() {
             self.table_name = form.name;
-            self.table_type = form.table_type.into();
+            self.table_type = form.table_type;
             self.table_state = form.state.into();
             self.buy_in = form.buy_in;
             self.small_blind = form.small_blind;

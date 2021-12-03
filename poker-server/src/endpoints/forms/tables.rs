@@ -1,4 +1,4 @@
-use super::super::logic::table::{TableState, TableType};
+use super::super::logic::table::{TableState};
 
 #[derive(FromForm)]
 pub struct NewTable {
