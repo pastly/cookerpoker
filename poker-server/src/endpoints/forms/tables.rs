@@ -7,7 +7,7 @@ pub struct NewTable {
 
 #[derive(FromForm)]
 pub struct UpdateTableSettings {
-    pub table_type: TableType,
+    pub table_type: i16,
     pub name: String,
     pub state: TableState,
     pub buy_in: i32,

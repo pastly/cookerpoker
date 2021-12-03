@@ -2,6 +2,7 @@ use super::account::cookie_to_account;
 use super::*;
 pub use crate::models::{accounts::Account, tables::GameTable};
 use crate::AppError;
+pub use poker_core::game::table::TableType;
 use rocket::http::Status;
 use schema::game_tables;
 
@@ -91,47 +92,6 @@ impl TableState {
     pub const fn get_error() -> &'static str {
         // TODO figure out how to do this from slice
         "Invalid TableState. Valid values are: NotReady, OpenNotStarted, OpenStarted, Closed, Finished"
-    }
-}
-
-impl TableType {
-    /// Helper function because dumb
-    pub fn i(self) -> i16 {
-        self.into()
-    }
-    pub const fn get_all_as_slice() -> [&'static str; 2] {
-        ["Tournament", "Open"]
-    }
-    pub const fn get_error() -> &'static str {
-        // TODO figure out how to do this from slice
-        "Invalid TableType. Valid values are: Tournament, Open"
-    }
-}
-
-#[derive(Debug, FromFormField, Clone, Copy, Display)]
-pub enum TableType {
-    Tournament,
-    Open,
-}
-
-impl TryFrom<i16> for TableType {
-    type Error = TableError;
-    fn try_from(f: i16) -> Result<Self, TableError> {
-        match f {
-            0 => Ok(Self::Tournament),
-            1 => Ok(Self::Open),
-            _ => Err(TableError::InvalidTableType(TableType::get_error())),
-        }
-    }
-}
-
-#[allow(clippy::from_over_into)]
-impl Into<i16> for TableType {
-    fn into(self) -> i16 {
-        match self {
-            Self::Tournament => 0,
-            Self::Open => 1,
-        }
     }
 }
 

@@ -49,7 +49,11 @@ pub type OpenTableFilter = Filter<SelectAllTables, OpenTableOr>;
 pub type OpenOrMyTables = Filter<SelectAllTables, Or<OpenTableOr, CheckTableOwner>>;
 impl GameTable {
     pub fn table_type(&self) -> Result<TableType, TableError> {
-        TableType::try_from(self.table_type)
+        let tt = TableType::from(self.table_type);
+        match tt {
+            TableType::Invalid => Err(TableError::InvalidTableType(TableType::get_error())),
+            _ => Ok(tt),
+        }
     }
 
     pub fn all() -> SelectAllTables {
