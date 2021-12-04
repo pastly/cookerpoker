@@ -193,7 +193,7 @@ impl fmt::Display for DeckError {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Deck {
     cards: Vec<Card>,
 }
@@ -290,14 +290,14 @@ mod tests {
     #[test]
     fn string_empty() {
         let s = "";
-        let res = cards_from_str(&s);
+        let res = cards_from_str(s);
         assert_eq!(res.len(), 0);
     }
 
     #[test]
     fn string_single() {
         let s = "Ah";
-        let res = cards_from_str(&s);
+        let res = cards_from_str(s);
         assert_eq!(res.len(), 1);
         let c = res[0];
         assert_eq!(c.rank(), Rank::RA);
@@ -307,7 +307,7 @@ mod tests {
     #[test]
     fn string_multi() {
         let s = "Ah2c6h";
-        let res = cards_from_str(&s);
+        let res = cards_from_str(s);
         assert_eq!(res.len(), 3);
     }
 

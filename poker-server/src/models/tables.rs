@@ -49,7 +49,11 @@ pub type OpenTableFilter = Filter<SelectAllTables, OpenTableOr>;
 pub type OpenOrMyTables = Filter<SelectAllTables, Or<OpenTableOr, CheckTableOwner>>;
 impl GameTable {
     pub fn table_type(&self) -> Result<TableType, TableError> {
-        TableType::try_from(self.table_type)
+        let tt = TableType::from(self.table_type);
+        match tt {
+            TableType::Invalid => Err(TableError::InvalidTableType(TableType::get_error())),
+            _ => Ok(tt),
+        }
     }
 
     pub fn all() -> SelectAllTables {
@@ -78,7 +82,7 @@ impl GameTable {
         // TODO Sanity Check. i.e. fail on thousand dollar buy ins.
         if self.table_state == TableState::NotReady.i() {
             self.table_name = form.name;
-            self.table_type = form.table_type.into();
+            self.table_type = form.table_type;
             self.table_state = form.state.into();
             self.buy_in = form.buy_in;
             self.small_blind = form.small_blind;

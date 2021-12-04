@@ -1211,6 +1211,7 @@ dependencies = [
 name = "poker-core"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "itertools",
  "rand",
  "serde",
