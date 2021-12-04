@@ -45,7 +45,8 @@ pub struct SeatedPlayers {
 impl Default for SeatedPlayers {
     fn default() -> Self {
         SeatedPlayers {
-            //Apparently you can't do [None; MAX_PLAYERS] if the SeatedPlayer type doesn't implement copy.
+            //Apparently you can't do [None; MAX_PLAYERS] if the SeatedPlayer type doesn't
+            //implement copy.
             players: [
                 None, None, None, None, None, None, None, None, None, None, None, None,
             ],
@@ -58,6 +59,9 @@ impl Default for SeatedPlayers {
 }
 
 impl SeatedPlayers {
+    /// Place the given player into the given seat, and give them the given amount of money. Seat
+    /// is an index (0-based).
+    ///
     /// TODO abstract over Account struct?
     pub fn sit_down(&mut self, aid: i32, monies: i32, seat: usize) -> Result<(), GameError> {
         if self.player_by_id(aid).is_some() {
@@ -101,7 +105,9 @@ impl SeatedPlayers {
             .find(|x| x.id == player)
     }
 
-    /// This function is not aware of the current bet. As such validation must be handled before this function:
+    /// This function is not aware of the current bet. As such validation must be handled before
+    /// this function:
+    ///
     /// * Check's should be converted to Calls
     /// * Validation that the bet meets the current bet amount
     ///
@@ -141,12 +147,22 @@ impl SeatedPlayers {
     }
 
     /// Returns an iterator over players still in the betting, preserving seat index
+    ///
+    /// Note: say the only not-betting player is seat idx 2. This will list 0 and 1 before going
+    /// on to 3 and the rest.
     pub fn betting_players_iter(
         &self,
     ) -> impl Iterator<Item = (usize, &SeatedPlayer)> + Clone + '_ {
         self.players_iter().filter(|(_, y)| y.is_betting())
     }
 
+    /// Returns an iterator over the players in seat positions after the given seat index
+    /// (0-indexed).
+    ///
+    /// Note that this will loop around the table up to almost twice. For example, given i=0, this
+    /// will return an iterator over the seats starting at 1, through the end of the table, then
+    /// start at 0 again and go through the end of the table. Only take the first few seats
+    /// returned as you need them.
     pub fn betting_players_iter_after(
         &self,
         i: usize,
@@ -157,8 +173,11 @@ impl SeatedPlayers {
             .skip_while(move |(x, _)| x < &si)
     }
 
-    /// Checks all seated players `BetStatus` and validates that the pot is ready to be finalized
-    pub fn pot_is_right(&self, current_bet: i32) -> bool {
+    /// Checks all seated players `BetStatus` and validates that the pot is ready to be finalized.
+    ///
+    /// AllIn players aren't "betting", so when iterating over all betting players, they are
+    /// skipped. The only expected BetStatuses are In and Waiting.
+    pub fn pot_is_ready(&self, current_bet: i32) -> bool {
         for (_, player) in self.betting_players_iter() {
             match player.bet_status {
                 BetStatus::In(x) => {
@@ -289,7 +308,7 @@ impl SeatedPlayer {
     }
 
     /// Returns true is player is still in the betting
-    /// Notably, `all_in` players are no longer better, and excluded
+    /// Notably, `all_in` players are no longer betting, and excluded
     pub fn is_betting(&self) -> bool {
         matches!(self.bet_status, BetStatus::In(_) | BetStatus::Waiting)
     }
