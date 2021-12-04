@@ -67,7 +67,7 @@ impl SeatedPlayers {
         if self.player_by_id(aid).is_some() {
             return Err(GameError::PlayerAlreadySeated);
         }
-        if seat >= MAX_PLAYERS {
+        if seat >= self.players.len() {
             return Err(GameError::InvalidSeat);
         }
         // The seat always exists, it's weather a player is sitting there we need to check
@@ -167,7 +167,11 @@ impl SeatedPlayers {
         &self,
         i: usize,
     ) -> impl Iterator<Item = (usize, &SeatedPlayer)> + Clone + '_ {
-        let si = if i >= MAX_PLAYERS - 1 { 0 } else { i + 1 };
+        let si = if i >= self.players.len() - 1 {
+            0
+        } else {
+            i + 1
+        };
         self.betting_players_iter()
             .chain(self.betting_players_iter())
             .skip_while(move |(x, _)| x < &si)
@@ -284,7 +288,7 @@ impl SeatedPlayer {
                 BetAction::AllIn(self.monies)
             }
             BetAction::Check => unimplemented!(),
-            _ => bet,
+            BetAction::Fold => bet,
         };
         self.bet_status = BetStatus::from(r);
         Ok(r)
@@ -358,7 +362,7 @@ mod tests {
     fn all_in_on_blind() {
         let mut sp = SeatedPlayers::default();
         sp.sit_down(1, 2, 0).unwrap();
-        sp.sit_down(2, 10, MAX_PLAYERS - 1).unwrap();
+        sp.sit_down(2, 10, sp.players.len() - 1).unwrap();
         sp.start_hand().unwrap();
         sp.blinds_bet(5, 10).unwrap();
         assert_eq!(sp.player_by_id(1).unwrap().bet_status, BetStatus::AllIn(2));
