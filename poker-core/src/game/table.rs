@@ -102,9 +102,9 @@ impl GameInProgress {
         Ok(())
     }
 
-    pub fn bet(&mut self, player: i32, ba: BetAction) -> Result<i32, GameError> {
+    pub fn bet(&mut self, _player: i32, ba: BetAction) -> Result<i32, GameError> {
         // Convert check into related call
-        let ba = if matches!(ba, BetAction::Check) {
+        let _ba = if matches!(ba, BetAction::Check) {
             BetAction::Call(self.current_bet)
         } else {
             ba
@@ -123,7 +123,7 @@ impl GameInProgress {
         self.small_blind * 2
     }
 
-    fn finalize_hand(&mut self) -> Result<GameState, GameError> {
+    fn _finalize_hand(&mut self) -> Result<GameState, GameError> {
         self.seated_players.end_hand()?;
         // TODO Fold 'auto-fold' players?
         // TODO Force rocket to update DB? Probably by returning State enum?

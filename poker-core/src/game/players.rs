@@ -351,7 +351,7 @@ mod tests {
         assert_eq!(sp.dealer_token, 0);
         assert_eq!(sp.small_blind_token, 3);
         assert_eq!(sp.big_blind_token, 5);
-        sp.end_hand();
+        sp.end_hand().unwrap();
         sp.start_hand().unwrap();
         assert_eq!(sp.dealer_token, 3);
         assert_eq!(sp.small_blind_token, 5);
