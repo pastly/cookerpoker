@@ -629,7 +629,7 @@ mod test_hand {
 
     #[test]
     fn wrong_sizes() {
-        let mut deck = Deck::new();
+        let mut deck = Deck::default();
         for n in [0, 1, 2, 3, 4, 6, 7] {
             let cards: Vec<Card> = iter::repeat_with(|| deck.draw().unwrap()).take(n).collect();
             let hand = Hand::new(&cards);
@@ -639,7 +639,7 @@ mod test_hand {
 
     #[test]
     fn correct_size() {
-        let mut deck = Deck::new();
+        let mut deck = Deck::default();
         let cards: Vec<Card> = iter::repeat_with(|| deck.draw().unwrap()).take(5).collect();
         let hand = Hand::new(&cards);
         assert!(hand.is_ok());

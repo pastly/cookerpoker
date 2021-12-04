@@ -1,4 +1,5 @@
 use rand::prelude::*;
+use rand_chacha::ChaChaRng;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fmt;
@@ -193,18 +194,13 @@ impl fmt::Display for DeckError {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct Deck {
     cards: Vec<Card>,
 }
 
-impl Deck {
-    /// Generate a new single deck of cards, shuffled
-    ///
-    /// # Panics
-    ///
-    /// Panics if somehow less than 52 cards were generated
-    pub fn new() -> Self {
+impl Default for Deck {
+    fn default() -> Self {
         use itertools::Itertools;
         let c: Vec<Card> = ALL_RANKS
             .iter()
@@ -216,10 +212,30 @@ impl Deck {
         d.shuffle();
         d
     }
+}
+
+impl Deck {
+    /// Generate a new single deck of cards, shuffled
+    ///
+    /// # Panics
+    ///
+    /// Panics if somehow less than 52 cards were generated
+    pub fn new(seed: DeckSeed) -> Self {
+        let mut d = Self::default();
+        d.seeded_shuffle(seed);
+        d
+    }
 
     /// Shuffle the deck of cards in-place, and reset its `next` index to 0
     pub fn shuffle(&mut self) {
-        self.cards.shuffle(&mut thread_rng());
+        self.seeded_shuffle(DeckSeed::default());
+    }
+
+    pub fn seeded_shuffle(&mut self, seed: DeckSeed) {
+        let mut rng = ChaChaRng::from_seed(seed.0);
+        // For determinism given the same seed, the cards need to be in a known order before shuffling.
+        self.cards.sort_unstable();
+        self.cards.shuffle(&mut rng)
     }
 
     /// Draw the topmost card and return it, or return and error if, e.g., there are no more cards.
@@ -249,21 +265,36 @@ impl Deck {
     }
 }
 
+pub struct DeckSeed([u8; 32]);
+
+impl Default for DeckSeed {
+    fn default() -> Self {
+        let mut b = [0u8; 32];
+        thread_rng().fill_bytes(&mut b);
+        Self(b)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::collections::HashMap;
 
+    const SEED1: DeckSeed = DeckSeed([
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1,
+    ]);
+
     #[test]
     fn right_len_1() {
-        let d = Deck::new();
+        let d = Deck::default();
         assert_eq!(d.cards.len(), d.cards.capacity());
         assert_eq!(d.cards.len(), DECK_LEN);
     }
 
     #[test]
     fn right_count_1() {
-        let d = Deck::new();
+        let d = Deck::default();
         let mut counts: HashMap<Card, u16> = HashMap::new();
         for card in d.cards.iter() {
             if let Some(count) = counts.get_mut(card) {
@@ -280,7 +311,7 @@ mod tests {
 
     #[test]
     fn draw_1() {
-        let mut d = Deck::new();
+        let mut d = Deck::default();
         for _ in 0..DECK_LEN {
             assert!(d.draw().is_ok());
         }
@@ -313,7 +344,7 @@ mod tests {
 
     #[test]
     fn is_shuffled() {
-        let mut d = Deck::new();
+        let mut d = Deck::default();
         let top = d.draw().unwrap();
         let next = d.draw().unwrap();
         let third = d.draw().unwrap();
@@ -329,7 +360,7 @@ mod tests {
 
     #[test]
     fn deal_pockets_1() {
-        let mut d = Deck::new();
+        let mut d = Deck::default();
         let expect = [d.cards[51], d.cards[50]];
         let actual = d.deal_pockets(1).unwrap();
         println!("{:?} expect", expect);
@@ -339,7 +370,7 @@ mod tests {
 
     #[test]
     fn deal_pockets_2() {
-        let mut d = Deck::new();
+        let mut d = Deck::default();
         println!("46 {}", d.cards[46]);
         println!("47 {}", d.cards[47]);
         println!("48 {}", d.cards[48]);
@@ -357,7 +388,7 @@ mod tests {
 
     #[test]
     fn deal_pockets_10() {
-        let mut d = Deck::new();
+        let mut d = Deck::default();
         let expect0 = [d.cards[51 - 0], d.cards[51 - 10]];
         //        1              -1             -11
         //        2              -2             -12
@@ -371,7 +402,7 @@ mod tests {
 
     #[test]
     fn deal_pockets_max() {
-        let mut d = Deck::new();
+        let mut d = Deck::default();
         let n = MAX_PLAYERS as usize;
         let expect0 = [d.cards[51 - 0], d.cards[51 - n]];
         let expectn = [d.cards[51 - (n - 1)], d.cards[51 - n - (n - 1)]];
@@ -382,9 +413,20 @@ mod tests {
 
     #[test]
     fn deal_pockets() {
-        let mut d = Deck::new();
+        let mut d = Deck::default();
         let v = d.deal_pockets(10).expect("Can't deal pockets?");
         assert_eq!(d.cards.len(), DECK_LEN - 20);
         assert_eq!(v.len(), 10);
+    }
+
+    /// Given a specific seed, the order of the cards should always be the same.
+    #[test]
+    fn deck_is_seedable() {
+        let mut d = Deck::new(SEED1);
+        let c1 = d.draw().unwrap();
+        let c2 = d.draw().unwrap();
+        println!("{} {}", c1, c2);
+        assert_eq!(c1, ['3', 'h'].into());
+        assert_eq!(c2, ['J', 's'].into());
     }
 }

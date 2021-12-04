@@ -79,7 +79,7 @@ pub struct GameInProgress {
 impl GameInProgress {
     pub fn start_round(&mut self) -> Result<(), GameError> {
         self.state = GameState::Dealing;
-        self.d = Deck::new();
+        self.d = Deck::default();
         // TODO save seed
 
         // Handles auto folds and moving the tokens
