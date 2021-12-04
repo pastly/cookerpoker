@@ -37,12 +37,10 @@ impl Pot {
     }
 
     fn side_pot(&mut self) -> &mut Pot {
-        if self.side_pot.is_some() {
-            self.side_pot.as_mut().unwrap()
-        } else {
+        if self.side_pot.is_none() {
             self.side_pot = Some(Box::new(Pot::default()));
-            self.side_pot.as_mut().unwrap()
         }
+        self.side_pot.as_mut().unwrap()
     }
 
     fn update_max(&mut self, new_max: i32) {

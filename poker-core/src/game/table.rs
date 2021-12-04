@@ -36,12 +36,12 @@ impl From<i16> for TableType {
     }
 }
 
-impl Into<i16> for TableType {
-    fn into(self) -> i16 {
-        match self {
-            Self::Tournament => 0,
-            Self::Open => 1,
-            Self::Invalid => i16::MAX,
+impl From<TableType> for i16 {
+    fn from(tt: TableType) -> Self {
+        match tt {
+            TableType::Tournament => 0,
+            TableType::Open => 1,
+            TableType::Invalid => i16::MAX,
         }
     }
 }
