@@ -115,8 +115,10 @@ fn main() {
             print!("{} ", c);
         }
         println!("the best possible hands are ...{}", first_time_hint);
+        // calculate early so it can be working "while" waiting for user to hit enter.
+        let ret = find_nuts(&community);
         read_and_ignore_input();
-        for (pocket, hand) in find_nuts(&community) {
+        for (pocket, hand) in ret {
             println!("  {}{}: {}", pocket[0], pocket[1], hand);
         }
         println!();
