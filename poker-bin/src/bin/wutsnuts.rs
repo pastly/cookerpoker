@@ -2,6 +2,16 @@ use itertools::Itertools;
 use poker_core::deck::{Card, Deck, ALL_RANKS, ALL_SUITS};
 use poker_core::hand::{best_of_cards, Hand};
 use std::cmp::Ordering;
+use std::env;
+use std::io;
+
+/// Default number of community cards to generate if no argument is given or if argument is out of
+/// range or fails to parse
+const DEF_COMM: usize = 3;
+/// Minimum legal number of community cards
+const MIN_COMM: usize = 3;
+/// Maximum legal number of community cards
+const MAX_COMM: usize = 5;
 
 /// Given 3+ community cards, calculate and return the best 5-card hands and the 2-card pockets
 /// that create them.
@@ -74,20 +84,44 @@ fn find_nuts(community: &[Card]) -> Vec<([Card; 2], Hand)> {
     nuts
 }
 
+fn read_and_ignore_input() {
+    let stdin = io::stdin();
+    let mut b = String::new();
+    stdin.read_line(&mut b).unwrap();
+}
+
+fn determine_n() -> usize {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        DEF_COMM
+    } else {
+        let n = args[1].parse().unwrap_or(DEF_COMM);
+        if (MIN_COMM..=MAX_COMM).contains(&n) {
+            n
+        } else {
+            DEF_COMM
+        }
+    }
+}
+
 fn main() {
-    let mut d = Deck::default();
-    let community = [
-        d.draw().unwrap(),
-        d.draw().unwrap(),
-        d.draw().unwrap(),
-        d.draw().unwrap(),
-        d.draw().unwrap(),
-    ];
-    println!(
-        "Given community {} {} {} {} {}, the best possible hands are:",
-        community[0], community[1], community[2], community[3], community[4],
-    );
-    for (pocket, hand) in find_nuts(&community) {
-        println!("  {}{}: {}", pocket[0], pocket[1], hand);
+    let mut first_time_hint = " (press enter)";
+    let n = determine_n();
+    loop {
+        let mut d = Deck::default();
+        let community: Vec<Card> = (0..n).map(|_| d.draw().unwrap()).collect();
+        print!("Given community cards: ");
+        for c in &community {
+            print!("{} ", c);
+        }
+        println!("the best possible hands are ...{}", first_time_hint);
+        read_and_ignore_input();
+        for (pocket, hand) in find_nuts(&community) {
+            println!("  {}{}: {}", pocket[0], pocket[1], hand);
+        }
+        println!();
+        if !first_time_hint.is_empty() {
+            first_time_hint = "";
+        }
     }
 }
