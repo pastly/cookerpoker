@@ -6,7 +6,13 @@
     <title>{% block title %}{% endblock title %}</title>
     {% endblock head %}
 </head>
+<header>
+</header>
 <body>
-    <div id="content">{% block content %}{% endblock content %}</div>
+<main>
+{% block content %}{% endblock content %}
+</main>
+<footer>
+</footer>
 </body>
 </html>
