@@ -9,4 +9,23 @@
         <li><a href="/accounts">View accounts (Admin only)</a></li>
         {% endif %}
     </ul>
+
+    <script type="module">
+    import init, {
+      // import aditional funcs here
+      greet,
+    } from './poker_client.js';
+
+    async function run() {
+      await init();
+      // if you want to call any wasm funcs right away as soon as init'ed, do
+      // so here.
+      greet();
+    }
+    run();
+    // calling wasm funcs here may not work if run() (an async func) hasn't finished yet
+
+    // not sure when this is needed. I did it in a previous project
+    // window.greet = greet;
+    </script>
     {% endblock content %}
