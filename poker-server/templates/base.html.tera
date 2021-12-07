@@ -7,7 +7,14 @@
     {% endblock head %}
 </head>
 <header>
-<a href='/'><img src=/logo2.png alt=logo /></a>
+<nav>
+<a href='/'><img src=/logo.png width=200 alt=logo /></a>
+<ul>
+<li><a href='/'>Home</a></li>
+<li><a href='/accounts'>Accounts</a></li>
+<li><a href='/tables'>Tables</a></li>
+</ul>
+</nav>
 </header>
 <body>
 <main>
