@@ -16,6 +16,29 @@ extern "C" {
     fn alert(s: &str);
 }
 
+struct CardElement(Card);
+
+impl CardElement {
+    fn new(c: Card) -> Self {
+        Self(c)
+    }
+
+    fn elm(self) -> Result<Element, &'static str> {
+        let doc = web_sys::window()
+            .expect("No window?")
+            .document()
+            .expect("No document?");
+        let elm = doc
+            .create_element("span")
+            .expect("Unable to create spam")
+            .dyn_into::<web_sys::Element>()
+            .expect("Unable to dyn_into Element");
+        elm.set_class_name("card");
+        elm.set_text_content(Some(&format!("{}", card_char(self.0))));
+        Ok(elm)
+    }
+}
+
 #[wasm_bindgen]
 pub fn greet() {
     utils::set_panic_hook();
@@ -30,22 +53,9 @@ pub fn show_n_cards(elm: Node, n: u8) {
     let mut d = Deck::default();
     for _ in 0..n {
         let c = d.draw().unwrap();
-        let card_elm = new_card_elm();
-        card_elm.set_text_content(Some(&format!("{}", card_char(c))));
-        elm.append_child(&card_elm).unwrap();
+        elm.append_child(&CardElement::new(c).elm().unwrap())
+            .unwrap();
     }
-}
-
-fn new_card_elm() -> Element {
-    let doc = web_sys::window().unwrap().document().unwrap();
-    let elm = doc
-        .create_element("span")
-        .unwrap()
-        .dyn_into::<web_sys::Element>()
-        .map_err(|_| ())
-        .unwrap();
-    elm.set_class_name("card");
-    elm
 }
 
 fn card_char(card: Card) -> char {
