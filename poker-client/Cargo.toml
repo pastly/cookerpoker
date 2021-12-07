@@ -31,13 +31,13 @@ wee_alloc = { version = "0.4.5", optional = true }
 version = "0.3"
 features = [
    #'CssStyleDeclaration',
-   #'Document',
    #'DomTokenList',
-   #'Element',
    #'HtmlElement',
    #'Storage',
-   #'Window',
+   'Document',
+   'Element',
    'Node',
+   'Window',
 ]
 
 [dev-dependencies]
