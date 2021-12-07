@@ -2,7 +2,8 @@ mod utils;
 
 use poker_core::deck::{Card, Deck, Rank, Suit};
 use wasm_bindgen::prelude::*;
-use web_sys::Node;
+use wasm_bindgen::JsCast;
+use web_sys::{Element, Node};
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -22,10 +23,29 @@ pub fn greet() {
 }
 
 #[wasm_bindgen]
-pub fn show_a_card(elm: Node) {
+pub fn show_n_cards(elm: Node, n: u8) {
+    while let Some(child) = elm.last_child() {
+        elm.remove_child(&child).unwrap();
+    }
     let mut d = Deck::default();
-    let c = d.draw().unwrap();
-    elm.set_text_content(Some(&format!("{}", card_char(c))));
+    for _ in 0..n {
+        let c = d.draw().unwrap();
+        let card_elm = new_card_elm();
+        card_elm.set_text_content(Some(&format!("{}", card_char(c))));
+        elm.append_child(&card_elm).unwrap();
+    }
+}
+
+fn new_card_elm() -> Element {
+    let doc = web_sys::window().unwrap().document().unwrap();
+    let elm = doc
+        .create_element("span")
+        .unwrap()
+        .dyn_into::<web_sys::Element>()
+        .map_err(|_| ())
+        .unwrap();
+    elm.set_class_name("card");
+    elm
 }
 
 fn card_char(card: Card) -> char {
