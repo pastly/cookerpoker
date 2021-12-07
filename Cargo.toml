@@ -3,4 +3,5 @@ members = [
     "poker-core",
     "poker-bin",
     "poker-server",
+    "poker-client",
 ]
