@@ -36,6 +36,7 @@ pub const MAX_PLAYERS: u8 = 21;
 //const HEART: &str = "♥";
 //const DIAMOND: &str = "♦";
 //const CLUB: &str = "♣";
+const SEED_LEN: usize = 32;
 
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Suit {
@@ -194,7 +195,7 @@ impl fmt::Display for DeckError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Deck {
     cards: Vec<Card>,
 }
@@ -216,22 +217,25 @@ impl Default for Deck {
 
 impl Deck {
     /// Generate a new single deck of cards, shuffled
-    ///
-    /// # Panics
-    ///
-    /// Panics if somehow less than 52 cards were generated
-    pub fn new(seed: DeckSeed) -> Self {
+    pub fn new(seed: &DeckSeed) -> Self {
         let mut d = Self::default();
-        d.seeded_shuffle(seed);
+        d.seeded_shuffle(&seed);
         d
+    }
+
+    ///
+    pub fn deck_and_seed() -> (Deck, DeckSeed) {
+        let ds = DeckSeed::default();
+        let d = Deck::new(&ds);
+        (d, ds)
     }
 
     /// Shuffle the deck of cards in-place, and reset its `next` index to 0
     pub fn shuffle(&mut self) {
-        self.seeded_shuffle(DeckSeed::default());
+        self.seeded_shuffle(&DeckSeed::default());
     }
 
-    pub fn seeded_shuffle(&mut self, seed: DeckSeed) {
+    pub fn seeded_shuffle(&mut self, seed: &DeckSeed) {
         let mut rng = ChaChaRng::from_seed(seed.0);
         // For determinism given the same seed, the cards need to be in a known order before shuffling.
         self.cards.sort_unstable();
@@ -265,13 +269,30 @@ impl Deck {
     }
 }
 
-pub struct DeckSeed([u8; 32]);
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DeckSeed([u8; SEED_LEN]);
 
 impl Default for DeckSeed {
     fn default() -> Self {
-        let mut b = [0u8; 32];
+        let mut b = [0u8; SEED_LEN];
         thread_rng().fill_bytes(&mut b);
         Self(b)
+    }
+}
+
+impl std::fmt::Display for DeckSeed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", String::from_utf8_lossy(&self.0))
+    }
+}
+
+impl From<String> for DeckSeed {
+    fn from(s: String) -> Self {
+        let mut bytes: [u8; SEED_LEN] = [0; SEED_LEN];
+        for (i, b) in s.into_bytes().iter().take(SEED_LEN).enumerate() {
+            bytes[i] = *b;
+        }
+        DeckSeed(bytes)
     }
 }
 
@@ -280,10 +301,8 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    const SEED1: DeckSeed = DeckSeed([
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        1, 1,
-    ]);
+    const SEED1: DeckSeed = DeckSeed([1; SEED_LEN]);
+    const SEED2: DeckSeed = DeckSeed([0; SEED_LEN]);
 
     #[test]
     fn right_len_1() {
@@ -422,11 +441,23 @@ mod tests {
     /// Given a specific seed, the order of the cards should always be the same.
     #[test]
     fn deck_is_seedable() {
-        let mut d = Deck::new(SEED1);
+        let mut d = Deck::new(&SEED1);
         let c1 = d.draw().unwrap();
         let c2 = d.draw().unwrap();
         println!("{} {}", c1, c2);
         assert_eq!(c1, ['3', 'h'].into());
         assert_eq!(c2, ['J', 's'].into());
+        let mut d2 = Deck::new(&SEED2);
+        d2.burn();
+        d2.burn();
+        assert_ne!(d, d2);
+    }
+
+    #[test]
+    fn seed_to_from_string() {
+        let d = DeckSeed::default();
+        let s = d.to_string();
+        let d2 = DeckSeed::from(s);
+        assert_eq!(d, d2)
     }
 }
