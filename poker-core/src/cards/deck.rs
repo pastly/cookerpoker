@@ -1,10 +1,10 @@
+use base64ct::{self, Base64, Encoding};
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fmt;
 use std::str::FromStr;
-use base64ct::{self, Base64, Encoding};
 
 pub const ALL_RANKS: [Rank; 13] = [
     Rank::R2,
@@ -39,7 +39,7 @@ pub const MAX_PLAYERS: u8 = 21;
 //const DIAMOND: &str = "♦";
 //const CLUB: &str = "♣";
 const SEED_LEN: usize = 32;
-const ENCODED_SEED_LEN: usize = 4 * ((SEED_LEN+3-1)/3); // 4 * ceil(SEED_LEN / 3)
+const ENCODED_SEED_LEN: usize = 4 * ((SEED_LEN + 3 - 1) / 3); // 4 * ceil(SEED_LEN / 3)
 
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Suit {
