@@ -102,18 +102,6 @@ pub fn greet() {
 }
 
 #[wasm_bindgen]
-pub fn show_n_cards(elm: Node, n: u8) {
-    while let Some(child) = elm.last_child() {
-        elm.remove_child(&child).unwrap();
-    }
-    let mut d = Deck::default();
-    for _ in 0..n {
-        let c = d.draw().unwrap();
-        elm.append_child(&c.into_element()).unwrap();
-    }
-}
-
-#[wasm_bindgen]
 pub fn show_pocket(seat: u8) {
     let doc = web_sys::window()
         .expect("No window?")
