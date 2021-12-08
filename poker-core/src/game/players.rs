@@ -74,35 +74,48 @@ impl SeatedPlayers {
         match self.players[seat] {
             Some(_) => Err(GameError::SeatTaken),
             None => {
-                self.players[seat] = Some(SeatedPlayer::new(aid, monies));
+                self.players[seat] = Some(SeatedPlayer::new(aid, monies, seat));
                 Ok(())
             }
         }
     }
+
+    /// Removes the player from the table and returns the amount of money the person had.
+    /// Parent is responsible for making sure the player can not leave mid round
+    pub fn stand_up(&mut self, aid: i32) -> Option<i32> {
+        let p = self.player_by_id(aid)?;
+        let r = p.monies();
+        self.players[p.seat_index] = None;
+        Some(r)
+    }
+
     /// Moves betting round forward and returns account id of next better
     fn next_better(&mut self) -> i32 {
-        let (i, aid) = self
+        let p: &SeatedPlayer = self
             .betting_players_iter_after(self.last_better)
-            .map(|(i, x)| (i, x.id))
             .next()
             .unwrap();
-        self.last_better = i;
-        aid
+        // Explode p because it can't be used twice since it's a borrowed reference
+        let (lb, pid) = (p.seat_index, p.id);
+        self.last_better = lb;
+        pid
     }
 
     /// Runs two bets, the blinds
     /// Needed in this struct because next_better is private
-    pub fn blinds_bet(&mut self, sb: i32, bb: i32) -> Result<i32, BetError> {
+    pub fn blinds_bet(
+        &mut self,
+        sb: i32,
+        bb: i32,
+    ) -> Result<((i32, BetAction), (i32, BetAction), i32), BetError> {
         let sbp = self.next_better();
-        let bbp = self.bet(sbp, BetAction::Bet(sb))?.1;
-        let r = self.bet(bbp, BetAction::Bet(bb))?.1;
-        Ok(r)
+        let (sba, bbp) = self.bet(sbp, BetAction::Bet(sb))?;
+        let (bba, nb) = self.bet(bbp, BetAction::Bet(bb))?;
+        Ok(((sbp, sba), (bbp, bba), nb))
     }
 
     pub fn player_by_id(&mut self, player: i32) -> Option<&mut SeatedPlayer> {
-        self.players_iter_mut()
-            .map(|(_, x)| x)
-            .find(|x| x.id == player)
+        self.players_iter_mut().find(|x| x.id == player)
     }
 
     /// This function is not aware of the current bet. As such validation must be handled before
@@ -129,31 +142,35 @@ impl SeatedPlayers {
     }
 
     /// Returns an iterator over all seated players, preserving seat index
-    pub fn players_iter(&self) -> impl Iterator<Item = (usize, &SeatedPlayer)> + Clone + '_ {
+    pub fn players_iter(&self) -> impl Iterator<Item = &SeatedPlayer> + Clone + '_ {
         self.players
             .iter()
-            .enumerate()
-            .filter(|(_, y)| y.is_some())
-            .map(|(x, y)| (x, y.as_ref().unwrap()))
+            .filter(|x| x.is_some())
+            .map(|x| (x.as_ref().unwrap()))
     }
 
     /// Returns a mutable iterator over all seated players, preserving seat index
-    pub fn players_iter_mut(&mut self) -> impl Iterator<Item = (usize, &mut SeatedPlayer)> + '_ {
+    pub fn players_iter_mut(&mut self) -> impl Iterator<Item = &mut SeatedPlayer> + '_ {
         self.players
             .iter_mut()
-            .enumerate()
-            .filter(|(_, y)| y.is_some())
-            .map(|(x, y)| (x, y.as_mut().unwrap()))
+            .filter(|x| x.is_some())
+            .map(|x| x.as_mut().unwrap())
     }
 
     /// Returns an iterator over players still in the betting, preserving seat index
     ///
     /// Note: say the only not-betting player is seat idx 2. This will list 0 and 1 before going
     /// on to 3 and the rest.
-    pub fn betting_players_iter(
-        &self,
-    ) -> impl Iterator<Item = (usize, &SeatedPlayer)> + Clone + '_ {
-        self.players_iter().filter(|(_, y)| y.is_betting())
+    pub fn betting_players_iter(&self) -> impl Iterator<Item = &SeatedPlayer> + Clone + '_ {
+        self.players_iter().filter(|x| x.is_betting())
+    }
+
+    /// Returns an iterator over players still in the betting, preserving seat index
+    ///
+    /// Note: say the only not-betting player is seat idx 2. This will list 0 and 1 before going
+    /// on to 3 and the rest.
+    pub fn betting_players_iter_mut(&mut self) -> impl Iterator<Item = &mut SeatedPlayer> + '_ {
+        self.players_iter_mut().filter(|x| x.is_betting())
     }
 
     /// Returns an iterator over the players in seat positions after the given seat index
@@ -166,7 +183,7 @@ impl SeatedPlayers {
     pub fn betting_players_iter_after(
         &self,
         i: usize,
-    ) -> impl Iterator<Item = (usize, &SeatedPlayer)> + Clone + '_ {
+    ) -> impl Iterator<Item = &SeatedPlayer> + Clone + '_ {
         let si = if i >= self.players.len() - 1 {
             0
         } else {
@@ -174,7 +191,7 @@ impl SeatedPlayers {
         };
         self.betting_players_iter()
             .chain(self.betting_players_iter())
-            .skip_while(move |(x, _)| x < &si)
+            .skip_while(move |x| x.seat_index < si)
     }
 
     /// Checks all seated players `BetStatus` and validates that the pot is ready to be finalized.
@@ -182,7 +199,7 @@ impl SeatedPlayers {
     /// AllIn players aren't "betting", so when iterating over all betting players, they are
     /// skipped. The only expected BetStatuses are In and Waiting.
     pub fn pot_is_ready(&self, current_bet: i32) -> bool {
-        for (_, player) in self.betting_players_iter() {
+        for player in self.betting_players_iter() {
             match player.bet_status {
                 BetStatus::In(x) => {
                     if x == current_bet {
@@ -198,7 +215,7 @@ impl SeatedPlayers {
     }
 
     fn unfold_all(&mut self) {
-        for (_, player) in self.players_iter_mut() {
+        for player in self.players_iter_mut() {
             player.bet_status = BetStatus::Waiting;
         }
     }
@@ -214,11 +231,11 @@ impl SeatedPlayers {
         self.auto_fold_players();
         self.rotate_tokens()?;
         self.last_better = self.dealer_token;
-        Ok(self.betting_players_iter().map(|(_, y)| y.id).collect())
+        Ok(self.betting_players_iter().map(|y| y.id).collect())
     }
 
     fn auto_fold_players(&mut self) {
-        for (_, player) in self.players_iter_mut() {
+        for player in self.players_iter_mut() {
             if !player.has_monies() || player.auto_fold {
                 player.bet_status = BetStatus::Folded;
             }
@@ -236,17 +253,43 @@ impl SeatedPlayers {
         {
             let od = self.dealer_token;
             dbg!(&od);
-            let mut iter = self.betting_players_iter_after(od).map(|(x, _)| x);
+            let mut iter = self
+                .betting_players_iter_after(self.dealer_token)
+                .map(|x| x.seat_index);
             s[0] = iter.next().unwrap();
             s[1] = iter.next().unwrap();
             s[2] = iter.next().unwrap();
         }
+
         dbg!(&s);
         self.dealer_token = s[0];
         // dealer_token can also be big blind
         self.small_blind_token = s[1];
         self.big_blind_token = s[2];
         Ok(())
+    }
+
+    /// # Panics
+    ///
+    /// Panics if asked to deal a different number of pockets than players that are seated.
+    pub fn deal_pockets(&mut self, mut pockets: Vec<[Card; 2]>) {
+        assert_eq!(pockets.len(), self.betting_players_iter().count());
+        let dt = self.dealer_token;
+        // Can't use a betting_players_iter_after_mut() becasue can't chain/cycle mutable iterator
+        // May be able to fix this with custom iterator
+        // Until then, iterate wtice
+        for player in self
+            .betting_players_iter_mut()
+            .skip_while(|x| x.seat_index < dt)
+        {
+            player.pocket = Some(pockets.pop().unwrap());
+        }
+        for player in self
+            .betting_players_iter_mut()
+            .take_while(|x| x.seat_index <= dt)
+        {
+            player.pocket = Some(pockets.pop().unwrap());
+        }
     }
 }
 
@@ -257,6 +300,7 @@ pub struct SeatedPlayer {
     monies: i32,
     pub bet_status: BetStatus,
     pub auto_fold: bool,
+    pub seat_index: usize,
 }
 
 impl SeatedPlayer {
@@ -294,14 +338,18 @@ impl SeatedPlayer {
         Ok(r)
     }
 
-    pub fn new(id: i32, monies: i32) -> Self {
+    pub fn new(id: i32, monies: i32, seat_index: usize) -> Self {
         SeatedPlayer {
             id,
             pocket: None,
             monies,
             bet_status: BetStatus::Folded,
             auto_fold: false,
+            seat_index,
         }
+    }
+    pub fn monies(&self) -> i32 {
+        self.monies
     }
     pub fn has_monies(&self) -> bool {
         self.monies > 0

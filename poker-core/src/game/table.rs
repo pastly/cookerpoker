@@ -1,5 +1,5 @@
 use super::deck::{Card, Deck};
-use super::players::SeatedPlayers;
+use super::players::{SeatedPlayers, SeatedPlayer};
 use super::pot::Pot;
 
 use super::{BetAction, GameError};
@@ -64,6 +64,11 @@ pub enum BetRound {
     River(i32),
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum GameEvent {
+    NewDeckSeed(String),
+}
+
 #[derive(Debug)]
 pub struct GameInProgress {
     table_type: TableType,
@@ -73,34 +78,57 @@ pub struct GameInProgress {
     pub state: GameState,
     pub small_blind: i32,
     pub current_bet: i32,
-    d: Deck,
+    pub hand_num: i16,
+    pub event_log: Vec<GameEvent>,
+    deck: Deck,
 }
 
 impl GameInProgress {
     pub fn start_round(&mut self) -> Result<(), GameError> {
         self.state = GameState::Dealing;
-        self.d = Deck::default();
-        // TODO save seed
+        let (deck, seed) = Deck::deck_and_seed();
+        self.deck = deck;
+
+        // TODO save seed for DB
 
         // Handles auto folds and moving the tokens
-        let _seated_players = self.seated_players.start_hand()?;
+        let players_in = self.seated_players.start_hand()?;
+
+        // TODO log players in hand
 
         // Reset the pot
         self.pots = Pot::default();
 
         // Blinds bet
-        let first_better = self
+        let (small_blind, big_blind, first_better) = self
             .seated_players
             .blinds_bet(self.small_blind, self.big_blind())?;
+
+        self.pots.bet(small_blind.0, small_blind.1);
+        self.pots.bet(big_blind.0, big_blind.1);
+        // TODO Log Blinds
 
         self.state = GameState::Betting(first_better, BetRound::PreFlop(self.big_blind()));
 
         // Deal the pockets
-        let np = self.seated_players.betting_players_iter().count() as u8;
-        let _pockets = self.d.deal_pockets(np)?;
+        let nump = self.seated_players.betting_players_iter().count() as u8;
+        let pockets = self.deck.deal_pockets(nump)?;
+        self.seated_players.deal_pockets(pockets);
 
         Ok(())
     }
+
+    /*
+    /// Gets the seated player by id if they are seated at the current table.
+    /// Front-end is responsible for making sure there isn't data leakage 
+    pub fn get_player_info(&self, player_id: i32) -> Option<&SeatedPlayer> {
+        self.seated_players.player_by_id(player_id).map(|(_, x)| x)
+    }
+
+    pub fn sit_down(&mut self, player_id: i32, monies: i32, seat: usize) -> Result<(), GameError> {
+        self.seated_players.sit_down(player_id, monies, seat)
+    }
+    */
 
     pub fn bet(&mut self, _player: i32, ba: BetAction) -> Result<i32, GameError> {
         // Convert check into related call
