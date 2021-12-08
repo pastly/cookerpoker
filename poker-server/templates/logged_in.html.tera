@@ -9,20 +9,26 @@
         <li><a href="/accounts">View accounts (Admin only)</a></li>
         {% endif %}
     </ul>
-    <div id=carddisplay><b>card go here</b></div>
+    <div class=pocket id="pocket-1"></div>
+    <div class=pocket id="pocket-2"></div>
+    <div class=pocket id="pocket-3"></div>
+    <div class=pocket id="pocket-4"></div>
+    <div class=pocket id="pocket-5"></div>
+    <div class=pocket id="pocket-6"></div>
 
     <script type="module">
     import init, {
       // import aditional funcs here
       greet,
-      show_n_cards,
+      show_pocket,
     } from './poker_client.js';
 
     async function run() {
       await init();
       // if you want to call any wasm funcs right away as soon as init'ed, do
       // so here.
-      show_n_cards(document.getElementById("carddisplay"), 2);
+      show_pocket(1);
+      show_pocket(4);
     }
     run();
     // calling wasm funcs here may not work if run() (an async func) hasn't finished yet

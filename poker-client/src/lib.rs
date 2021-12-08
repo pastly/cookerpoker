@@ -16,26 +16,82 @@ extern "C" {
     fn alert(s: &str);
 }
 
-struct CardElement(Card);
+/// Create an Element with the given tag. E.g. with tag "a" create an <a> element.
+fn base_element(tag: &str) -> Element {
+    let doc = web_sys::window()
+        .expect("No window?")
+        .document()
+        .expect("No document?");
+    doc.create_element(tag)
+        .unwrap_or_else(|_| panic!("Unable to create {}", tag))
+        .dyn_into::<web_sys::Element>()
+        .expect("Unable to dyn_into Element")
+}
 
-impl CardElement {
-    fn new(c: Card) -> Self {
-        Self(c)
+/// Implement this trait for types that can be turned into Elements and displayed on a webpage.
+trait Elementable {
+    /// Consume ourself and turn ourselves into a brand new element.
+    ///
+    /// The main logic of this function can probably be implemented in fill_element(); give it a
+    /// reference to ourself and a new element made here.
+    fn into_element(self) -> Element;
+
+    /// Render ourself into the given existing element.
+    fn fill_element(&self, elm: &Element);
+}
+
+impl Elementable for Card {
+    fn into_element(self) -> Element {
+        let elm = base_element("span");
+        self.fill_element(&elm);
+        elm
     }
 
-    fn elm(self) -> Result<Element, &'static str> {
-        let doc = web_sys::window()
-            .expect("No window?")
-            .document()
-            .expect("No document?");
-        let elm = doc
-            .create_element("span")
-            .expect("Unable to create spam")
-            .dyn_into::<web_sys::Element>()
-            .expect("Unable to dyn_into Element");
+    fn fill_element(&self, elm: &Element) {
         elm.set_class_name("card");
-        elm.set_text_content(Some(&format!("{}", card_char(self.0))));
-        Ok(elm)
+        elm.set_text_content(Some(&format!("{}", card_char(*self))));
+    }
+}
+
+struct Pocket {
+    cards: [Card; 2],
+    name: Option<String>,
+    monies: Option<i32>,
+}
+
+impl Pocket {
+    fn new(cards: [Card; 2], name: Option<String>, monies: Option<i32>) -> Self {
+        Self {
+            cards,
+            name,
+            monies,
+        }
+    }
+}
+
+impl Elementable for Pocket {
+    fn into_element(self) -> Element {
+        let elm = base_element("div");
+        self.fill_element(&elm);
+        elm
+    }
+
+    fn fill_element(&self, elm: &Element) {
+        while let Some(child) = elm.last_child() {
+            elm.remove_child(&child).unwrap();
+        }
+        elm.append_child(&self.cards[0].into_element()).unwrap();
+        elm.append_child(&self.cards[1].into_element()).unwrap();
+        let name_elm = base_element("p");
+        let monies_elm = base_element("p");
+        if let Some(monies) = self.monies {
+            monies_elm.set_text_content(Some(&monies.to_string()));
+        }
+        if let Some(name) = &self.name {
+            name_elm.set_text_content(Some(name));
+        }
+        elm.append_child(&monies_elm).unwrap();
+        elm.append_child(&name_elm).unwrap();
     }
 }
 
@@ -53,9 +109,24 @@ pub fn show_n_cards(elm: Node, n: u8) {
     let mut d = Deck::default();
     for _ in 0..n {
         let c = d.draw().unwrap();
-        elm.append_child(&CardElement::new(c).elm().unwrap())
-            .unwrap();
+        elm.append_child(&c.into_element()).unwrap();
     }
+}
+
+#[wasm_bindgen]
+pub fn show_pocket(seat: u8) {
+    let doc = web_sys::window()
+        .expect("No window?")
+        .document()
+        .expect("No document?");
+    let elm = doc.get_element_by_id(&format!("pocket-{}", seat)).unwrap();
+    let mut d = Deck::default();
+    let pocket = Pocket::new(
+        [d.draw().unwrap(), d.draw().unwrap()],
+        Some(String::from("Matt")),
+        Some(42069),
+    );
+    pocket.fill_element(&elm);
 }
 
 fn card_char(card: Card) -> char {

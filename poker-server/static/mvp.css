@@ -1,3 +1,15 @@
+.pocket {
+    border: 1px solid var(--color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow) var(--color-shadow);
+    padding: 1.25rem;
+    width: 10em;
+}
+.pocket p {
+    display: inline-block;
+    margin: 0.10rem 0;
+}
+
 .card {
     font-size: 450%;
     line-height: var(--line-height);
