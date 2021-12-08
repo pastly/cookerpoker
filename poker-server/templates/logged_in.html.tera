@@ -9,12 +9,14 @@
         <li><a href="/accounts">View accounts (Admin only)</a></li>
         {% endif %}
     </ul>
-    <div class=pocket id="pocket-1"></div>
-    <div class=pocket id="pocket-2"></div>
-    <div class=pocket id="pocket-3"></div>
-    <div class=pocket id="pocket-4"></div>
-    <div class=pocket id="pocket-5"></div>
-    <div class=pocket id="pocket-6"></div>
+    <div id=table>
+      <div class=pocket id="pocket-1"></div>
+      <div class=pocket id="pocket-2"></div>
+      <div class=pocket id="pocket-3"></div>
+      <div class=pocket id="pocket-4"></div>
+      <div class=pocket id="pocket-5"></div>
+      <div class=pocket id="pocket-6"></div>
+    </div>
 
     <script type="module">
     import init, {
@@ -28,7 +30,11 @@
       // if you want to call any wasm funcs right away as soon as init'ed, do
       // so here.
       show_pocket(1);
+      show_pocket(2);
+      show_pocket(3);
       show_pocket(4);
+      show_pocket(5);
+      show_pocket(6);
     }
     run();
     // calling wasm funcs here may not work if run() (an async func) hasn't finished yet
