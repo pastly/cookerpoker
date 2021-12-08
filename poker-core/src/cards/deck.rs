@@ -3,6 +3,8 @@ use rand_chacha::ChaChaRng;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fmt;
+use std::str::FromStr;
+use base64ct::{self, Base64, Encoding};
 
 pub const ALL_RANKS: [Rank; 13] = [
     Rank::R2,
@@ -37,6 +39,7 @@ pub const MAX_PLAYERS: u8 = 21;
 //const DIAMOND: &str = "♦";
 //const CLUB: &str = "♣";
 const SEED_LEN: usize = 32;
+const ENCODED_SEED_LEN: usize = 4 * ((SEED_LEN+3-1)/3); // 4 * ceil(SEED_LEN / 3)
 
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Suit {
@@ -181,6 +184,7 @@ pub enum DeckError {
     OutOfCards,
     TooManyPlayers,
     CantDealToNoPlayers,
+    DeckSeedDecodeError(base64ct::Error),
 }
 
 impl Error for DeckError {}
@@ -191,7 +195,14 @@ impl fmt::Display for DeckError {
             DeckError::OutOfCards => write!(f, "No more cards in deck"),
             DeckError::TooManyPlayers => write!(f, "Too many players to deal"),
             DeckError::CantDealToNoPlayers => write!(f, "Need at least one player"),
+            DeckError::DeckSeedDecodeError(e) => write!(f, "{}", e),
         }
+    }
+}
+
+impl From<base64ct::Error> for DeckError {
+    fn from(e: base64ct::Error) -> Self {
+        Self::DeckSeedDecodeError(e)
     }
 }
 
@@ -282,17 +293,19 @@ impl Default for DeckSeed {
 
 impl std::fmt::Display for DeckSeed {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", String::from_utf8_lossy(&self.0))
+        let mut b = [0u8; ENCODED_SEED_LEN];
+        Base64::encode(&self.0, &mut b).unwrap();
+        write!(f, "{}", String::from_utf8_lossy(&b))
     }
 }
 
-impl From<String> for DeckSeed {
-    fn from(s: String) -> Self {
-        let mut bytes: [u8; SEED_LEN] = [0; SEED_LEN];
-        for (i, b) in s.into_bytes().iter().take(SEED_LEN).enumerate() {
-            bytes[i] = *b;
-        }
-        DeckSeed(bytes)
+impl FromStr for DeckSeed {
+    type Err = DeckError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut b: [u8; SEED_LEN] = [0; SEED_LEN];
+        Base64::decode(s, &mut b)?;
+        Ok(DeckSeed(b))
     }
 }
 
@@ -457,7 +470,7 @@ mod tests {
     fn seed_to_from_string() {
         let d = DeckSeed::default();
         let s = d.to_string();
-        let d2 = DeckSeed::from(s);
-        assert_eq!(d, d2)
+        let d2: DeckSeed = s.parse().unwrap();
+        assert_eq!(d, d2);
     }
 }
