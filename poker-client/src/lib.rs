@@ -11,6 +11,8 @@ use web_sys::{Element, Node};
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+const CARD_BACK: char = '🂠';
+
 #[wasm_bindgen]
 extern "C" {
     fn alert(s: &str);
@@ -40,7 +42,7 @@ trait Elementable {
     fn fill_element(&self, elm: &Element);
 }
 
-impl Elementable for Card {
+impl Elementable for Option<Card> {
     fn into_element(self) -> Element {
         let elm = base_element("span");
         self.fill_element(&elm);
@@ -49,18 +51,24 @@ impl Elementable for Card {
 
     fn fill_element(&self, elm: &Element) {
         elm.set_class_name("card");
-        elm.set_text_content(Some(&format!("{}", card_char(*self))));
+        elm.set_text_content(Some(&format!(
+            "{}",
+            match self {
+                None => CARD_BACK,
+                Some(c) => card_char(*c),
+            }
+        )));
     }
 }
 
 struct Pocket {
-    cards: [Card; 2],
+    cards: [Option<Card>; 2],
     name: Option<String>,
     monies: Option<i32>,
 }
 
 impl Pocket {
-    fn new(cards: [Card; 2], name: Option<String>, monies: Option<i32>) -> Self {
+    fn new(cards: [Option<Card>; 2], name: Option<String>, monies: Option<i32>) -> Self {
         Self {
             cards,
             name,
@@ -110,7 +118,7 @@ pub fn show_pocket(seat: u8) {
     let elm = doc.get_element_by_id(&format!("pocket-{}", seat)).unwrap();
     let mut d = Deck::default();
     let pocket = Pocket::new(
-        [d.draw().unwrap(), d.draw().unwrap()],
+        [Some(d.draw().unwrap()), None],
         Some(String::from("Matt")),
         Some(42069),
     );
