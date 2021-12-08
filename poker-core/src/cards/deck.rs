@@ -216,22 +216,25 @@ impl Default for Deck {
 
 impl Deck {
     /// Generate a new single deck of cards, shuffled
-    ///
-    /// # Panics
-    ///
-    /// Panics if somehow less than 52 cards were generated
-    pub fn new(seed: DeckSeed) -> Self {
+    pub fn new(seed: &DeckSeed) -> Self {
         let mut d = Self::default();
-        d.seeded_shuffle(seed);
+        d.seeded_shuffle(&seed);
         d
+    }
+
+    ///
+    pub fn deck_and_seed() -> (Deck, DeckSeed) {
+        let ds = DeckSeed::default();
+        let d = Deck::new(&ds);
+        (d, ds)
     }
 
     /// Shuffle the deck of cards in-place, and reset its `next` index to 0
     pub fn shuffle(&mut self) {
-        self.seeded_shuffle(DeckSeed::default());
+        self.seeded_shuffle(&DeckSeed::default());
     }
 
-    pub fn seeded_shuffle(&mut self, seed: DeckSeed) {
+    pub fn seeded_shuffle(&mut self, seed: &DeckSeed) {
         let mut rng = ChaChaRng::from_seed(seed.0);
         // For determinism given the same seed, the cards need to be in a known order before shuffling.
         self.cards.sort_unstable();
@@ -422,7 +425,7 @@ mod tests {
     /// Given a specific seed, the order of the cards should always be the same.
     #[test]
     fn deck_is_seedable() {
-        let mut d = Deck::new(SEED1);
+        let mut d = Deck::new(&SEED1);
         let c1 = d.draw().unwrap();
         let c2 = d.draw().unwrap();
         println!("{} {}", c1, c2);
