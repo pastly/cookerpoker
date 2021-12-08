@@ -3,7 +3,7 @@ mod utils;
 use poker_core::deck::{Card, Deck, Rank, Suit};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{Element, Node};
+use web_sys::Element;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
