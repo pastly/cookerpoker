@@ -16,12 +16,14 @@
       <div class=pocket id="pocket-4"></div>
       <div class=pocket id="pocket-5"></div>
       <div class=pocket id="pocket-6"></div>
+      <div id="community"></div>
     </div>
 
     <script type="module">
     import init, {
       // import aditional funcs here
       greet,
+      show_community,
       show_pocket,
     } from './poker_client.js';
 
@@ -35,6 +37,7 @@
       show_pocket(4);
       show_pocket(5);
       show_pocket(6);
+      show_community(4);
     }
     run();
     // calling wasm funcs here may not work if run() (an async func) hasn't finished yet

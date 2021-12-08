@@ -61,6 +61,31 @@ impl Elementable for Option<Card> {
     }
 }
 
+struct Community(Vec<Card>);
+
+impl Community {
+    fn new(cards: Vec<Card>) -> Self {
+        Self(cards)
+    }
+}
+
+impl Elementable for Community {
+    fn into_element(self) -> Element {
+        let elm = base_element("div");
+        self.fill_element(&elm);
+        elm
+    }
+
+    fn fill_element(&self, elm: &Element) {
+        while let Some(child) = elm.last_child() {
+            elm.remove_child(&child).unwrap();
+        }
+        for c in &self.0 {
+            elm.append_child(&Some(*c).into_element()).unwrap();
+        }
+    }
+}
+
 struct Pocket {
     cards: [Option<Card>; 2],
     name: Option<String>,
@@ -107,6 +132,19 @@ impl Elementable for Pocket {
 pub fn greet() {
     utils::set_panic_hook();
     alert("Hello, poker-client!");
+}
+
+#[wasm_bindgen]
+pub fn show_community(n: u8) {
+    let doc = web_sys::window()
+        .expect("No window?")
+        .document()
+        .expect("No document?");
+    let elm = doc.get_element_by_id("community").unwrap();
+    let mut d = Deck::default();
+    let cards = (0..n).map(|_| d.draw().unwrap()).collect();
+    let comm = Community::new(cards);
+    comm.fill_element(&elm);
 }
 
 #[wasm_bindgen]
