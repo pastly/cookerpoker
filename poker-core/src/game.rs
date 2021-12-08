@@ -33,6 +33,7 @@ pub enum GameError {
     SeatTaken,
     PlayerAlreadySeated,
     InvalidSeat,
+    BettingPlayerCantStand,
 }
 
 impl From<deck::DeckError> for GameError {

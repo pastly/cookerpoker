@@ -1,5 +1,5 @@
 use super::deck::{Card, Deck};
-use super::players::{SeatedPlayers, SeatedPlayer};
+use super::players::{SeatedPlayer, SeatedPlayers};
 use super::pot::Pot;
 
 use super::{BetAction, GameError};
@@ -48,6 +48,7 @@ impl From<TableType> for i16 {
 
 #[derive(Debug)]
 pub enum GameState {
+    NotStarted,
     Dealing,
     Betting(i32, BetRound),
     // This isn't right
@@ -69,12 +70,29 @@ pub enum GameEvent {
     NewDeckSeed(String),
 }
 
+impl Default for GameInProgress {
+    fn default() -> Self {
+        GameInProgress {
+            table_type: TableType::Open,
+            table_cards: [None; 5],
+            seated_players: SeatedPlayers::default(),
+            pot: Pot::default(),
+            state: GameState::NotStarted,
+            small_blind: 10,
+            current_bet: 10,
+            hand_num: 0,
+            event_log: Vec::new(),
+            deck: Deck::default(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct GameInProgress {
     table_type: TableType,
     pub table_cards: [Option<Card>; 5],
     pub seated_players: SeatedPlayers,
-    pub pots: Pot,
+    pub pot: Pot,
     pub state: GameState,
     pub small_blind: i32,
     pub current_bet: i32,
@@ -90,6 +108,7 @@ impl GameInProgress {
         self.deck = deck;
 
         // TODO save seed for DB
+        self.hand_num += 1;
 
         // Handles auto folds and moving the tokens
         let players_in = self.seated_players.start_hand()?;
@@ -97,15 +116,15 @@ impl GameInProgress {
         // TODO log players in hand
 
         // Reset the pot
-        self.pots = Pot::default();
+        self.pot = Pot::default();
 
         // Blinds bet
         let (small_blind, big_blind, first_better) = self
             .seated_players
             .blinds_bet(self.small_blind, self.big_blind())?;
 
-        self.pots.bet(small_blind.0, small_blind.1);
-        self.pots.bet(big_blind.0, big_blind.1);
+        self.pot.bet(small_blind.0, small_blind.1);
+        self.pot.bet(big_blind.0, big_blind.1);
         // TODO Log Blinds
 
         self.state = GameState::Betting(first_better, BetRound::PreFlop(self.big_blind()));
@@ -118,29 +137,45 @@ impl GameInProgress {
         Ok(())
     }
 
-    /*
     /// Gets the seated player by id if they are seated at the current table.
-    /// Front-end is responsible for making sure there isn't data leakage 
+    /// Front-end is responsible for making sure there isn't data leakage
     pub fn get_player_info(&self, player_id: i32) -> Option<&SeatedPlayer> {
-        self.seated_players.player_by_id(player_id).map(|(_, x)| x)
+        self.seated_players.player_by_id(player_id).map(|x| &*x)
     }
 
     pub fn sit_down(&mut self, player_id: i32, monies: i32, seat: usize) -> Result<(), GameError> {
         self.seated_players.sit_down(player_id, monies, seat)
     }
-    */
 
-    pub fn bet(&mut self, _player: i32, ba: BetAction) -> Result<i32, GameError> {
+    pub fn stand_up(&mut self, player_id: i32) -> Option<Result<i32, GameError>> {
+        match self.state {
+            GameState::Winner(..) | GameState::WinnerDuringBet(..) => {
+                self.seated_players.stand_up(player_id).map(|x| Ok(x))
+            }
+            _ => {
+                let p = self.seated_players.player_by_id(player_id)?;
+                if p.is_betting() {
+                    Some(Err(GameError::BettingPlayerCantStand))
+                } else {
+                    self.seated_players.stand_up(player_id).map(|x| Ok(x))
+                }
+            }
+        }
+    }
+
+    pub fn bet(&mut self, player: i32, ba: BetAction) -> Result<i32, GameError> {
         // Convert check into related call
-        let _ba = if matches!(ba, BetAction::Check) {
+        // TODO OR return an error and not accept the check?
+        let ba = if matches!(ba, BetAction::Check) {
             BetAction::Call(self.current_bet)
         } else {
             ba
         };
         // Make sure calls equal the current bet
         // Make sure bets are >= current bet
-        // Call seated player bet
+        // Call seated players bet, which will convert to AllIn as neccesary
         // Update Pot
+        self.pot.bet(player, ba);
         // Play pending action for next better
         // Determine if this was the final bet and round is over
         unimplemented!()
@@ -153,8 +188,51 @@ impl GameInProgress {
 
     fn _finalize_hand(&mut self) -> Result<GameState, GameError> {
         self.seated_players.end_hand()?;
-        // TODO Fold 'auto-fold' players?
+        // TODO 'stand_up' players who are trying to leave but couldn't because they were in the bet?
         // TODO Force rocket to update DB? Probably by returning State enum?
         unimplemented!()
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn basic_game() {
+        let mut gt = GameInProgress::default();
+        gt.sit_down(0, 100, 0).unwrap();
+        gt.sit_down(1, 100, 1).unwrap();
+        gt.sit_down(2, 100, 2).unwrap();
+        gt.sit_down(3, 100, 3).unwrap();
+        gt.start_round().unwrap();
+        // Blinds are in
+        assert_eq!(gt.get_player_info(0).unwrap().monies(), 100);
+        assert_eq!(gt.get_player_info(1).unwrap().monies(), 95);
+        assert_eq!(gt.get_player_info(2).unwrap().monies(), 90);
+        assert_eq!(gt.pot.total_value(), 15);
+
+        gt.bet(3, BetAction::Call(10)).unwrap();
+        gt.bet(0, BetAction::Fold).unwrap();
+        // TODO decide if invald Check's should fail or be converted to calls
+        let r = gt.bet(1, BetAction::Check).unwrap();
+        gt.bet(2, BetAction::Check).unwrap();
+
+        // First betting round is over.
+        // Table should recognize that all players are in and pot is right and forward the round
+        assert_eq!(gt.get_player_info(0).unwrap().monies(), 100);
+        assert_eq!(gt.get_player_info(1).unwrap().monies(), 90);
+        assert_eq!(gt.get_player_info(2).unwrap().monies(), 90);
+        assert_eq!(gt.get_player_info(3).unwrap().monies(), 90);
+        assert_eq!(gt.pot.total_value(), 30);
+        assert!(gt.table_cards[2].is_some());
+
+        // TODO rest of the test once the above passes
+    }
+
+    // TODO test where players who are folded try to bet again
+
+    // TODO test where players that are currently bet eligible try to stand up
+
+    // TODO moar
 }

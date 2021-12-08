@@ -20,6 +20,14 @@ impl Pot {
         self.players_in.values().sum()
     }
 
+    pub fn total_value(&self) -> i32 {
+        let mut v = self.players_in.values().sum();
+        if let Some(x) = self.side_pot.as_ref() {
+            v += x.total_value();
+        }
+        v
+    }
+
     fn overflowing_add(&mut self, player: i32, amount: i32) {
         if self.is_settled {
             self.side_pot().overflowing_add(player, amount);

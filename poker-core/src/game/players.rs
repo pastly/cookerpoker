@@ -114,8 +114,14 @@ impl SeatedPlayers {
         Ok(((sbp, sba), (bbp, bba), nb))
     }
 
-    pub fn player_by_id(&mut self, player: i32) -> Option<&mut SeatedPlayer> {
+    /// The mutable version of `player_by_id`
+    pub fn player_by_id_mut(&mut self, player: i32) -> Option<&mut SeatedPlayer> {
         self.players_iter_mut().find(|x| x.id == player)
+    }
+
+    /// Gets a reference to the player if their account ID could be found
+    pub fn player_by_id(&self, player: i32) -> Option<&SeatedPlayer> {
+        self.players_iter().find(|x| x.id == player)
     }
 
     /// This function is not aware of the current bet. As such validation must be handled before
@@ -127,7 +133,9 @@ impl SeatedPlayers {
     /// Returns the account id of the next better.
     pub fn bet(&mut self, player: i32, action: BetAction) -> Result<(BetAction, i32), BetError> {
         // Check player is even in the betting
-        let p: &mut SeatedPlayer = self.player_by_id(player).ok_or(BetError::PlayerNotFound)?;
+        let p: &mut SeatedPlayer = self
+            .player_by_id_mut(player)
+            .ok_or(BetError::PlayerNotFound)?;
         if !p.is_betting() {
             return Err(BetError::PlayerIsNotBetting);
         }
