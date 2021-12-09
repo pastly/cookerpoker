@@ -86,6 +86,38 @@ impl Elementable for Community {
     }
 }
 
+struct Pot(Option<Vec<i32>>);
+
+impl Pot {
+    fn new(v: Option<Vec<i32>>) -> Self {
+        Self(v)
+    }
+}
+
+impl Elementable for Pot {
+    fn into_element(self) -> Element {
+        let elm = base_element("div");
+        self.fill_element(&elm);
+        elm
+    }
+
+    fn fill_element(&self, elm: &Element) {
+        if self.0.is_none() || self.0.as_ref().unwrap().is_empty() {
+            elm.set_text_content(None)
+        } else {
+            let v = self.0.as_ref().unwrap();
+            let mut s = String::from("Pot: ");
+            for i in 0..v.len() {
+                s += &v[i].to_string();
+                if i != v.len() - 1 {
+                    s += " | Side pot: ";
+                }
+            }
+            elm.set_text_content(Some(&s))
+        }
+    }
+}
+
 struct Pocket {
     cards: [Option<Card>; 2],
     name: Option<String>,
@@ -161,6 +193,17 @@ pub fn show_pocket(seat: u8) {
         Some(42069),
     );
     pocket.fill_element(&elm);
+}
+
+#[wasm_bindgen]
+pub fn show_pot() {
+    let pot = Pot::new(Some(vec![100, 450, 420]));
+    let doc = web_sys::window()
+        .expect("No window?")
+        .document()
+        .expect("No document?");
+    let elm = doc.get_element_by_id("pot").unwrap();
+    pot.fill_element(&elm);
 }
 
 fn card_char(card: Card) -> char {

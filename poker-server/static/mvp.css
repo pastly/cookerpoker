@@ -6,8 +6,12 @@
         ".        .         pocket-4  .         .       "
         "pocket-3 .         .         .         pocket-5"
 	".        community community community .       "
-        "pocket-2 .         .         .         pocket-6"
+        "pocket-2 .         pot       pot       pocket-6"
         ".        .         pocket-1  .         .       ";
+}
+
+#pot {
+    grid-area: pot;
 }
 
 #community {
