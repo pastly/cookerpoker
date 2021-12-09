@@ -230,7 +230,7 @@ impl Deck {
     /// Generate a new single deck of cards, shuffled
     pub fn new(seed: &DeckSeed) -> Self {
         let mut d = Self::default();
-        d.seeded_shuffle(&seed);
+        d.seeded_shuffle(seed);
         d
     }
 

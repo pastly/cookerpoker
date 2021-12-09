@@ -104,14 +104,14 @@ pub struct GameInProgress {
 impl GameInProgress {
     pub fn start_round(&mut self) -> Result<(), GameError> {
         self.state = GameState::Dealing;
-        let (deck, seed) = Deck::deck_and_seed();
+        let (deck, _seed) = Deck::deck_and_seed();
         self.deck = deck;
 
         // TODO save seed for DB
         self.hand_num += 1;
 
         // Handles auto folds and moving the tokens
-        let players_in = self.seated_players.start_hand()?;
+        let _players_in = self.seated_players.start_hand()?;
 
         // TODO log players in hand
 
@@ -150,14 +150,14 @@ impl GameInProgress {
     pub fn stand_up(&mut self, player_id: i32) -> Option<Result<i32, GameError>> {
         match self.state {
             GameState::Winner(..) | GameState::WinnerDuringBet(..) => {
-                self.seated_players.stand_up(player_id).map(|x| Ok(x))
+                self.seated_players.stand_up(player_id).map(Ok)
             }
             _ => {
                 let p = self.seated_players.player_by_id(player_id)?;
                 if p.is_betting() {
                     Some(Err(GameError::BettingPlayerCantStand))
                 } else {
-                    self.seated_players.stand_up(player_id).map(|x| Ok(x))
+                    self.seated_players.stand_up(player_id).map(Ok)
                 }
             }
         }
