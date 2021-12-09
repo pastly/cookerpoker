@@ -1,3 +1,4 @@
+use super::players::PlayerId;
 use super::BetAction;
 use std::collections::HashMap;
 
@@ -7,7 +8,7 @@ use std::collections::HashMap;
 /// Parent must validate player has enough monies, and track the state of the betting round.
 #[derive(Debug)]
 pub struct Pot {
-    players_in: HashMap<i32, i32>,
+    players_in: HashMap<PlayerId, i32>,
     max_in: i32,
     side_pot: Option<Box<Pot>>,
     is_settled: bool,
@@ -28,7 +29,7 @@ impl Pot {
         v
     }
 
-    fn overflowing_add(&mut self, player: i32, amount: i32) {
+    fn overflowing_add(&mut self, player: PlayerId, amount: i32) {
         if self.is_settled {
             self.side_pot().overflowing_add(player, amount);
         } else {
@@ -99,7 +100,7 @@ impl Pot {
     }
 
     /// Takes a vector of player Ids and returns the count of them that are in the current pot
-    fn num_players_in(&self, hand: &[i32]) -> i32 {
+    fn num_players_in(&self, hand: &[PlayerId]) -> usize {
         let mut r = 0;
         for i in hand {
             if self.players_in.contains_key(i) {
@@ -115,8 +116,8 @@ impl Pot {
     ///
     /// Panics if the pot would pay out a different amount than is in the pot.
     /// This indicates a failure of the payout function and should be investigated.
-    pub fn payout(self, ranked_hands: &[Vec<i32>]) -> HashMap<i32, i32> {
-        let mut hm: HashMap<i32, i32> = HashMap::new();
+    pub fn payout(self, ranked_hands: &[Vec<PlayerId>]) -> HashMap<PlayerId, i32> {
+        let mut hm: HashMap<PlayerId, i32> = HashMap::new();
         let value = self.value();
         let mut paid_out = false;
         for best_hand in ranked_hands {
@@ -149,7 +150,7 @@ impl Pot {
 
     /// Takes the players TOTAL bet. I.e. Bet(10), Call(20) = bet of 20.
     /// As such, parent must track the current betting round.
-    pub fn bet(&mut self, player: i32, action: BetAction) -> i32 {
+    pub fn bet(&mut self, player: PlayerId, action: BetAction) -> i32 {
         use std::cmp::Ordering;
         if self.is_settled {
             self.side_pot().bet(player, action)
