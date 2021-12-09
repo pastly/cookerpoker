@@ -13,7 +13,11 @@ pub fn random_string(count: usize) -> String {
 
 /// Appends content of of second hashmap to first.
 /// Modifies the first in place, and consumes the second
-pub fn merge_hashmap(main: &mut HashMap<i32, i32>, other: HashMap<i32, i32>) {
+pub fn merge_hashmap<K, V>(main: &mut HashMap<K, V>, other: HashMap<K, V>)
+where
+    K: Eq + Copy + std::hash::Hash,
+    V: Copy + Default + std::ops::Add<Output = V>,
+{
     for (key, value) in other {
         main.insert(key, main.get(&key).copied().unwrap_or_default() + value);
     }

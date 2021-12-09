@@ -1,5 +1,5 @@
 use super::deck::{Card, Deck};
-use super::players::{SeatedPlayer, SeatedPlayers};
+use super::players::{PlayerId, SeatedPlayer, SeatedPlayers};
 use super::pot::Pot;
 
 use super::{BetAction, GameError};
@@ -50,7 +50,7 @@ impl From<TableType> for i16 {
 pub enum GameState {
     NotStarted,
     Dealing,
-    Betting(i32, BetRound),
+    Betting(PlayerId, BetRound),
     // This isn't right
     Winner(i32, i32),
     // This isn't right
@@ -139,15 +139,20 @@ impl GameInProgress {
 
     /// Gets the seated player by id if they are seated at the current table.
     /// Front-end is responsible for making sure there isn't data leakage
-    pub fn get_player_info(&self, player_id: i32) -> Option<&SeatedPlayer> {
+    pub fn get_player_info(&self, player_id: PlayerId) -> Option<&SeatedPlayer> {
         self.seated_players.player_by_id(player_id).map(|x| &*x)
     }
 
-    pub fn sit_down(&mut self, player_id: i32, monies: i32, seat: usize) -> Result<(), GameError> {
+    pub fn sit_down(
+        &mut self,
+        player_id: PlayerId,
+        monies: i32,
+        seat: usize,
+    ) -> Result<(), GameError> {
         self.seated_players.sit_down(player_id, monies, seat)
     }
 
-    pub fn stand_up(&mut self, player_id: i32) -> Option<Result<i32, GameError>> {
+    pub fn stand_up(&mut self, player_id: PlayerId) -> Option<Result<i32, GameError>> {
         match self.state {
             GameState::Winner(..) | GameState::WinnerDuringBet(..) => {
                 self.seated_players.stand_up(player_id).map(Ok)
@@ -163,7 +168,7 @@ impl GameInProgress {
         }
     }
 
-    pub fn bet(&mut self, player: i32, ba: BetAction) -> Result<i32, GameError> {
+    pub fn bet(&mut self, player: PlayerId, ba: BetAction) -> Result<i32, GameError> {
         // Convert check into related call
         // TODO OR return an error and not accept the check?
         let ba = if matches!(ba, BetAction::Check) {

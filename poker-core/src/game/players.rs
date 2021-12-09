@@ -1,6 +1,15 @@
 use super::{deck::Card, BetAction, BetError, GameError};
 pub const MAX_PLAYERS: usize = 12;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PlayerId(i32);
+
+impl From<i32> for PlayerId {
+    fn from(i: i32) -> Self {
+        Self(i)
+    }
+}
+
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum BetStatus {
     Folded,
@@ -63,7 +72,7 @@ impl SeatedPlayers {
     /// is an index (0-based).
     ///
     /// TODO abstract over Account struct?
-    pub fn sit_down(&mut self, aid: i32, monies: i32, seat: usize) -> Result<(), GameError> {
+    pub fn sit_down(&mut self, aid: PlayerId, monies: i32, seat: usize) -> Result<(), GameError> {
         if self.player_by_id(aid).is_some() {
             return Err(GameError::PlayerAlreadySeated);
         }
@@ -82,7 +91,7 @@ impl SeatedPlayers {
 
     /// Removes the player from the table and returns the amount of money the person had.
     /// Parent is responsible for making sure the player can not leave mid round
-    pub fn stand_up(&mut self, aid: i32) -> Option<i32> {
+    pub fn stand_up(&mut self, aid: PlayerId) -> Option<i32> {
         let p = self.player_by_id(aid)?;
         let r = p.monies();
         self.players[p.seat_index] = None;
@@ -90,7 +99,7 @@ impl SeatedPlayers {
     }
 
     /// Moves betting round forward and returns account id of next better
-    fn next_better(&mut self) -> i32 {
+    fn next_better(&mut self) -> PlayerId {
         let p: &SeatedPlayer = self
             .betting_players_iter_after(self.last_better)
             .next()
@@ -107,7 +116,7 @@ impl SeatedPlayers {
         &mut self,
         sb: i32,
         bb: i32,
-    ) -> Result<((i32, BetAction), (i32, BetAction), i32), BetError> {
+    ) -> Result<((PlayerId, BetAction), (PlayerId, BetAction), PlayerId), BetError> {
         let sbp = self.next_better();
         let (sba, bbp) = self.bet(sbp, BetAction::Bet(sb))?;
         let (bba, nb) = self.bet(bbp, BetAction::Bet(bb))?;
@@ -115,12 +124,12 @@ impl SeatedPlayers {
     }
 
     /// The mutable version of `player_by_id`
-    pub fn player_by_id_mut(&mut self, player: i32) -> Option<&mut SeatedPlayer> {
+    pub fn player_by_id_mut(&mut self, player: PlayerId) -> Option<&mut SeatedPlayer> {
         self.players_iter_mut().find(|x| x.id == player)
     }
 
     /// Gets a reference to the player if their account ID could be found
-    pub fn player_by_id(&self, player: i32) -> Option<&SeatedPlayer> {
+    pub fn player_by_id(&self, player: PlayerId) -> Option<&SeatedPlayer> {
         self.players_iter().find(|x| x.id == player)
     }
 
@@ -131,7 +140,11 @@ impl SeatedPlayers {
     /// * Validation that the bet meets the current bet amount
     ///
     /// Returns the account id of the next better.
-    pub fn bet(&mut self, player: i32, action: BetAction) -> Result<(BetAction, i32), BetError> {
+    pub fn bet(
+        &mut self,
+        player: PlayerId,
+        action: BetAction,
+    ) -> Result<(BetAction, PlayerId), BetError> {
         // Check player is even in the betting
         let p: &mut SeatedPlayer = self
             .player_by_id_mut(player)
@@ -234,7 +247,7 @@ impl SeatedPlayers {
     }
 
     ///
-    pub fn start_hand(&mut self) -> Result<Vec<i32>, GameError> {
+    pub fn start_hand(&mut self) -> Result<Vec<PlayerId>, GameError> {
         self.unfold_all();
         self.auto_fold_players();
         self.rotate_tokens()?;
@@ -303,7 +316,7 @@ impl SeatedPlayers {
 
 #[derive(Debug)]
 pub struct SeatedPlayer {
-    pub id: i32,
+    pub id: PlayerId,
     pub pocket: Option<[Card; 2]>,
     monies: i32,
     pub bet_status: BetStatus,
@@ -346,9 +359,9 @@ impl SeatedPlayer {
         Ok(r)
     }
 
-    pub fn new(id: i32, monies: i32, seat_index: usize) -> Self {
+    pub fn new<A: Into<PlayerId>>(id: A, monies: i32, seat_index: usize) -> Self {
         SeatedPlayer {
-            id,
+            id: id.into(),
             pocket: None,
             monies,
             bet_status: BetStatus::Folded,
