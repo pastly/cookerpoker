@@ -1,4 +1,4 @@
-use super::{deck::Card, BetAction, BetError, GameError};
+use super::{deck::Card, BetAction, BetError, Currency, GameError};
 pub const MAX_PLAYERS: usize = 12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::Deref)]
@@ -16,8 +16,8 @@ impl From<i32> for PlayerId {
 pub enum BetStatus {
     Folded,
     Waiting,
-    In(i32),
-    AllIn(i32),
+    In(Currency),
+    AllIn(Currency),
 }
 
 impl From<BetAction> for BetStatus {
@@ -74,7 +74,12 @@ impl SeatedPlayers {
     /// is an index (0-based).
     ///
     /// TODO abstract over Account struct?
-    pub fn sit_down(&mut self, aid: PlayerId, monies: i32, seat: usize) -> Result<(), GameError> {
+    pub fn sit_down(
+        &mut self,
+        aid: PlayerId,
+        monies: Currency,
+        seat: usize,
+    ) -> Result<(), GameError> {
         if self.player_by_id(aid).is_some() {
             return Err(GameError::PlayerAlreadySeated);
         }
@@ -93,7 +98,7 @@ impl SeatedPlayers {
 
     /// Removes the player from the table and returns the amount of money the person had.
     /// Parent is responsible for making sure the player can not leave mid round
-    pub fn stand_up(&mut self, aid: PlayerId) -> Option<i32> {
+    pub fn stand_up(&mut self, aid: PlayerId) -> Option<Currency> {
         let p = self.player_by_id(aid)?;
         let r = p.monies();
         self.players[p.seat_index] = None;
@@ -116,8 +121,8 @@ impl SeatedPlayers {
     /// Needed in this struct because next_better is private
     pub fn blinds_bet(
         &mut self,
-        sb: i32,
-        bb: i32,
+        sb: Currency,
+        bb: Currency,
     ) -> Result<(PlayerBetAction, PlayerBetAction, PlayerId), BetError> {
         let sbp = self.next_better();
         let (bbp, sba) = self.bet(sbp, BetAction::Bet(sb))?;
@@ -221,7 +226,7 @@ impl SeatedPlayers {
     ///
     /// AllIn players aren't "betting", so when iterating over all betting players, they are
     /// skipped. The only expected BetStatuses are In and Waiting.
-    pub fn pot_is_ready(&self, current_bet: i32) -> bool {
+    pub fn pot_is_ready(&self, current_bet: Currency) -> bool {
         for player in self.betting_players_iter() {
             match player.bet_status {
                 BetStatus::In(x) => {
@@ -320,7 +325,7 @@ impl SeatedPlayers {
 pub struct SeatedPlayer {
     pub id: PlayerId,
     pub pocket: Option<[Card; 2]>,
-    monies: i32,
+    monies: Currency,
     pub bet_status: BetStatus,
     pub auto_fold: bool,
     pub seat_index: usize,
@@ -339,7 +344,7 @@ impl SeatedPlayer {
                 Ordering::Less => {
                     // Only called when blinds are short stacked.
                     let r = BetAction::AllIn(self.monies);
-                    self.monies = 0;
+                    self.monies = 0.into();
                     r
                 }
                 _ => {
@@ -351,7 +356,7 @@ impl SeatedPlayer {
                 if x != self.monies {
                     return Err(BetError::AllInWithoutBeingAllIn);
                 }
-                self.monies = 0;
+                self.monies = 0.into();
                 BetAction::AllIn(self.monies)
             }
             BetAction::Check => unimplemented!(),
@@ -361,7 +366,7 @@ impl SeatedPlayer {
         Ok(r)
     }
 
-    pub fn new<A: Into<PlayerId>>(id: A, monies: i32, seat_index: usize) -> Self {
+    pub fn new<A: Into<PlayerId>>(id: A, monies: Currency, seat_index: usize) -> Self {
         SeatedPlayer {
             id: id.into(),
             pocket: None,
@@ -371,11 +376,11 @@ impl SeatedPlayer {
             seat_index,
         }
     }
-    pub fn monies(&self) -> i32 {
+    pub fn monies(&self) -> Currency {
         self.monies
     }
     pub fn has_monies(&self) -> bool {
-        self.monies > 0
+        self.monies > 0.into()
     }
 
     pub fn is_folded(&self) -> bool {
@@ -436,8 +441,14 @@ mod tests {
         sp.sit_down(2.into(), 10, sp.players.len() - 1).unwrap();
         sp.start_hand().unwrap();
         sp.blinds_bet(5.into(), 10).unwrap();
-        assert_eq!(sp.player_by_id(1.into()).unwrap().bet_status, BetStatus::AllIn(2));
-        assert_eq!(sp.player_by_id(2.into()).unwrap().bet_status, BetStatus::In(5));
+        assert_eq!(
+            sp.player_by_id(1.into()).unwrap().bet_status,
+            BetStatus::AllIn(2)
+        );
+        assert_eq!(
+            sp.player_by_id(2.into()).unwrap().bet_status,
+            BetStatus::In(5)
+        );
     }
 
     #[test]

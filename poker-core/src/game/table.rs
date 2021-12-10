@@ -2,7 +2,7 @@ use super::deck::{Card, Deck};
 use super::players::{PlayerId, SeatedPlayer, SeatedPlayers};
 use super::pot::Pot;
 
-use super::{BetAction, GameError};
+use super::{BetAction, Currency, GameError};
 use derive_more::Display;
 
 impl TableType {
@@ -59,10 +59,10 @@ pub enum GameState {
 
 #[derive(Debug)]
 pub enum BetRound {
-    PreFlop(i32),
-    Flop(i32),
-    Turn(i32),
-    River(i32),
+    PreFlop(Currency),
+    Flop(Currency),
+    Turn(Currency),
+    River(Currency),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -78,8 +78,8 @@ impl Default for GameInProgress {
             seated_players: SeatedPlayers::default(),
             pot: Pot::default(),
             state: GameState::NotStarted,
-            small_blind: 10,
-            current_bet: 10,
+            small_blind: 10.into(),
+            current_bet: 10.into(),
             hand_num: 0,
             event_log: Vec::new(),
             deck: Deck::default(),
@@ -94,8 +94,8 @@ pub struct GameInProgress {
     pub seated_players: SeatedPlayers,
     pub pot: Pot,
     pub state: GameState,
-    pub small_blind: i32,
-    pub current_bet: i32,
+    pub small_blind: Currency,
+    pub current_bet: Currency,
     pub hand_num: i16,
     pub event_log: Vec<GameEvent>,
     deck: Deck,
@@ -146,13 +146,13 @@ impl GameInProgress {
     pub fn sit_down(
         &mut self,
         player_id: PlayerId,
-        monies: i32,
+        monies: Currency,
         seat: usize,
     ) -> Result<(), GameError> {
         self.seated_players.sit_down(player_id, monies, seat)
     }
 
-    pub fn stand_up(&mut self, player_id: PlayerId) -> Option<Result<i32, GameError>> {
+    pub fn stand_up(&mut self, player_id: PlayerId) -> Option<Result<Currency, GameError>> {
         match self.state {
             GameState::Winner(..) | GameState::WinnerDuringBet(..) => {
                 self.seated_players.stand_up(player_id).map(Ok)
@@ -168,7 +168,7 @@ impl GameInProgress {
         }
     }
 
-    pub fn bet(&mut self, player: PlayerId, ba: BetAction) -> Result<i32, GameError> {
+    pub fn bet(&mut self, player: PlayerId, ba: BetAction) -> Result<Currency, GameError> {
         // Convert check into related call
         // TODO OR return an error and not accept the check?
         let ba = if matches!(ba, BetAction::Check) {
@@ -187,7 +187,7 @@ impl GameInProgress {
     }
 
     /// Simple abstraction so can make big blinds that are not x2 later
-    fn big_blind(&self) -> i32 {
+    fn big_blind(&self) -> Currency {
         self.small_blind * 2
     }
 
