@@ -1,7 +1,7 @@
 use super::{deck::Card, BetAction, BetError, GameError};
 pub const MAX_PLAYERS: usize = 12;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::Deref)]
 pub struct PlayerId(i32);
 
 impl From<i32> for PlayerId {
