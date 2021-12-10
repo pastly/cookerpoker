@@ -181,8 +181,9 @@ impl Pot {
 
     /// Takes the players TOTAL bet. I.e. Bet(10), Call(20) = bet of 20.
     /// As such, parent must track the current betting round.
-    pub fn bet(&mut self, player: PlayerId, action: BetAction) -> Currency {
+    pub fn bet<A: Into<PlayerId>>(&mut self, player: A, action: BetAction) -> Currency {
         use std::cmp::Ordering;
+        let player = player.into();
         if self.is_settled {
             self.side_pot().bet(player, action)
         } else {
@@ -229,9 +230,9 @@ mod tests {
     #[test]
     fn basic_pot() {
         let mut p = Pot::default();
-        p.bet(1.into(), BetAction::Bet(5.into()));
-        p.bet(2.into(), BetAction::Call(5.into()));
-        p.bet(3.into(), BetAction::Call(5.into()));
+        p.bet(1, BetAction::Bet(5.into()));
+        p.bet(2, BetAction::Call(5.into()));
+        p.bet(3, BetAction::Call(5.into()));
         let payout = p.payout(&vec![vec![1.into()]]);
         assert_eq!(payout[&1.into()], 15.into());
     }
@@ -239,17 +240,17 @@ mod tests {
     #[test]
     fn multi_winners() {
         let mut p = Pot::default();
-        p.bet(1.into(), BetAction::Bet(5.into()));
-        p.bet(2.into(), BetAction::Bet(5.into()));
-        p.bet(3.into(), BetAction::Bet(5.into()));
+        p.bet(1, BetAction::Bet(5.into()));
+        p.bet(2, BetAction::Bet(5.into()));
+        p.bet(3, BetAction::Bet(5.into()));
         let payout = p.payout(&vec![vec![1.into(), 2.into()]]);
         assert_eq!(payout[&1.into()], 8.into());
         assert_eq!(payout[&2.into()], 7.into());
 
         let mut p = Pot::default();
-        p.bet(1.into(), BetAction::Bet(5.into()));
-        p.bet(2.into(), BetAction::Bet(5.into()));
-        p.bet(3.into(), BetAction::Bet(6.into()));
+        p.bet(1, BetAction::Bet(5.into()));
+        p.bet(2, BetAction::Bet(5.into()));
+        p.bet(3, BetAction::Bet(6.into()));
         let payout = p.payout(&vec![vec![1.into(), 2.into()]]);
         assert_eq!(payout[&1.into()], 8.into());
         assert_eq!(payout[&2.into()], 8.into());
@@ -258,9 +259,9 @@ mod tests {
     #[test]
     fn over_bet() {
         let mut p = Pot::default();
-        p.bet(1.into(), BetAction::Bet(5.into()));
-        p.bet(2.into(), BetAction::Bet(5.into()));
-        p.bet(3.into(), BetAction::Bet(6.into()));
+        p.bet(1, BetAction::Bet(5.into()));
+        p.bet(2, BetAction::Bet(5.into()));
+        p.bet(3, BetAction::Bet(6.into()));
         let payout = p.payout(&vec![vec![1.into(), 2.into()], vec![3.into()]]);
         assert_eq!(payout[&1.into()], 8.into());
         assert_eq!(payout[&2.into()], 7.into());
@@ -270,9 +271,9 @@ mod tests {
     #[test]
     fn all_in_blind() {
         let mut p = Pot::default();
-        p.bet(1.into(), BetAction::AllIn(5.into()));
-        p.bet(2.into(), BetAction::Bet(10.into()));
-        p.bet(3.into(), BetAction::AllIn(8.into()));
+        p.bet(1, BetAction::AllIn(5.into()));
+        p.bet(2, BetAction::Bet(10.into()));
+        p.bet(3, BetAction::AllIn(8.into()));
         dbg!(&p);
         let payout = p.payout(&vec![vec![1.into()], vec![2.into(), 3.into()]]);
         dbg!(&payout);
@@ -284,9 +285,9 @@ mod tests {
     #[test]
     fn side_pot_payout() {
         let mut p = Pot::default();
-        p.bet(1.into(), BetAction::Bet(10.into()));
-        p.bet(2.into(), BetAction::AllIn(5.into()));
-        p.bet(3.into(), BetAction::Bet(10.into()));
+        p.bet(1, BetAction::Bet(10.into()));
+        p.bet(2, BetAction::AllIn(5.into()));
+        p.bet(3, BetAction::Bet(10.into()));
         let payout = p.payout(&vec![vec![2.into()], vec![1.into(), 3.into()]]);
         assert_eq!(payout[&2.into()], 15.into());
         assert_eq!(payout[&1.into()], 5.into());
@@ -296,9 +297,9 @@ mod tests {
     #[test]
     fn overflowing_side_pot() {
         let mut p = Pot::default();
-        p.bet(1.into(), BetAction::Bet(10.into()));
-        p.bet(2.into(), BetAction::AllIn(5.into()));
-        p.bet(3.into(), BetAction::AllIn(3.into()));
+        p.bet(1, BetAction::Bet(10.into()));
+        p.bet(2, BetAction::AllIn(5.into()));
+        p.bet(3, BetAction::AllIn(3.into()));
         dbg!(&p);
         let payout = p.payout(&vec![vec![3.into()], vec![2.into()], vec![1.into()]]);
         dbg!(&payout);
@@ -311,19 +312,19 @@ mod tests {
     #[test]
     fn multi_round_pot() {
         let mut p = Pot::default();
-        p.bet(1.into(), BetAction::Bet(5.into()));
-        p.bet(2.into(), BetAction::Call(5.into()));
-        p.bet(3.into(), BetAction::Call(5.into()));
+        p.bet(1, BetAction::Bet(5.into()));
+        p.bet(2, BetAction::Call(5.into()));
+        p.bet(3, BetAction::Call(5.into()));
         p.finalize_round();
         // 5,5,5 = 15 in pot
-        p.bet(1.into(), BetAction::Bet(5.into()));
-        p.bet(2.into(), BetAction::Bet(10.into()));
-        p.bet(3.into(), BetAction::AllIn(8.into()));
-        p.bet(1.into(), BetAction::Call(10.into()));
+        p.bet(1, BetAction::Bet(5.into()));
+        p.bet(2, BetAction::Bet(10.into()));
+        p.bet(3, BetAction::AllIn(8.into()));
+        p.bet(1, BetAction::Call(10.into()));
         p.finalize_round();
         // 15 + 8,8,8 + 2,2 = 43 in pot
-        p.bet(1.into(), BetAction::Bet(10.into()));
-        p.bet(2.into(), BetAction::AllIn(6.into()));
+        p.bet(1, BetAction::Bet(10.into()));
+        p.bet(2, BetAction::AllIn(6.into()));
         // 43 + 6,6 + 4 = 59 in pot
         dbg!(&p);
         let payout = p.payout(&vec![vec![3.into()], vec![2.into()], vec![1.into()]]);
