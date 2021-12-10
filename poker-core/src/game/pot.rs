@@ -198,108 +198,108 @@ mod tests {
     #[test]
     fn basic_pot() {
         let mut p = Pot::default();
-        p.bet(1, BetAction::Bet(5));
-        p.bet(2, BetAction::Call(5));
-        p.bet(3, BetAction::Call(5));
-        let payout = p.payout(&vec![vec![1]]);
-        assert_eq!(payout[&1], 15);
+        p.bet(1.into(), BetAction::Bet(5));
+        p.bet(2.into(), BetAction::Call(5));
+        p.bet(3.into(), BetAction::Call(5));
+        let payout = p.payout(&vec![vec![1.into()]]);
+        assert_eq!(payout[&1.into()], 15);
     }
 
     #[test]
     fn multi_winners() {
         let mut p = Pot::default();
-        p.bet(1, BetAction::Bet(5));
-        p.bet(2, BetAction::Bet(5));
-        p.bet(3, BetAction::Bet(5));
-        let payout = p.payout(&vec![vec![1, 2]]);
-        assert_eq!(payout[&1], 8);
-        assert_eq!(payout[&2], 7);
+        p.bet(1.into(), BetAction::Bet(5));
+        p.bet(2.into(), BetAction::Bet(5));
+        p.bet(3.into(), BetAction::Bet(5));
+        let payout = p.payout(&vec![vec![1.into(), 2.into()]]);
+        assert_eq!(payout[&1.into()], 8);
+        assert_eq!(payout[&2.into()], 7);
 
         let mut p = Pot::default();
-        p.bet(1, BetAction::Bet(5));
-        p.bet(2, BetAction::Bet(5));
-        p.bet(3, BetAction::Bet(6));
-        let payout = p.payout(&vec![vec![1, 2]]);
-        assert_eq!(payout[&1], 8);
-        assert_eq!(payout[&2], 8);
+        p.bet(1.into(), BetAction::Bet(5));
+        p.bet(2.into(), BetAction::Bet(5));
+        p.bet(3.into(), BetAction::Bet(6));
+        let payout = p.payout(&vec![vec![1.into(), 2.into()]]);
+        assert_eq!(payout[&1.into()], 8);
+        assert_eq!(payout[&2.into()], 8);
     }
 
     #[test]
     fn over_bet() {
         let mut p = Pot::default();
-        p.bet(1, BetAction::Bet(5));
-        p.bet(2, BetAction::Bet(5));
-        p.bet(3, BetAction::Bet(6));
-        let payout = p.payout(&vec![vec![1, 2], vec![3]]);
-        assert_eq!(payout[&1], 8);
-        assert_eq!(payout[&2], 7);
-        assert_eq!(payout[&3], 1);
+        p.bet(1.into(), BetAction::Bet(5));
+        p.bet(2.into(), BetAction::Bet(5));
+        p.bet(3.into(), BetAction::Bet(6));
+        let payout = p.payout(&vec![vec![1.into(), 2.into()], vec![3.into()]]);
+        assert_eq!(payout[&1.into()], 8);
+        assert_eq!(payout[&2.into()], 7);
+        assert_eq!(payout[&3.into()], 1);
     }
 
     #[test]
     fn all_in_blind() {
         let mut p = Pot::default();
-        p.bet(1, BetAction::AllIn(5));
-        p.bet(2, BetAction::Bet(10));
-        p.bet(3, BetAction::AllIn(8));
+        p.bet(1.into(), BetAction::AllIn(5));
+        p.bet(2.into(), BetAction::Bet(10));
+        p.bet(3.into(), BetAction::AllIn(8));
         dbg!(&p);
-        let payout = p.payout(&vec![vec![1], vec![2, 3]]);
+        let payout = p.payout(&vec![vec![1.into()], vec![2.into(), 3.into()]]);
         dbg!(&payout);
-        assert_eq!(payout[&1], 15);
-        assert_eq!(payout[&2], 5);
-        assert_eq!(payout[&3], 3);
+        assert_eq!(payout[&1.into()], 15);
+        assert_eq!(payout[&2.into()], 5);
+        assert_eq!(payout[&3.into()], 3);
     }
 
     #[test]
     fn side_pot_payout() {
         let mut p = Pot::default();
-        p.bet(1, BetAction::Bet(10));
-        p.bet(2, BetAction::AllIn(5));
-        p.bet(3, BetAction::Bet(10));
-        let payout = p.payout(&vec![vec![2], vec![1, 3]]);
-        assert_eq!(payout[&2], 15);
-        assert_eq!(payout[&1], 5);
-        assert_eq!(payout[&3], 5);
+        p.bet(1.into(), BetAction::Bet(10));
+        p.bet(2.into(), BetAction::AllIn(5));
+        p.bet(3.into(), BetAction::Bet(10));
+        let payout = p.payout(&vec![vec![2.into()], vec![1.into(), 3.into()]]);
+        assert_eq!(payout[&2.into()], 15);
+        assert_eq!(payout[&1.into()], 5);
+        assert_eq!(payout[&3.into()], 5);
     }
 
     #[test]
     fn overflowing_side_pot() {
         let mut p = Pot::default();
-        p.bet(1, BetAction::Bet(10));
-        p.bet(2, BetAction::AllIn(5));
-        p.bet(3, BetAction::AllIn(3));
+        p.bet(1.into(), BetAction::Bet(10));
+        p.bet(2.into(), BetAction::AllIn(5));
+        p.bet(3.into(), BetAction::AllIn(3));
         dbg!(&p);
-        let payout = p.payout(&vec![vec![3], vec![2], vec![1]]);
+        let payout = p.payout(&vec![vec![3.into()], vec![2.into()], vec![1.into()]]);
         dbg!(&payout);
-        assert_eq!(payout[&3], 9);
-        assert_eq!(payout[&2], 4);
+        assert_eq!(payout[&3.into()], 9);
+        assert_eq!(payout[&2.into()], 4);
         // 1 overbet and was returned pot nobody else could claim
-        assert_eq!(payout[&1], 5);
+        assert_eq!(payout[&1.into()], 5);
     }
 
     #[test]
     fn multi_round_pot() {
         let mut p = Pot::default();
-        p.bet(1, BetAction::Bet(5));
-        p.bet(2, BetAction::Call(5));
-        p.bet(3, BetAction::Call(5));
+        p.bet(1.into(), BetAction::Bet(5));
+        p.bet(2.into(), BetAction::Call(5));
+        p.bet(3.into(), BetAction::Call(5));
         p.finalize_round();
         // 5,5,5 = 15 in pot
-        p.bet(1, BetAction::Bet(5));
-        p.bet(2, BetAction::Bet(10));
-        p.bet(3, BetAction::AllIn(8));
-        p.bet(1, BetAction::Call(10));
+        p.bet(1.into(), BetAction::Bet(5));
+        p.bet(2.into(), BetAction::Bet(10));
+        p.bet(3.into(), BetAction::AllIn(8));
+        p.bet(1.into(), BetAction::Call(10));
         p.finalize_round();
         // 15 + 8,8,8 + 2,2 = 43 in pot
-        p.bet(1, BetAction::Bet(10));
-        p.bet(2, BetAction::AllIn(6));
+        p.bet(1.into(), BetAction::Bet(10));
+        p.bet(2.into(), BetAction::AllIn(6));
         // 43 + 6,6 + 4 = 59 in pot
         dbg!(&p);
-        let payout = p.payout(&vec![vec![3], vec![2], vec![1]]);
+        let payout = p.payout(&vec![vec![3.into()], vec![2.into()], vec![1.into()]]);
         dbg!(&payout);
-        assert_eq!(payout[&3], 39);
-        assert_eq!(payout[&2], 16);
+        assert_eq!(payout[&3.into()], 39);
+        assert_eq!(payout[&2.into()], 16);
         // 1 overbet and was returned pot nobody else could claim
-        assert_eq!(payout[&1], 4);
+        assert_eq!(payout[&1.into()], 4);
     }
 }
