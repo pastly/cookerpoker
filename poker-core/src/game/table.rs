@@ -220,7 +220,7 @@ mod tests {
         gt.bet(3.into(), BetAction::Call(10)).unwrap();
         gt.bet(0.into(), BetAction::Fold).unwrap();
         // TODO decide if invald Check's should fail or be converted to calls
-        let r = gt.bet(1.into(), BetAction::Check).unwrap();
+        let _r = gt.bet(1.into(), BetAction::Check).unwrap();
         gt.bet(2.into(), BetAction::Check).unwrap();
 
         // First betting round is over.
