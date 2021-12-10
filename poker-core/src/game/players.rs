@@ -74,12 +74,13 @@ impl SeatedPlayers {
     /// is an index (0-based).
     ///
     /// TODO abstract over Account struct?
-    pub fn sit_down(
+    pub fn sit_down<A: Into<PlayerId>, C: Into<Currency>>(
         &mut self,
-        aid: PlayerId,
-        monies: Currency,
+        aid: A,
+        monies: C,
         seat: usize,
     ) -> Result<(), GameError> {
+        let aid = aid.into();
         if self.player_by_id(aid).is_some() {
             return Err(GameError::PlayerAlreadySeated);
         }
@@ -98,7 +99,7 @@ impl SeatedPlayers {
 
     /// Removes the player from the table and returns the amount of money the person had.
     /// Parent is responsible for making sure the player can not leave mid round
-    pub fn stand_up(&mut self, aid: PlayerId) -> Option<Currency> {
+    pub fn stand_up<A: Into<PlayerId>+Copy>(&mut self, aid: A) -> Option<Currency> {
         let p = self.player_by_id(aid)?;
         let r = p.monies();
         self.players[p.seat_index] = None;
@@ -119,25 +120,25 @@ impl SeatedPlayers {
 
     /// Runs two bets, the blinds
     /// Needed in this struct because next_better is private
-    pub fn blinds_bet(
+    pub fn blinds_bet<C: Into<Currency>>(
         &mut self,
-        sb: Currency,
-        bb: Currency,
+        sb: C,
+        bb: C,
     ) -> Result<(PlayerBetAction, PlayerBetAction, PlayerId), BetError> {
         let sbp = self.next_better();
-        let (bbp, sba) = self.bet(sbp, BetAction::Bet(sb))?;
-        let (nb, bba) = self.bet(bbp, BetAction::Bet(bb))?;
+        let (bbp, sba) = self.bet(sbp, BetAction::Bet(sb.into()))?;
+        let (nb, bba) = self.bet(bbp, BetAction::Bet(bb.into()))?;
         Ok(((sbp, sba), (bbp, bba), nb))
     }
 
     /// The mutable version of `player_by_id`
-    pub fn player_by_id_mut(&mut self, player: PlayerId) -> Option<&mut SeatedPlayer> {
-        self.players_iter_mut().find(|x| x.id == player)
+    pub fn player_by_id_mut<A: Into<PlayerId>+Copy>(&mut self, player: A) -> Option<&mut SeatedPlayer> {
+        self.players_iter_mut().find(|x| x.id == player.into())
     }
 
     /// Gets a reference to the player if their account ID could be found
-    pub fn player_by_id(&self, player: PlayerId) -> Option<&SeatedPlayer> {
-        self.players_iter().find(|x| x.id == player)
+    pub fn player_by_id<A: Into<PlayerId>+Copy>(&self, player: A) -> Option<&SeatedPlayer> {
+        self.players_iter().find(|x| x.id == player.into())
     }
 
     /// This function is not aware of the current bet. As such validation must be handled before
@@ -147,11 +148,12 @@ impl SeatedPlayers {
     /// * Validation that the bet meets the current bet amount
     ///
     /// Returns the account id of the next better.
-    pub fn bet(
+    pub fn bet<A: Into<PlayerId>>(
         &mut self,
-        player: PlayerId,
+        player: A,
         action: BetAction,
-    ) -> Result<(PlayerId, BetAction), BetError> {
+    ) -> Result<PlayerBetAction, BetError> {
+        let player = player.into();
         // Check player is even in the betting
         let p: &mut SeatedPlayer = self
             .player_by_id_mut(player)
@@ -226,7 +228,8 @@ impl SeatedPlayers {
     ///
     /// AllIn players aren't "betting", so when iterating over all betting players, they are
     /// skipped. The only expected BetStatuses are In and Waiting.
-    pub fn pot_is_ready(&self, current_bet: Currency) -> bool {
+    pub fn pot_is_ready<C: Into<Currency>>(&self, current_bet: C) -> bool {
+        let current_bet = current_bet.into();
         for player in self.betting_players_iter() {
             match player.bet_status {
                 BetStatus::In(x) => {
@@ -366,11 +369,11 @@ impl SeatedPlayer {
         Ok(r)
     }
 
-    pub fn new<A: Into<PlayerId>>(id: A, monies: Currency, seat_index: usize) -> Self {
+    pub fn new<A: Into<PlayerId>, C: Into<Currency>>(id: A, monies: C, seat_index: usize) -> Self {
         SeatedPlayer {
             id: id.into(),
             pocket: None,
-            monies,
+            monies: monies.into(),
             bet_status: BetStatus::Folded,
             auto_fold: false,
             seat_index,
@@ -401,28 +404,28 @@ mod tests {
     #[test]
     fn token_rotation() {
         let mut sp = SeatedPlayers::default();
-        sp.sit_down(1.into(), 10.into(), 0).unwrap();
-        sp.sit_down(2.into(), 10.into(), 11).unwrap();
+        sp.sit_down(1, 10, 0).unwrap();
+        sp.sit_down(2, 10, 11).unwrap();
         sp.start_hand().unwrap();
         assert_eq!(sp.dealer_token, 0);
         assert_eq!(sp.small_blind_token, 11);
         assert_eq!(sp.big_blind_token, 0);
 
         let mut sp = SeatedPlayers::default();
-        sp.sit_down(1.into(), 10.into(), 0).unwrap();
-        sp.sit_down(2.into(), 10.into(), 1).unwrap();
-        sp.sit_down(3.into(), 0.into(), 11).unwrap();
+        sp.sit_down(1, 10, 0).unwrap();
+        sp.sit_down(2, 10, 1).unwrap();
+        sp.sit_down(3, 0, 11).unwrap();
         sp.start_hand().unwrap();
         assert_eq!(sp.dealer_token, 0);
         assert_eq!(sp.small_blind_token, 1);
         assert_eq!(sp.big_blind_token, 0);
 
         let mut sp = SeatedPlayers::default();
-        sp.sit_down(1.into(), 10.into(), 0).unwrap();
-        sp.sit_down(2.into(), 10.into(), 3).unwrap();
-        sp.sit_down(3.into(), 10.into(), 5).unwrap();
-        sp.sit_down(4.into(), 10.into(), 7).unwrap();
-        sp.sit_down(5.into(), 10.into(), 11).unwrap();
+        sp.sit_down(1, 10, 0).unwrap();
+        sp.sit_down(2, 10, 3).unwrap();
+        sp.sit_down(3, 10, 5).unwrap();
+        sp.sit_down(4, 10, 7).unwrap();
+        sp.sit_down(5, 10, 11).unwrap();
         sp.start_hand().unwrap();
         assert_eq!(sp.dealer_token, 0);
         assert_eq!(sp.small_blind_token, 3);
@@ -437,16 +440,16 @@ mod tests {
     #[test]
     fn all_in_on_blind() {
         let mut sp = SeatedPlayers::default();
-        sp.sit_down(1.into(), 2.into(), 0).unwrap();
-        sp.sit_down(2.into(), 10.into(), sp.players.len() - 1).unwrap();
+        sp.sit_down(1, 2, 0).unwrap();
+        sp.sit_down(2, 10, sp.players.len() - 1).unwrap();
         sp.start_hand().unwrap();
-        sp.blinds_bet(5.into(), 10.into()).unwrap();
+        sp.blinds_bet(5, 10).unwrap();
         assert_eq!(
-            sp.player_by_id(1.into()).unwrap().bet_status,
+            sp.player_by_id(1).unwrap().bet_status,
             BetStatus::AllIn(2.into())
         );
         assert_eq!(
-            sp.player_by_id(2.into()).unwrap().bet_status,
+            sp.player_by_id(2).unwrap().bet_status,
             BetStatus::In(5.into())
         );
     }
@@ -454,16 +457,16 @@ mod tests {
     #[test]
     fn player_cant_sit_twice() {
         let mut sp = SeatedPlayers::default();
-        sp.sit_down(1.into(), 10.into(), 0).unwrap();
-        let r = sp.sit_down(1.into(), 10.into(), 1);
+        sp.sit_down(1, 10, 0).unwrap();
+        let r = sp.sit_down(1, 10, 1);
         assert!(r.is_err());
     }
 
     #[test]
     fn seat_taken() {
         let mut sp = SeatedPlayers::default();
-        sp.sit_down(1.into(), 10.into(), 0).unwrap();
-        let r = sp.sit_down(2.into(), 10.into(), 0);
+        sp.sit_down(1, 10, 0).unwrap();
+        let r = sp.sit_down(2, 10, 0);
         assert!(r.is_err());
     }
 }

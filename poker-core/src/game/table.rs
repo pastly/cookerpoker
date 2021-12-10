@@ -139,20 +139,20 @@ impl GameInProgress {
 
     /// Gets the seated player by id if they are seated at the current table.
     /// Front-end is responsible for making sure there isn't data leakage
-    pub fn get_player_info(&self, player_id: PlayerId) -> Option<&SeatedPlayer> {
+    pub fn get_player_info<A: Into<PlayerId>+Copy>(&self, player_id: A) -> Option<&SeatedPlayer> {
         self.seated_players.player_by_id(player_id).map(|x| &*x)
     }
 
-    pub fn sit_down(
+    pub fn sit_down<A: Into<PlayerId>, C: Into<Currency>>(
         &mut self,
-        player_id: PlayerId,
-        monies: Currency,
+        player_id: A,
+        monies: C,
         seat: usize,
     ) -> Result<(), GameError> {
         self.seated_players.sit_down(player_id, monies, seat)
     }
 
-    pub fn stand_up(&mut self, player_id: PlayerId) -> Option<Result<Currency, GameError>> {
+    pub fn stand_up<A: Into<PlayerId>+Copy>(&mut self, player_id: A) -> Option<Result<Currency, GameError>> {
         match self.state {
             GameState::Winner(..) | GameState::WinnerDuringBet(..) => {
                 self.seated_players.stand_up(player_id).map(Ok)
@@ -168,7 +168,7 @@ impl GameInProgress {
         }
     }
 
-    pub fn bet(&mut self, player: PlayerId, ba: BetAction) -> Result<Currency, GameError> {
+    pub fn bet<A: Into<PlayerId>>(&mut self, player: A, ba: BetAction) -> Result<Currency, GameError> {
         // Convert check into related call
         // TODO OR return an error and not accept the check?
         let ba = if matches!(ba, BetAction::Check) {
@@ -206,29 +206,29 @@ mod tests {
     #[test]
     fn basic_game() {
         let mut gt = GameInProgress::default();
-        gt.sit_down(0.into(), 100.into(), 0).unwrap();
-        gt.sit_down(1.into(), 100.into(), 1).unwrap();
-        gt.sit_down(2.into(), 100.into(), 2).unwrap();
-        gt.sit_down(3.into(), 100.into(), 3).unwrap();
+        gt.sit_down(0, 100, 0).unwrap();
+        gt.sit_down(1, 100, 1).unwrap();
+        gt.sit_down(2, 100, 2).unwrap();
+        gt.sit_down(3, 100, 3).unwrap();
         gt.start_round().unwrap();
         // Blinds are in
-        assert_eq!(gt.get_player_info(0.into()).unwrap().monies(), 100.into());
-        assert_eq!(gt.get_player_info(1.into()).unwrap().monies(), 95.into());
-        assert_eq!(gt.get_player_info(2.into()).unwrap().monies(), 90.into());
+        assert_eq!(gt.get_player_info(0).unwrap().monies(), 100.into());
+        assert_eq!(gt.get_player_info(1).unwrap().monies(), 95.into());
+        assert_eq!(gt.get_player_info(2).unwrap().monies(), 90.into());
         assert_eq!(gt.pot.total_value(), 15.into());
 
-        gt.bet(3.into(), BetAction::Call(10.into())).unwrap();
-        gt.bet(0.into(), BetAction::Fold).unwrap();
+        gt.bet(3, BetAction::Call(10.into())).unwrap();
+        gt.bet(0, BetAction::Fold).unwrap();
         // TODO decide if invald Check's should fail or be converted to calls
-        let _r = gt.bet(1.into(), BetAction::Check).unwrap();
-        gt.bet(2.into(), BetAction::Check).unwrap();
+        let _r = gt.bet(1, BetAction::Check).unwrap();
+        gt.bet(2, BetAction::Check).unwrap();
 
         // First betting round is over.
         // Table should recognize that all players are in and pot is right and forward the round
-        assert_eq!(gt.get_player_info(0.into()).unwrap().monies(), 100.into());
-        assert_eq!(gt.get_player_info(1.into()).unwrap().monies(), 90.into());
-        assert_eq!(gt.get_player_info(2.into()).unwrap().monies(), 90.into());
-        assert_eq!(gt.get_player_info(3.into()).unwrap().monies(), 90.into());
+        assert_eq!(gt.get_player_info(0).unwrap().monies(), 100.into());
+        assert_eq!(gt.get_player_info(1).unwrap().monies(), 90.into());
+        assert_eq!(gt.get_player_info(2).unwrap().monies(), 90.into());
+        assert_eq!(gt.get_player_info(3).unwrap().monies(), 90.into());
         assert_eq!(gt.pot.total_value(), 30.into());
         assert!(gt.table_cards[2].is_some());
 
