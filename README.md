@@ -5,14 +5,17 @@ something.
 
 This repository holds all the crates in the CookerPoker ecosystem.
 
-Crates are of one of three types (whether or not they're denotated as such in
-the repo already):
+There are four main crates.
 
-1. Core game logic (what a card is, how betting works, what hands beat other
-   hands, etc.)
-2. Web server-side/backend (the web server and what it does: user profiles,
-   game API, running a game, connections to a DB, etc.)
-3. Web client-side/frontend (compiles to WASM, runs in client browsers)
+1. **poker-core**: Core poker game logic. What a card is, what a hand is, what
+   hands beat what other hands, game tables, betting, etc.
+2. **poker-bin**: Small CLI binaries that depend on poker-core for some small
+   purpose. Maybe little poker drills that the authors dreamed up. Maybe some
+other poker utility. Probably not generally useful.
+3. **poker-server**: Rocket/Diesel web server. Maintains user profiles, client
+   API, running a game, interacting with the DB, etc. Depends on poker-core.
+4. **poker-client**: WASM client that runs in a web browser. Interacts with
+   poker-server via an API over HTTP.
 
 ## Deployment layout
 
@@ -21,7 +24,8 @@ randomness, hosts games, tells all players what is happening in their game,
 hears from players what they choose to do (and forward that on, if legal
 action), has sole interaction with the DB, etc.
 
-To support the web server, ......... a database is used, but what kind .....
+To support the web server, diesel is used to interact with an sqlite database.
+Postgres may be used in the future.
 
 ## Features
 
@@ -53,7 +57,7 @@ Dave!"])
 
 ### Core
 
-- [ ] What 5-card hand beats another (calculate once, then just lookup?)
+- [x] What 5-card hand beats another (calculate once, then just lookup?)
 
 ### Unclear fit
 
