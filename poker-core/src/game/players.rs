@@ -401,28 +401,28 @@ mod tests {
     #[test]
     fn token_rotation() {
         let mut sp = SeatedPlayers::default();
-        sp.sit_down(1.into(), 10, 0).unwrap();
-        sp.sit_down(2.into(), 10, 11).unwrap();
+        sp.sit_down(1.into(), 10.into(), 0).unwrap();
+        sp.sit_down(2.into(), 10.into(), 11).unwrap();
         sp.start_hand().unwrap();
         assert_eq!(sp.dealer_token, 0);
         assert_eq!(sp.small_blind_token, 11);
         assert_eq!(sp.big_blind_token, 0);
 
         let mut sp = SeatedPlayers::default();
-        sp.sit_down(1.into(), 10, 0).unwrap();
-        sp.sit_down(2.into(), 10, 1).unwrap();
-        sp.sit_down(3.into(), 0, 11).unwrap();
+        sp.sit_down(1.into(), 10.into(), 0).unwrap();
+        sp.sit_down(2.into(), 10.into(), 1).unwrap();
+        sp.sit_down(3.into(), 0.into(), 11).unwrap();
         sp.start_hand().unwrap();
         assert_eq!(sp.dealer_token, 0);
         assert_eq!(sp.small_blind_token, 1);
         assert_eq!(sp.big_blind_token, 0);
 
         let mut sp = SeatedPlayers::default();
-        sp.sit_down(1.into(), 10, 0).unwrap();
-        sp.sit_down(2.into(), 10, 3).unwrap();
-        sp.sit_down(3.into(), 10, 5).unwrap();
-        sp.sit_down(4.into(), 10, 7).unwrap();
-        sp.sit_down(5.into(), 10, 11).unwrap();
+        sp.sit_down(1.into(), 10.into(), 0).unwrap();
+        sp.sit_down(2.into(), 10.into(), 3).unwrap();
+        sp.sit_down(3.into(), 10.into(), 5).unwrap();
+        sp.sit_down(4.into(), 10.into(), 7).unwrap();
+        sp.sit_down(5.into(), 10.into(), 11).unwrap();
         sp.start_hand().unwrap();
         assert_eq!(sp.dealer_token, 0);
         assert_eq!(sp.small_blind_token, 3);
@@ -437,33 +437,33 @@ mod tests {
     #[test]
     fn all_in_on_blind() {
         let mut sp = SeatedPlayers::default();
-        sp.sit_down(1.into(), 2, 0).unwrap();
-        sp.sit_down(2.into(), 10, sp.players.len() - 1).unwrap();
+        sp.sit_down(1.into(), 2.into(), 0).unwrap();
+        sp.sit_down(2.into(), 10.into(), sp.players.len() - 1).unwrap();
         sp.start_hand().unwrap();
-        sp.blinds_bet(5.into(), 10).unwrap();
+        sp.blinds_bet(5.into(), 10.into()).unwrap();
         assert_eq!(
             sp.player_by_id(1.into()).unwrap().bet_status,
-            BetStatus::AllIn(2)
+            BetStatus::AllIn(2.into())
         );
         assert_eq!(
             sp.player_by_id(2.into()).unwrap().bet_status,
-            BetStatus::In(5)
+            BetStatus::In(5.into())
         );
     }
 
     #[test]
     fn player_cant_sit_twice() {
         let mut sp = SeatedPlayers::default();
-        sp.sit_down(1.into(), 10, 0).unwrap();
-        let r = sp.sit_down(1.into(), 10, 1);
+        sp.sit_down(1.into(), 10.into(), 0).unwrap();
+        let r = sp.sit_down(1.into(), 10.into(), 1);
         assert!(r.is_err());
     }
 
     #[test]
     fn seat_taken() {
         let mut sp = SeatedPlayers::default();
-        sp.sit_down(1.into(), 10, 0).unwrap();
-        let r = sp.sit_down(2.into(), 10, 0);
+        sp.sit_down(1.into(), 10.into(), 0).unwrap();
+        let r = sp.sit_down(2.into(), 10.into(), 0);
         assert!(r.is_err());
     }
 }
