@@ -3,15 +3,16 @@ pub mod pot;
 pub mod table;
 
 pub use super::{deck, hand};
+use pot::Currency;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum BetAction {
     Check,
     Fold,
-    Call(i32),
-    Bet(i32),
-    AllIn(i32),
+    Call(Currency),
+    Bet(Currency),
+    AllIn(Currency),
 }
 
 #[derive(Debug)]

@@ -1,6 +1,37 @@
 use super::players::PlayerId;
 use super::BetAction;
+use derive_more::{Add, AddAssign, Div, From, Mul, Rem, Sub, SubAssign, Sum};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialOrd,
+    Ord,
+    PartialEq,
+    Eq,
+    Default,
+    Add,
+    AddAssign,
+    Sub,
+    SubAssign,
+    Div,
+    Rem,
+    Mul,
+    Sum,
+    From,
+    Serialize,
+    Deserialize,
+)]
+pub struct Currency(i32);
+
+impl Currency {
+    fn max() -> Self {
+        i32::MAX.into()
+    }
+}
 
 /// Handles all pot related operations.
 /// Only tracks monies committed to the pot.
@@ -8,8 +39,8 @@ use std::collections::HashMap;
 /// Parent must validate player has enough monies, and track the state of the betting round.
 #[derive(Debug)]
 pub struct Pot {
-    players_in: HashMap<PlayerId, i32>,
-    max_in: i32,
+    players_in: HashMap<PlayerId, Currency>,
+    max_in: Currency,
     side_pot: Option<Box<Pot>>,
     is_settled: bool,
 }
@@ -17,19 +48,19 @@ pub struct Pot {
 impl Pot {
     /// Returns the total value in this pot
     /// Not particularily useful due to each betting round spinning off a side pot
-    pub fn value(&self) -> i32 {
-        self.players_in.values().sum()
+    pub fn value(&self) -> Currency {
+        self.players_in.values().copied().sum()
     }
 
-    pub fn total_value(&self) -> i32 {
-        let mut v = self.players_in.values().sum();
+    pub fn total_value(&self) -> Currency {
+        let mut v = self.players_in.values().copied().sum();
         if let Some(x) = self.side_pot.as_ref() {
             v += x.total_value();
         }
         v
     }
 
-    fn overflowing_add(&mut self, player: PlayerId, amount: i32) {
+    fn overflowing_add(&mut self, player: PlayerId, amount: Currency) {
         if self.is_settled {
             self.side_pot().overflowing_add(player, amount);
         } else {
@@ -52,12 +83,12 @@ impl Pot {
         self.side_pot.as_mut().unwrap()
     }
 
-    fn update_max(&mut self, new_max: i32) {
+    fn update_max(&mut self, new_max: Currency) {
         use std::cmp::Ordering;
         if self.is_settled {
             self.side_pot().update_max(new_max);
         } else {
-            if new_max == i32::MAX || new_max < 1 {
+            if new_max == Currency::max() || new_max < 1.into() {
                 return;
             }
             match new_max.cmp(&self.max_in) {
@@ -65,7 +96,7 @@ impl Pot {
                 Ordering::Less => {
                     let ov = self.max_in;
                     self.max_in = new_max;
-                    if ov != i32::MAX {
+                    if ov != Currency::max() {
                         self.side_pot().update_max(ov - new_max);
                     }
                 }
@@ -116,8 +147,8 @@ impl Pot {
     ///
     /// Panics if the pot would pay out a different amount than is in the pot.
     /// This indicates a failure of the payout function and should be investigated.
-    pub fn payout(self, ranked_hands: &[Vec<PlayerId>]) -> HashMap<PlayerId, i32> {
-        let mut hm: HashMap<PlayerId, i32> = HashMap::new();
+    pub fn payout(self, ranked_hands: &[Vec<PlayerId>]) -> HashMap<PlayerId, Currency> {
+        let mut hm: HashMap<PlayerId, Currency> = HashMap::new();
         let value = self.value();
         let mut paid_out = false;
         for best_hand in ranked_hands {
@@ -126,14 +157,14 @@ impl Pot {
             if hands_in == 0 {
                 continue;
             }
-            let payout = value / self.num_players_in(best_hand) as i32;
+            let payout = value / (self.num_players_in(best_hand) as i32);
             for player in best_hand.iter() {
                 if self.players_in.contains_key(player) {
                     hm.insert(*player, payout);
                     paid_out = true;
-                    if best_hand.len() > 1 && value % 2 == 1 {
+                    if best_hand.len() > 1 && value % 2 == 1.into() {
                         // TODO Randomize
-                        hm.insert(best_hand[0], payout + 1);
+                        hm.insert(best_hand[0], payout + 1.into());
                     }
                 }
             }
@@ -141,7 +172,7 @@ impl Pot {
                 break;
             }
         }
-        assert_eq!(hm.values().sum::<i32>(), self.value());
+        assert_eq!(hm.values().copied().sum::<Currency>(), self.value());
         if let Some(x) = self.side_pot {
             crate::util::merge_hashmap(&mut hm, x.payout(ranked_hands));
         }
@@ -150,7 +181,7 @@ impl Pot {
 
     /// Takes the players TOTAL bet. I.e. Bet(10), Call(20) = bet of 20.
     /// As such, parent must track the current betting round.
-    pub fn bet(&mut self, player: PlayerId, action: BetAction) -> i32 {
+    pub fn bet(&mut self, player: PlayerId, action: BetAction) -> Currency {
         use std::cmp::Ordering;
         if self.is_settled {
             self.side_pot().bet(player, action)
@@ -172,10 +203,10 @@ impl Pot {
                 },
                 BetAction::Bet(v) | BetAction::Call(v) => v,
                 // Folds and calls have no effect on the pot.
-                _ => return 0,
+                _ => return 0.into(),
             };
             self.overflowing_add(player, value - ov);
-            0
+            0.into()
         }
     }
 }
@@ -184,7 +215,7 @@ impl Default for Pot {
     fn default() -> Self {
         Pot {
             players_in: HashMap::new(),
-            max_in: i32::MAX,
+            max_in: Currency::max(),
             side_pot: None,
             is_settled: false,
         }
