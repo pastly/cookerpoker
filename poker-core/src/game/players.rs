@@ -4,6 +4,8 @@ pub const MAX_PLAYERS: usize = 12;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::Deref)]
 pub struct PlayerId(i32);
 
+type PlayerBetAction = (PlayerId, BetAction);
+
 impl From<i32> for PlayerId {
     fn from(i: i32) -> Self {
         Self(i)
@@ -116,7 +118,7 @@ impl SeatedPlayers {
         &mut self,
         sb: i32,
         bb: i32,
-    ) -> Result<((PlayerId, BetAction), (PlayerId, BetAction), PlayerId), BetError> {
+    ) -> Result<(PlayerBetAction, PlayerBetAction, PlayerId), BetError> {
         let sbp = self.next_better();
         let (bbp, sba) = self.bet(sbp, BetAction::Bet(sb))?;
         let (nb, bba) = self.bet(bbp, BetAction::Bet(bb))?;
