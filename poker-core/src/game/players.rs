@@ -118,8 +118,8 @@ impl SeatedPlayers {
         bb: i32,
     ) -> Result<((PlayerId, BetAction), (PlayerId, BetAction), PlayerId), BetError> {
         let sbp = self.next_better();
-        let (sba, bbp) = self.bet(sbp, BetAction::Bet(sb))?;
-        let (bba, nb) = self.bet(bbp, BetAction::Bet(bb))?;
+        let (bbp, sba) = self.bet(sbp, BetAction::Bet(sb))?;
+        let (nb, bba) = self.bet(bbp, BetAction::Bet(bb))?;
         Ok(((sbp, sba), (bbp, bba), nb))
     }
 
@@ -144,7 +144,7 @@ impl SeatedPlayers {
         &mut self,
         player: PlayerId,
         action: BetAction,
-    ) -> Result<(BetAction, PlayerId), BetError> {
+    ) -> Result<(PlayerId, BetAction), BetError> {
         // Check player is even in the betting
         let p: &mut SeatedPlayer = self
             .player_by_id_mut(player)
@@ -159,7 +159,7 @@ impl SeatedPlayers {
         let nb = self.next_better();
 
         // Return the BetAction to be committed to the Pot, and the next better
-        Ok((ba, nb))
+        Ok((nb, ba))
     }
 
     /// Returns an iterator over all seated players, preserving seat index
