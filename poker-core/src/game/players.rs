@@ -99,7 +99,7 @@ impl SeatedPlayers {
 
     /// Removes the player from the table and returns the amount of money the person had.
     /// Parent is responsible for making sure the player can not leave mid round
-    pub fn stand_up<A: Into<PlayerId>+Copy>(&mut self, aid: A) -> Option<Currency> {
+    pub fn stand_up<A: Into<PlayerId> + Copy>(&mut self, aid: A) -> Option<Currency> {
         let p = self.player_by_id(aid)?;
         let r = p.monies();
         self.players[p.seat_index] = None;
@@ -132,12 +132,15 @@ impl SeatedPlayers {
     }
 
     /// The mutable version of `player_by_id`
-    pub fn player_by_id_mut<A: Into<PlayerId>+Copy>(&mut self, player: A) -> Option<&mut SeatedPlayer> {
+    pub fn player_by_id_mut<A: Into<PlayerId> + Copy>(
+        &mut self,
+        player: A,
+    ) -> Option<&mut SeatedPlayer> {
         self.players_iter_mut().find(|x| x.id == player.into())
     }
 
     /// Gets a reference to the player if their account ID could be found
-    pub fn player_by_id<A: Into<PlayerId>+Copy>(&self, player: A) -> Option<&SeatedPlayer> {
+    pub fn player_by_id<A: Into<PlayerId> + Copy>(&self, player: A) -> Option<&SeatedPlayer> {
         self.players_iter().find(|x| x.id == player.into())
     }
 

@@ -139,7 +139,7 @@ impl GameInProgress {
 
     /// Gets the seated player by id if they are seated at the current table.
     /// Front-end is responsible for making sure there isn't data leakage
-    pub fn get_player_info<A: Into<PlayerId>+Copy>(&self, player_id: A) -> Option<&SeatedPlayer> {
+    pub fn get_player_info<A: Into<PlayerId> + Copy>(&self, player_id: A) -> Option<&SeatedPlayer> {
         self.seated_players.player_by_id(player_id).map(|x| &*x)
     }
 
@@ -152,7 +152,10 @@ impl GameInProgress {
         self.seated_players.sit_down(player_id, monies, seat)
     }
 
-    pub fn stand_up<A: Into<PlayerId>+Copy>(&mut self, player_id: A) -> Option<Result<Currency, GameError>> {
+    pub fn stand_up<A: Into<PlayerId> + Copy>(
+        &mut self,
+        player_id: A,
+    ) -> Option<Result<Currency, GameError>> {
         match self.state {
             GameState::Winner(..) | GameState::WinnerDuringBet(..) => {
                 self.seated_players.stand_up(player_id).map(Ok)
@@ -168,7 +171,11 @@ impl GameInProgress {
         }
     }
 
-    pub fn bet<A: Into<PlayerId>>(&mut self, player: A, ba: BetAction) -> Result<Currency, GameError> {
+    pub fn bet<A: Into<PlayerId>>(
+        &mut self,
+        player: A,
+        ba: BetAction,
+    ) -> Result<Currency, GameError> {
         // Convert check into related call
         // TODO OR return an error and not accept the check?
         let ba = if matches!(ba, BetAction::Check) {
