@@ -3,7 +3,8 @@ pub mod pot;
 pub mod table;
 
 pub use super::{deck, hand};
-use pot::Currency;
+pub use players::PlayerId;
+pub use pot::Currency;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]

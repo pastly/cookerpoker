@@ -1258,6 +1258,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "poker-messages"
+version = "0.1.0"
+dependencies = [
+ "poker-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "poker-server"
 version = "0.1.0"
 dependencies = [
