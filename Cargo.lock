@@ -1384,6 +1384,7 @@ dependencies = [
  "getrandom",
  "poker-core",
  "reqwest",
+ "serde",
  "wasm-bindgen",
  "wasm-bindgen-test",
  "web-sys",

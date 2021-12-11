@@ -1,4 +1,5 @@
 mod elements;
+mod http;
 mod utils;
 
 use elements::{Community, Elementable, Pocket, Pot};
