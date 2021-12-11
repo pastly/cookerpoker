@@ -2,7 +2,6 @@ use poker_core::game::{Currency, PlayerId};
 use serde::{Deserialize, Serialize};
 
 pub type SeqNum = u32;
-pub trait ActionI: std::fmt::Debug {}
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Action {
