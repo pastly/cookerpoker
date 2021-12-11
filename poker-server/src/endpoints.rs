@@ -11,8 +11,8 @@ pub use rocket::form::Form;
 pub use rocket::response::Redirect;
 pub use rocket_dyn_templates::{tera::Context, Template};
 
-mod api;
 pub mod accounts;
+mod api;
 pub mod forms;
 pub mod index;
 pub mod logic;

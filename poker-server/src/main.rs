@@ -40,7 +40,7 @@ impl std::convert::From<diesel::result::Error> for AppError {
 }
 
 #[launch]
-fn rocket() -> _ {
+pub(crate) fn rocket() -> _ {
     rocket::build()
         .attach(DbConn::fairing())
         .attach(Template::fairing())

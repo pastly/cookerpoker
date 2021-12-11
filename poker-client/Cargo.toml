@@ -45,7 +45,6 @@ features = [
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.28"
-tokio = { version = "1.14.0", features = ["macros"] }
 
 # Commenting this out for now as it generates a warning, and I'm not sure we
 # will need to optimize for small code size.
