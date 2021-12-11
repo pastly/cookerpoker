@@ -9,12 +9,6 @@ pub struct Action {
     pub action: ActionEnum,
 }
 
-impl Action {
-    pub fn new(seq: SeqNum, action: ActionEnum) -> Self {
-        Self { seq, action }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ActionEnum {
     SitDown(SitDown),
@@ -52,7 +46,7 @@ mod tests {
     /// assume serde can serialize/deserialize correctly.
     #[test]
     fn demonstrate_usage() {
-        let a = Action::new(
+        let a = Action(
             1,
             ActionEnum::SitDown(SitDown::new(10, "Mutt".to_string(), 100, 0)),
         );

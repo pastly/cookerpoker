@@ -6,10 +6,10 @@ pub fn get_endpoints() -> Vec<rocket::route::Route> {
 
 #[get("/api/foo")]
 async fn foo() -> String {
-    let a = Action::new(
-        1,
-        ActionEnum::SitDown(SitDown::new(10, "Mutt".to_string(), 100, 0)),
-    );
+    let a = Action {
+        seq: 1,
+        action: ActionEnum::SitDown(SitDown::new(10, "Mutt".to_string(), 100, 0)),
+    };
     serde_json::to_string(&a).unwrap()
 }
 
