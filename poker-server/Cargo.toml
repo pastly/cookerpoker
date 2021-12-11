@@ -8,9 +8,11 @@ edition = "2021"
 [dependencies]
 rocket = { version = "0.5.0-rc.1", features = ["tls"] }
 poker-core = { path = "../poker-core" }
+poker-messages = { path = "../poker-messages" }
 diesel = { version = "1.4.8", features = ["sqlite"] }
 derive_more = "0.99.17"
 rocket_dyn_templates = { version = "0.1.0-rc.1", features = ["tera"] }
 rocket_sync_db_pools = { version = "0.1.0-rc.1", default-features = false, features = ["diesel_sqlite_pool"] }
 tera = "1.15.0"
 serde = { version = "1.0.131", features = ["derive"] }
+serde_json = "1.0.59"

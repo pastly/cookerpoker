@@ -6,8 +6,8 @@ pub trait ActionI: std::fmt::Debug {}
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Action {
-    seq: SeqNum,
-    action: ActionEnum,
+    pub seq: SeqNum,
+    pub action: ActionEnum,
 }
 
 impl Action {

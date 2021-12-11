@@ -1383,8 +1383,10 @@ dependencies = [
  "console_error_panic_hook",
  "getrandom",
  "poker-core",
+ "poker-messages",
  "reqwest",
  "serde",
+ "tokio",
  "wasm-bindgen",
  "wasm-bindgen-test",
  "web-sys",
@@ -1419,10 +1421,12 @@ dependencies = [
  "derive_more",
  "diesel",
  "poker-core",
+ "poker-messages",
  "rocket",
  "rocket_dyn_templates",
  "rocket_sync_db_pools",
  "serde",
+ "serde_json",
  "tera",
 ]
 
