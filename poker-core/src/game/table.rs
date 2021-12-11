@@ -211,6 +211,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "Not yet finished"]
     fn basic_game() {
         let mut gt = GameInProgress::default();
         gt.sit_down(0, 100, 0).unwrap();

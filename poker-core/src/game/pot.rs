@@ -257,6 +257,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "Discussion issue #16 and #17"]
     fn over_bet() {
         let mut p = Pot::default();
         p.bet(1, BetAction::Bet(5.into()));
