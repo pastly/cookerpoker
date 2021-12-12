@@ -1,4 +1,4 @@
-use poker_messages::{Action, ActionEnum, SitDown};
+use poker_messages::{Action, ActionEnum, PlayerInfo, SitDown};
 
 pub fn get_endpoints() -> Vec<rocket::route::Route> {
     routes![foo,]
@@ -8,7 +8,12 @@ pub fn get_endpoints() -> Vec<rocket::route::Route> {
 async fn foo() -> String {
     let a = Action {
         seq: 1,
-        action: ActionEnum::SitDown(SitDown::new(10, "Mutt".to_string(), 100, 0)),
+        action: ActionEnum::SitDown(SitDown::new(PlayerInfo::new(
+            10,
+            "Mutt".to_string(),
+            100,
+            0,
+        ))),
     };
     serde_json::to_string(&a).unwrap()
 }

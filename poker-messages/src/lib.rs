@@ -1,7 +1,12 @@
+use poker_core::deck::Card;
 use poker_core::game::{Currency, PlayerId};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 pub type SeqNum = u32;
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActionList(Vec<Action>);
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Action {
@@ -12,29 +17,115 @@ pub struct Action {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ActionEnum {
     SitDown(SitDown),
+    StandUp(StandUp),
+    CardsDealt(CardsDealt),
+    CommunityDealt(CommunityDealt),
+    Epoch(Epoch),
+    Reveal(Reveal),
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SitDown {
+pub struct PlayerInfo {
     player_id: PlayerId,
     name: String,
     monies: Currency,
-    seat_idx: usize,
+    seat: usize,
 }
 
-impl SitDown {
+impl PlayerInfo {
     pub fn new<P: Into<PlayerId>, C: Into<Currency>>(
         player_id: P,
         name: String,
         monies: C,
-        seat_idx: usize,
+        seat: usize,
     ) -> Self {
         Self {
             player_id: player_id.into(),
             name,
             monies: monies.into(),
-            seat_idx,
+            seat,
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SitDown {
+    player_info: PlayerInfo,
+}
+
+impl SitDown {
+    pub fn new(player_info: PlayerInfo) -> Self {
+        Self { player_info }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StandUp {
+    seat: usize,
+}
+
+impl StandUp {
+    pub fn new(seat: usize) -> Self {
+        Self { seat }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CardsDealt {
+    seats: Vec<usize>,
+    pocket: [Card; 2],
+}
+
+impl CardsDealt {
+    pub fn new(seats: Vec<usize>, pocket: [Card; 2]) -> Self {
+        Self { seats, pocket }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommunityDealt {
+    cards: Vec<Card>,
+}
+
+impl CommunityDealt {
+    pub fn new(cards: Vec<Card>) -> Self {
+        Self { cards }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Epoch {
+    players: Vec<PlayerInfo>,
+    blinds: (Currency, Currency),   // small, big
+    buttons: (usize, usize, usize), // seat indexes of dealer, small blind, dealer blind
+    decision_time: Duration,
+}
+
+impl Epoch {
+    pub fn new<C: Into<Currency>>(
+        players: Vec<PlayerInfo>,
+        blinds: (C, C),
+        buttons: (usize, usize, usize),
+        decision_time: Duration,
+    ) -> Self {
+        Self {
+            players,
+            blinds: (blinds.0.into(), blinds.1.into()),
+            buttons,
+            decision_time,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Reveal {
+    seat: usize,
+    pocket: [Card; 2],
+}
+
+impl Reveal {
+    pub fn new(seat: usize, pocket: [Card; 2]) -> Self {
+        Self { seat, pocket }
     }
 }
 
@@ -46,12 +137,18 @@ mod tests {
     /// assume serde can serialize/deserialize correctly.
     #[test]
     fn demonstrate_usage() {
-        let a = Action{
+        let a = Action {
             seq: 1,
-            action: ActionEnum::SitDown(SitDown::new(10, "Mutt".to_string(), 100, 0)),
+            action: ActionEnum::SitDown(SitDown::new(PlayerInfo::new(
+                10,
+                "Mutt".to_string(),
+                100,
+                0,
+            ))),
         };
         let s = serde_json::to_string(&a).unwrap();
         let b = serde_json::from_str(&s).unwrap();
         assert_eq!(a, b);
+        println!("{}", s);
     }
 }
