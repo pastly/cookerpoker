@@ -60,6 +60,10 @@
     line-height: var(--line-height);
 }
 
+#gamelog .card {
+	font-size: 300%;
+}
+
 @media screen and (max-width: 1020px) {
     :root {
         --line-height: 125%;

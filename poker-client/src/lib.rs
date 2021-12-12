@@ -98,6 +98,13 @@ pub fn render() {
         vec![1, 2, 3, 4],
         [d.draw().unwrap(), d.draw().unwrap()],
     ))));
+    actions.push(a(ActionEnum::Flop(Flop([
+        d.draw().unwrap(),
+        d.draw().unwrap(),
+        d.draw().unwrap(),
+    ]))));
+    actions.push(a(ActionEnum::Turn(Turn(d.draw().unwrap()))));
+    actions.push(a(ActionEnum::River(River(d.draw().unwrap()))));
     actions.push(a(ActionEnum::Reveal(Reveal::new(
         3,
         [d.draw().unwrap(), d.draw().unwrap()],

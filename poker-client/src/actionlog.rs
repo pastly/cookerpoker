@@ -60,7 +60,11 @@ fn table_header() -> Result<Element, RenderError> {
     tr.append_child(&th)?;
 
     th = base_element("th");
-    th.set_text_content(Some(&"Pocket Cards".to_string()));
+    th.set_text_content(Some(&"Cards".to_string()));
+    tr.append_child(&th)?;
+
+    th = base_element("th");
+    th.set_text_content(Some(&"Details".to_string()));
     tr.append_child(&th)?;
 
     Ok(tr)
@@ -128,6 +132,40 @@ fn add_row_reveal(table: &Element, e: &Epoch, r: &Reveal, seq: SeqNum) -> Result
     td.append_child(&None.into_element())?;
     tr.append_child(&td)?;
 
+    tr.append_child(&base_element("td"))?;
+
+    table.append_child(&tr)?;
+    Ok(())
+}
+
+fn add_row_community_cards(
+    table: &Element,
+    street: &str,
+    community: &[Card],
+    new: &[Card],
+    seq: SeqNum,
+) -> Result<(), RenderError> {
+    let tr = base_element("tr");
+    let mut td = base_element("td");
+    td.set_text_content(Some(&seq.to_string()));
+    tr.append_child(&td)?;
+
+    td = base_element("td");
+    td.set_text_content(Some(&format!("The {} came.", street)));
+    tr.append_child(&td)?;
+
+    td = base_element("td");
+    for c in new {
+        td.append_child(&Some(*c).into_element())?;
+    }
+    tr.append_child(&td)?;
+
+    td = base_element("td");
+    for c in community {
+        td.append_child(&Some(*c).into_element())?;
+    }
+    tr.append_child(&td)?;
+
     table.append_child(&tr)?;
     Ok(())
 }
@@ -157,6 +195,8 @@ fn add_row_cards_dealt(
         td.append_child(&None.into_element())?;
         tr.append_child(&td)?;
 
+        tr.append_child(&base_element("td"))?;
+
         table.append_child(&tr)?;
     }
     Ok(())
@@ -172,6 +212,7 @@ pub(crate) fn render_html_list(
     }
     let table_header = table_header()?;
     let mut pocket_map: HashMap<usize, [Card; 2]> = HashMap::new();
+    let mut community = Vec::with_capacity(5);
     let mut table = base_element("table");
     table.append_child(&table_header)?;
     let mut last_epoch: Option<&Epoch> = None;
@@ -186,6 +227,7 @@ pub(crate) fn render_html_list(
                     table.append_child(&table_header)?;
                 }
                 pocket_map.clear();
+                community.clear();
                 last_epoch = Some(a);
             }
             ActionEnum::CardsDealt(cd) => {
@@ -199,7 +241,19 @@ pub(crate) fn render_html_list(
                 add_row_reveal(&table, last_epoch.unwrap(), r, seq)?;
                 pocket_map.insert(r.seat, r.pocket);
             }
-            _ => unimplemented!(),
+            ActionEnum::SitDown(_) | ActionEnum::StandUp(_) => {}
+            ActionEnum::Flop(f) => {
+                community.extend(f.0);
+                add_row_community_cards(&table, "flop", &community, &f.0, seq)?;
+            }
+            ActionEnum::Turn(t) => {
+                community.push(t.0);
+                add_row_community_cards(&table, "turn", &community, &[t.0], seq)?;
+            }
+            ActionEnum::River(r) => {
+                community.push(r.0);
+                add_row_community_cards(&table, "river", &community, &[r.0], seq)?;
+            }
         }
     }
     fill_pockets(&table, &pocket_map)?;

@@ -19,7 +19,9 @@ pub enum ActionEnum {
     SitDown(SitDown),
     StandUp(StandUp),
     CardsDealt(CardsDealt),
-    CommunityDealt(CommunityDealt),
+    Flop(Flop),
+    Turn(Turn),
+    River(River),
     Epoch(Epoch),
     Reveal(Reveal),
 }
@@ -83,15 +85,14 @@ impl CardsDealt {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CommunityDealt {
-    cards: Vec<Card>,
-}
+pub struct Flop(pub [Card; 3]);
 
-impl CommunityDealt {
-    pub fn new(cards: Vec<Card>) -> Self {
-        Self { cards }
-    }
-}
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Turn(pub Card);
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct River(pub Card);
+
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Epoch {
