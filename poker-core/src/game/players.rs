@@ -13,6 +13,12 @@ impl From<i32> for PlayerId {
     }
 }
 
+impl std::fmt::Display for PlayerId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum BetStatus {
     Folded,

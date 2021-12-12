@@ -6,7 +6,7 @@ use std::time::Duration;
 pub type SeqNum = u32;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ActionList(Vec<Action>);
+pub struct ActionList(pub Vec<Action>);
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Action {
@@ -26,10 +26,10 @@ pub enum ActionEnum {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlayerInfo {
-    player_id: PlayerId,
-    name: String,
-    monies: Currency,
-    seat: usize,
+    pub player_id: PlayerId,
+    pub name: String,
+    pub monies: Currency,
+    pub seat: usize,
 }
 
 impl PlayerInfo {
@@ -72,8 +72,8 @@ impl StandUp {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CardsDealt {
-    seats: Vec<usize>,
-    pocket: [Card; 2],
+    pub seats: Vec<usize>,
+    pub pocket: [Card; 2],
 }
 
 impl CardsDealt {
@@ -95,10 +95,10 @@ impl CommunityDealt {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Epoch {
-    players: Vec<PlayerInfo>,
-    blinds: (Currency, Currency),   // small, big
-    buttons: (usize, usize, usize), // seat indexes of dealer, small blind, dealer blind
-    decision_time: Duration,
+    pub players: Vec<PlayerInfo>,
+    pub blinds: (Currency, Currency),   // small, big
+    pub buttons: (usize, usize, usize), // seat indexes of dealer, small blind, dealer blind
+    pub decision_time: Duration,
 }
 
 impl Epoch {
@@ -119,8 +119,8 @@ impl Epoch {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Reveal {
-    seat: usize,
-    pocket: [Card; 2],
+    pub seat: usize,
+    pub pocket: [Card; 2],
 }
 
 impl Reveal {
