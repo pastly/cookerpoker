@@ -46,10 +46,10 @@ mod tests {
     /// assume serde can serialize/deserialize correctly.
     #[test]
     fn demonstrate_usage() {
-        let a = Action(
-            1,
-            ActionEnum::SitDown(SitDown::new(10, "Mutt".to_string(), 100, 0)),
-        );
+        let a = Action{
+            seq: 1,
+            action: ActionEnum::SitDown(SitDown::new(10, "Mutt".to_string(), 100, 0)),
+        };
         let s = serde_json::to_string(&a).unwrap();
         let b = serde_json::from_str(&s).unwrap();
         assert_eq!(a, b);
