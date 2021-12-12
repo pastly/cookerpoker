@@ -1,5 +1,5 @@
 use poker_core::deck::Card;
-use poker_core::game::{Currency, PlayerId};
+use poker_core::game::{BetAction, Currency, PlayerId};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -19,6 +19,7 @@ pub enum ActionEnum {
     SitDown(SitDown),
     StandUp(StandUp),
     CardsDealt(CardsDealt),
+    Bet(Bet),
     Flop(Flop),
     Turn(Turn),
     River(River),
@@ -85,6 +86,18 @@ impl CardsDealt {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Bet {
+    pub seat: usize,
+    pub bet: BetAction,
+}
+
+impl Bet {
+    pub fn new(seat: usize, bet: BetAction) -> Self {
+        Self { seat, bet }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Flop(pub [Card; 3]);
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -92,7 +105,6 @@ pub struct Turn(pub Card);
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct River(pub Card);
-
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Epoch {

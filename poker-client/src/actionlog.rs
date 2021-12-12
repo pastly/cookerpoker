@@ -1,5 +1,5 @@
 use crate::elements::Elementable;
-use poker_core::{deck::Card, PlayerId};
+use poker_core::{deck::Card, game::BetAction, PlayerId};
 use poker_messages::*;
 use std::collections::HashMap;
 use wasm_bindgen::{JsCast, JsValue};
@@ -74,6 +74,14 @@ fn pocket_cell_class(seat: usize) -> String {
     format!("gamelog-seat-{}-pocket", seat)
 }
 
+fn pocket_cell(seat: usize) -> Result<Element, RenderError> {
+    let td = base_element("td");
+    td.set_class_name(&pocket_cell_class(seat));
+    td.append_child(&None.into_element())?;
+    td.append_child(&None.into_element())?;
+    Ok(td)
+}
+
 fn fill_pockets(
     table: &Element,
     pocket_map: &HashMap<usize, [Card; 2]>,
@@ -126,10 +134,35 @@ fn add_row_reveal(table: &Element, e: &Epoch, r: &Reveal, seq: SeqNum) -> Result
     td.set_text_content(Some(&s));
     tr.append_child(&td)?;
 
+    td = pocket_cell(r.seat)?;
+    tr.append_child(&td)?;
+
+    tr.append_child(&base_element("td"))?;
+
+    table.append_child(&tr)?;
+    Ok(())
+}
+
+fn add_row_bet(table: &Element, e: &Epoch, b: &Bet, seq: SeqNum) -> Result<(), RenderError> {
+    let tr = base_element("tr");
+    let mut td = base_element("td");
+    td.set_text_content(Some(&seq.to_string()));
+    tr.append_child(&td)?;
+
     td = base_element("td");
-    td.set_class_name(&pocket_cell_class(r.seat));
-    td.append_child(&None.into_element())?;
-    td.append_child(&None.into_element())?;
+    let p = player_from_seat(e, b.seat)?;
+    let bet_str = match b.bet {
+        BetAction::Check => "checks".to_string(),
+        BetAction::Fold => "folds".to_string(),
+        BetAction::Call(n) => format!("calls {}", *n),
+        BetAction::Bet(n) => format!("bets {}", *n),
+        BetAction::AllIn(n) => format!("goes all in for {}", *n),
+    };
+    let s = format!("{} {}.", player_desc(p), bet_str);
+    td.set_text_content(Some(&s));
+    tr.append_child(&td)?;
+
+    td = pocket_cell(b.seat)?;
     tr.append_child(&td)?;
 
     tr.append_child(&base_element("td"))?;
@@ -189,10 +222,7 @@ fn add_row_cards_dealt(
         td.set_text_content(Some(&s));
         tr.append_child(&td)?;
 
-        td = base_element("td");
-        td.set_class_name(&pocket_cell_class(*seat));
-        td.append_child(&None.into_element())?;
-        td.append_child(&None.into_element())?;
+        td = pocket_cell(*seat)?;
         tr.append_child(&td)?;
 
         tr.append_child(&base_element("td"))?;
@@ -242,6 +272,9 @@ pub(crate) fn render_html_list(
                 pocket_map.insert(r.seat, r.pocket);
             }
             ActionEnum::SitDown(_) | ActionEnum::StandUp(_) => {}
+            ActionEnum::Bet(b) => {
+                add_row_bet(&table, last_epoch.unwrap(), b, seq)?;
+            }
             ActionEnum::Flop(f) => {
                 community.extend(f.0);
                 add_row_community_cards(&table, "flop", &community, &f.0, seq)?;

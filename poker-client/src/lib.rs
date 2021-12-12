@@ -5,6 +5,7 @@ mod utils;
 
 use elements::{Community, Elementable, Pocket, Pot};
 use poker_core::deck::Deck;
+use poker_core::game::BetAction;
 use poker_messages::*;
 use std::time::Duration;
 use wasm_bindgen::prelude::*;
@@ -98,6 +99,7 @@ pub fn render() {
         vec![1, 2, 3, 4],
         [d.draw().unwrap(), d.draw().unwrap()],
     ))));
+    actions.push(a(ActionEnum::Bet(Bet::new(2, BetAction::Check))));
     actions.push(a(ActionEnum::Flop(Flop([
         d.draw().unwrap(),
         d.draw().unwrap(),
