@@ -1,7 +1,8 @@
 use crate::elements::Elementable;
-use poker_core::{deck::Card, game::BetAction, PlayerId};
+use poker_core::{deck::Card, game::BetAction, hand::best_of_cards, PlayerId};
 use poker_messages::*;
 use std::collections::HashMap;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::Element;
 
@@ -122,7 +123,13 @@ fn player_from_seat(e: &Epoch, seat: usize) -> Result<&PlayerInfo, RenderError> 
     Err(RenderError::NoPlayerInSeat(seat))
 }
 
-fn add_row_reveal(table: &Element, e: &Epoch, r: &Reveal, seq: SeqNum) -> Result<(), RenderError> {
+fn add_row_reveal(
+    table: &Element,
+    e: &Epoch,
+    community: &[Card],
+    r: &Reveal,
+    seq: SeqNum,
+) -> Result<(), RenderError> {
     let tr = base_element("tr");
     let mut td = base_element("td");
     td.set_text_content(Some(&seq.to_string()));
@@ -137,7 +144,23 @@ fn add_row_reveal(table: &Element, e: &Epoch, r: &Reveal, seq: SeqNum) -> Result
     td = pocket_cell(r.seat)?;
     tr.append_child(&td)?;
 
-    tr.append_child(&base_element("td"))?;
+    td = base_element("td");
+    if community.len() >= 3 {
+        let mut cards = vec![];
+        cards.extend_from_slice(community);
+        cards.push(r.pocket[0]);
+        cards.push(r.pocket[1]);
+        assert!(cards.len() >= 5);
+        let hand = best_of_cards(&cards)[0];
+        td.set_text_content(Some(&format!("{}.", hand.describe())));
+        let mut cards = hand.cards();
+        cards.sort_unstable();
+        cards.reverse();
+        for c in cards {
+            td.append_child(&Some(c).into_element())?;
+        }
+    }
+    tr.append_child(&td)?;
 
     table.append_child(&tr)?;
     Ok(())
@@ -232,8 +255,16 @@ fn add_row_cards_dealt(
     Ok(())
 }
 
+#[wasm_bindgen]
+extern "C" {
+    // Use `js_namespace` here to bind `console.log(..)` instead of just
+    // `log(..)`
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+
 pub(crate) fn render_html_list(
-    log: &ActionList,
+    action_log: &ActionList,
     root: &Element,
     self_player_id: PlayerId,
 ) -> Result<(), RenderError> {
@@ -246,7 +277,7 @@ pub(crate) fn render_html_list(
     let mut table = base_element("table");
     table.append_child(&table_header)?;
     let mut last_epoch: Option<&Epoch> = None;
-    for seq_action in &log.0 {
+    for seq_action in &action_log.0 {
         let (seq, action) = (seq_action.seq, &seq_action.action);
         match action {
             ActionEnum::Epoch(a) => {
@@ -268,7 +299,9 @@ pub(crate) fn render_html_list(
                 );
             }
             ActionEnum::Reveal(r) => {
-                add_row_reveal(&table, last_epoch.unwrap(), r, seq)?;
+                log(&format!("{:?}", r));
+                log(&format!("{:?}", community));
+                add_row_reveal(&table, last_epoch.unwrap(), &community, r, seq)?;
                 pocket_map.insert(r.seat, r.pocket);
             }
             ActionEnum::SitDown(_) | ActionEnum::StandUp(_) => {}

@@ -412,6 +412,10 @@ impl Hand {
         }
     }
 
+    pub fn cards(&self) -> [Card; 5] {
+        self.cards
+    }
+
     pub fn beats(&self, other: &Self) -> WinState {
         match self.class.cmp(&other.class) {
             Ordering::Equal => HandClass::beats(&self.cards, &other.cards),
