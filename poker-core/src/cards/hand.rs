@@ -418,6 +418,113 @@ impl Hand {
             o => o.into(),
         }
     }
+
+    /// Return the first Rank that we see more than once in the given slice of cards.
+    ///
+    /// Used as a helper for describe function.
+    fn first_paired(cards: &[Card]) -> Rank {
+        let mut seen = Vec::with_capacity(4);
+        for c in cards {
+            if seen.contains(&c.rank()) {
+                return c.rank();
+            }
+            seen.push(c.rank());
+        }
+        unreachable!();
+    }
+
+    /// Return the first Rank (other than the given Rank) that we see more than once in the given
+    /// slice of cards.
+    ///
+    /// Used as a helper for describe function.
+    fn first_paired_not(cards: &[Card], other: Rank) -> Rank {
+        let mut seen = Vec::with_capacity(3);
+        for c in cards {
+            if c.rank() == other {
+                continue;
+            } else if seen.contains(&c.rank()) {
+                return c.rank();
+            }
+            seen.push(c.rank());
+        }
+        unreachable!();
+    }
+
+    /// Return the first Rank that we see more than twice in the given slice of cards.
+    ///
+    /// Used as a helper for describe function.
+    fn first_set(cards: &[Card]) -> Rank {
+        let mut seen = Vec::with_capacity(3);
+        let mut seen_twice = None;
+        for c in cards {
+            if !seen.contains(&c.rank()) {
+                seen.push(c.rank());
+            } else if seen_twice.is_none() {
+                seen_twice = Some(c.rank());
+            } else if seen_twice.unwrap() == c.rank() {
+                return c.rank();
+            }
+        }
+        unreachable!();
+    }
+
+    /// Return the high card of the straight contained in the given five card slice.
+    ///
+    /// Used as a helper for describe function
+    fn straight_high(c: &[Card]) -> Rank {
+        let mut cards: [Card; 5] = [c[0], c[1], c[2], c[3], c[4]];
+        cards.sort_unstable();
+        cards.reverse();
+        match cards[0].rank() {
+            Rank::RA => match cards[1].rank() {
+                Rank::RK => Rank::RA,
+                Rank::R5 => Rank::R5,
+                _ => unreachable!(),
+            },
+            _ => cards[0].rank(),
+        }
+    }
+
+    /// Return the high card in the given five card slice.
+    ///
+    /// Used as a helper for describe function
+    fn high_card(c: &[Card]) -> Rank {
+        let mut cards: [Card; 5] = [c[0], c[1], c[2], c[3], c[4]];
+        cards.sort_unstable();
+        cards.reverse();
+        cards[0].rank()
+    }
+
+    pub fn describe(&self) -> String {
+        match self.class {
+            HandClass::HighCard => format!("{} high", Self::high_card(&self.cards)),
+            HandClass::Pair => format!("Pair of {}s", Self::first_paired(&self.cards)),
+            HandClass::TwoPair => {
+                let first = Self::first_paired(&self.cards);
+                let second = Self::first_paired_not(&self.cards, first);
+                let mut buf = [first, second];
+                buf.sort_unstable();
+                buf.reverse();
+                format!("Two pair {}s and {}s", buf[0], buf[1])
+            }
+            HandClass::ThreeOfAKind => {
+                format!("Set of {}s", Self::first_set(&self.cards))
+            }
+            HandClass::Straight => format!("{} high straight", Self::straight_high(&self.cards)),
+            HandClass::Flush => format!("{} high flush", Self::high_card(&self.cards)),
+            HandClass::FullHouse => {
+                let first = Self::first_set(&self.cards);
+                let second = Self::first_paired_not(&self.cards, first);
+                format!("Boat {}s full of {}s", first, second)
+            }
+            HandClass::FourOfAKind => {
+                format!("Quad {}s", Self::first_paired(&self.cards))
+            }
+            HandClass::StraightFlush => {
+                format!("{} high straight flush", Self::straight_high(&self.cards))
+            }
+        }
+    }
 }
 
 impl Ord for Hand {
@@ -666,6 +773,79 @@ mod test_hand {
         for (s1, s2) in [("AsKsQsJsTs", "KdQdJdTd9d"), ("AsKsQsJsTs", "Td8s6d4d2d")] {
             beats_helper1(s1, s2);
         }
+    }
+}
+
+#[cfg(test)]
+mod test_hand_describe {
+    use super::*;
+    use crate::deck::cards_from_str;
+
+    fn is(hand: &'static str, desc: &'static str) {
+        assert_eq!(Hand::new_unchecked(&cards_from_str(hand)).describe(), desc);
+    }
+
+    #[test]
+    fn high_card() {
+        is("Ah6h5d4c3s", "A high");
+        is("6hAh5d4c3s", "A high");
+        is("7c5d4h3s2s", "7 high");
+    }
+
+    #[test]
+    fn pair() {
+        is("AcKdQh6s6c", "Pair of 6s");
+        is("Ac6s6cKdQh", "Pair of 6s");
+        is("AcAs6cKdQh", "Pair of As");
+    }
+
+    #[test]
+    fn two_pair() {
+        is("AcAdKcKd4d", "Two pair As and Ks");
+        is("4dKcKdAcAd", "Two pair As and Ks");
+        is("6c2c4s6d2d", "Two pair 6s and 2s");
+    }
+
+    #[test]
+    fn set() {
+        is("AcAdAhKcQc", "Set of As");
+        is("TcKdThTsQc", "Set of Ts");
+    }
+
+    #[test]
+    fn straight() {
+        is("AdKsQsJsTs", "A high straight");
+        is("KdAsTsJsQs", "A high straight");
+        is("Ad2s4s3s5s", "5 high straight");
+        is("8d4s6s5s7s", "8 high straight");
+    }
+
+    #[test]
+    fn flush() {
+        is("Ac8c7c6c5c", "A high flush");
+        is("Tc8c7c6c5c", "T high flush");
+        is("8cTc5c6c6c", "T high flush");
+        is("7c6c5c4c2c", "7 high flush");
+    }
+
+    #[test]
+    fn full_house() {
+        is("AcKcAdKdAs", "Boat As full of Ks");
+        is("2cKc2dKd2s", "Boat 2s full of Ks");
+    }
+
+    #[test]
+    fn quads() {
+        is("AcAdAhAsKc", "Quad As");
+        is("2c2d2h2s3c", "Quad 2s");
+    }
+
+    #[test]
+    fn straight_flush() {
+        is("AsKsQsJsTs", "A high straight flush");
+        is("KsAsTsJsQs", "A high straight flush");
+        is("As2s4s3s5s", "5 high straight flush");
+        is("8s4s6s5s7s", "8 high straight flush");
     }
 }
 
