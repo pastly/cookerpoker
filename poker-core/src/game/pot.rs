@@ -24,7 +24,7 @@ use std::collections::HashMap;
     From,
     Serialize,
     Deserialize,
-    derive_more::Deref
+    derive_more::Deref,
 )]
 pub struct Currency(i32);
 
