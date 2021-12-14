@@ -1,4 +1,5 @@
 use crate::deck::{Card, Rank};
+use crate::PlayerId;
 use itertools::{zip, Itertools};
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -598,10 +599,10 @@ pub fn best_of_cards(cards: &[Card]) -> Vec<Hand> {
 ///
 ///   - `HandError::NotTwoCards` if any pocket isn't two cards long
 ///   - `HandError::NotFiveCards` if the community isn't five cards long
-pub fn best_hands<AID: Copy>(
-    pockets: &HashMap<AID, [Card; 2]>,
+pub fn best_hands<A: Into<PlayerId> + Copy>(
+    pockets: &HashMap<A, [Card; 2]>,
     community: [Card; 5],
-) -> Result<Vec<Vec<(AID, Hand)>>, HandError> {
+) -> Result<Vec<Vec<(PlayerId, Hand)>>, HandError> {
     if pockets.is_empty() {
         // This check is important, as later we pull out the best hand before iterating over the
         // rest.
@@ -628,18 +629,19 @@ pub fn best_hands<AID: Copy>(
     hands.sort_by(|l, r| l.1.beats(&r.1).into());
     // We have all hands sorted now. It is time to coalesce ties together by wrapping all hands
     // with a vec of length one and tie-ing hands together into a vec of length >1
-    let mut ret: Vec<Vec<(AID, Hand)>> = vec![];
-    let mut inner: Vec<(AID, Hand)> = vec![];
+    let mut ret: Vec<Vec<(PlayerId, Hand)>> = vec![];
+    let mut inner: Vec<(PlayerId, Hand)> = vec![];
     let mut current_best = hands[hands.len() - 1].1;
     while let Some((account_id, hand)) = hands.pop() {
+        let account_id: PlayerId = (*account_id).into();
         match hand.cmp(&current_best) {
             Ordering::Equal => {
-                inner.push((*account_id, hand));
+                inner.push((account_id, hand));
             }
             Ordering::Less => {
                 ret.push(inner.clone());
                 inner.truncate(0);
-                inner.push((*account_id, hand));
+                inner.push((account_id, hand));
                 current_best = hand;
             }
             Ordering::Greater => {
