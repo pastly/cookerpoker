@@ -16,7 +16,7 @@ pub enum BetAction {
     AllIn(Currency),
 }
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display)]
 pub enum BetError {
     AllInWithoutBeingAllIn,
     HasNoMoney,
@@ -27,7 +27,9 @@ pub enum BetError {
     BadAction,
 }
 
-#[derive(Debug)]
+impl std::error::Error for BetError {}
+
+#[derive(Debug, derive_more::Display)]
 pub enum GameError {
     DeckError(deck::DeckError),
     BetError(BetError),
@@ -37,6 +39,8 @@ pub enum GameError {
     InvalidSeat,
     BettingPlayerCantStand,
 }
+
+impl std::error::Error for GameError {}
 
 impl From<deck::DeckError> for GameError {
     fn from(d: deck::DeckError) -> Self {

@@ -10,12 +10,14 @@ pub use database::{schema, DbConn};
 use rocket::fs::FileServer;
 use rocket_dyn_templates::Template;
 
-#[derive(Debug, Responder)]
+#[derive(Debug, Responder, derive_more::Display)]
 pub enum AppError {
     DbError(String),
     ApiKeyError(endpoints::ApiKeyError),
     TableError(endpoints::TableError),
 }
+
+impl std::error::Error for AppError {}
 
 impl From<endpoints::ApiKeyError> for AppError {
     fn from(e: endpoints::ApiKeyError) -> Self {

@@ -11,7 +11,7 @@ pub async fn cookie_to_account(
     use crate::database::schema::accounts::dsl::{accounts, api_key};
     let key = match cookies.get("api-key") {
         Some(key) => key.value().to_string(),
-        None => return Err(ApiKeyError::Missing(()).into()),
+        None => return Err(ApiKeyError::Missing("API key is missing").into()),
     };
     let account = db.run(|conn| {
         accounts
@@ -22,13 +22,15 @@ pub async fn cookie_to_account(
     account.await
 }
 
-#[derive(Debug, Responder)]
+#[derive(Debug, Responder, derive_more::Display)]
 pub enum ApiKeyError {
     #[response(status = 400)]
-    Missing(()),
+    Missing(&'static str),
     #[response(status = 404)]
-    Invalid(()),
+    Invalid(&'static str),
 }
+
+impl std::error::Error for ApiKeyError {}
 
 #[derive(Deref)]
 pub struct User(Account);

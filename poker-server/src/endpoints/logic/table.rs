@@ -95,14 +95,14 @@ impl TableState {
     }
 }
 
-#[derive(Debug, Responder, PartialEq)]
+#[derive(Debug, Responder, PartialEq, derive_more::Display)]
 pub enum TableError {
     #[response(status = 400)]
     InvalidTableType(&'static str),
     #[response(status = 400)]
     InvalidTableState(&'static str),
     #[response(status = 404)]
-    TableNotFound(()),
+    TableNotFound(&'static str),
     #[response(status = 400)]
     TableNameAlreadyTaken(&'static str),
     #[response(status = 400)]
@@ -111,11 +111,13 @@ pub enum TableError {
     UnknownDbError(String),
 }
 
+impl std::error::Error for TableError {}
+
 impl std::convert::From<diesel::result::Error> for TableError {
     fn from(e: diesel::result::Error) -> Self {
         use diesel::result::{DatabaseErrorKind, Error};
         match e {
-            Error::NotFound => TableError::TableNotFound(()),
+            Error::NotFound => TableError::TableNotFound("Table not found"),
             Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
                 TableError::TableNameAlreadyTaken("Table name already in use")
             }
@@ -151,7 +153,7 @@ impl<'r> FromRequest<'r> for AdminOrTableOwner {
                     game_tables::table
                         .find(t_id)
                         .first(conn)
-                        .map_err(|_| TableError::TableNotFound(()))
+                        .map_err(|_| TableError::TableNotFound("Table not found"))
                 })
                 .await;
             let t = match t {
