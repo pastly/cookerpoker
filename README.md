@@ -5,7 +5,7 @@ something.
 
 This repository holds all the crates in the CookerPoker ecosystem.
 
-There are four main crates.
+These are the main crates.
 
 1. **poker-core**: Core poker game logic. What a card is, what a hand is, what
    hands beat what other hands, game tables, betting, etc.
@@ -16,6 +16,8 @@ other poker utility. Probably not generally useful.
    API, running a game, interacting with the DB, etc. Depends on poker-core.
 4. **poker-client**: WASM client that runs in a web browser. Interacts with
    poker-server via an API over HTTP.
+5. **poker-messages**: The messages/structures that the client and server use
+   to communicate.
 
 ## Deployment layout
 
