@@ -409,8 +409,8 @@ mod tests {
         assert_eq!(side_pot.max_in, 50.into());
 
         let side_pot = side_pot.side_pot.unwrap();
-        assert_eq!(p.players_in.len(), 1);
-        for v in p.players_in.values() {
+        assert_eq!(side_pot.players_in.len(), 1);
+        for v in side_pot.players_in.values() {
             assert_eq!(*v, 450.into());
         }
         assert_eq!(side_pot.max_in, Currency::max());
