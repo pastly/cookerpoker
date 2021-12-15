@@ -34,6 +34,31 @@ impl Currency {
     }
 }
 
+/// Divide X as evenly as possible Y ways using only ints, and return those ints.
+///
+/// Consider x=5 and y=3. 5 cannot be divided into 3 pieces evenly using ints. This function would
+/// return vec![2, 2, 1].
+/// x=8, y=5 returns 2, 2, 2, 1, 1.
+/// x=6, y=3 returns 2, 2, 2
+fn split_x_by_y(x: i32, y: i32) -> Vec<i32> {
+    let mut ret = vec![];
+    let mut frac_accum = 0;
+    for i in 0..y {
+        frac_accum += x % y;
+        if frac_accum >= y || i == y - 1 && frac_accum > 0 {
+            ret.push((x / y) + 1);
+        } else {
+            ret.push(x / y);
+        }
+        if frac_accum >= y {
+            frac_accum -= y;
+        }
+    }
+    ret.sort_unstable();
+    ret.reverse();
+    ret
+}
+
 /// Handles all pot related operations.
 /// Only tracks monies committed to the pot.
 /// As such, does no error handling and cannot fail.
@@ -151,26 +176,23 @@ impl Pot {
     pub fn payout(self, ranked_hands: &[Vec<PlayerId>]) -> HashMap<PlayerId, Currency> {
         let mut hm: HashMap<PlayerId, Currency> = HashMap::new();
         let value = self.value();
-        let mut paid_out = false;
         for best_hand in ranked_hands {
             let hands_in = self.num_players_in(best_hand);
             // Prevents divide by zero below
             if hands_in == 0 {
                 continue;
             }
-            let payout = value / (self.num_players_in(best_hand) as i32);
-            for player in best_hand.iter() {
-                if self.players_in.contains_key(player) {
-                    hm.insert(*player, payout);
-                    paid_out = true;
-                    if best_hand.len() > 1 && value % 2 == 1.into() {
-                        hm.insert(best_hand[0], payout + 1.into());
-                    }
-                }
+            let players = best_hand
+                .iter()
+                .filter(|p| self.players_in.contains_key(p))
+                .collect::<Vec<_>>();
+            assert!(!players.is_empty());
+            let payouts = split_x_by_y(*value, players.len().try_into().unwrap());
+            assert_eq!(players.len(), payouts.len());
+            for (player, payout) in itertools::zip(players, payouts) {
+                hm.insert(*player, payout.into());
             }
-            if paid_out {
-                break;
-            }
+            break;
         }
         assert_eq!(hm.values().copied().sum::<Currency>(), self.value());
         if let Some(x) = self.side_pot {
@@ -414,5 +436,25 @@ mod tests {
             assert_eq!(*v, 450.into());
         }
         assert_eq!(side_pot.max_in, Currency::max());
+    }
+}
+
+#[cfg(test)]
+mod test_split_x_by_y {
+    use super::split_x_by_y;
+
+    #[test]
+    fn test1() {
+        assert_eq!(split_x_by_y(5, 3), vec![2, 2, 1]);
+    }
+
+    #[test]
+    fn test2() {
+        assert_eq!(split_x_by_y(6, 2), vec![3, 3]);
+    }
+
+    #[test]
+    fn test3() {
+        assert_eq!(split_x_by_y(8, 5), vec![2, 2, 2, 1, 1]);
     }
 }
