@@ -260,16 +260,16 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Discussion issue #16 and #17"]
-    fn over_bet() {
+    fn three_way_tie() {
         let mut p = Pot::default();
         p.bet(1, BetAction::Bet(5.into()));
         p.bet(2, BetAction::Bet(5.into()));
-        p.bet(3, BetAction::Bet(6.into()));
-        let payout = p.payout(&vec![vec![1.into(), 2.into()], vec![3.into()]]);
-        assert_eq!(payout[&1.into()], 8.into());
-        assert_eq!(payout[&2.into()], 7.into());
-        assert_eq!(payout[&3.into()], 1.into());
+        p.bet(3, BetAction::Bet(5.into()));
+        let payout = p.payout(&vec![vec![1.into(), 2.into(), 3.into()]]);
+        dbg!(&payout);
+        assert_eq!(payout[&1.into()], 5.into());
+        assert_eq!(payout[&2.into()], 5.into());
+        assert_eq!(payout[&3.into()], 5.into());
     }
 
     #[test]
