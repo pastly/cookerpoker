@@ -345,7 +345,7 @@ impl SeatedPlayers {
 #[derive(Debug)]
 pub struct SeatedPlayer {
     pub id: PlayerId,
-    pub pocket: Option<[Card; 2]>,
+    pocket: Option<[Card; 2]>,
     monies: Currency,
     pub bet_status: BetStatus,
     pub auto_fold: bool,
