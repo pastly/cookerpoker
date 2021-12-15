@@ -326,6 +326,7 @@ mod tests {
         // 15 + 8,8,8 + 2,2 = 43 in pot
         p.bet(1, BetAction::Bet(10.into()));
         p.bet(2, BetAction::AllIn(6.into()));
+        p.finalize_round();
         // 43 + 6,6 + 4 = 59 in pot
         dbg!(&p);
         let payout = p.payout(&vec![vec![3.into()], vec![2.into()], vec![1.into()]]);
@@ -334,5 +335,81 @@ mod tests {
         assert_eq!(payout[&2.into()], 16.into());
         // 1 overbet and was returned pot nobody else could claim
         assert_eq!(payout[&1.into()], 4.into());
+    }
+
+    #[test]
+    /// bet, call, and raise are all semantically the same as far as the pot is concerned.
+    fn bet_call_raise() {
+        fn helper(p: Pot) {
+            assert_eq!(p.players_in.len(), 3);
+            for v in p.players_in.values() {
+                assert_eq!(*v, 5.into());
+            }
+            assert_eq!(p.max_in, Currency::max());
+            assert!(p.side_pot.is_none());
+            dbg!(&p);
+            let payout = p.payout(&vec![vec![1.into()]]);
+            assert_eq!(payout[&(1.into())], 15.into());
+            dbg!(&payout);
+        }
+        let mut p1 = Pot::default();
+        p1.bet(1, BetAction::Bet(5.into()));
+        p1.bet(2, BetAction::Bet(5.into()));
+        p1.bet(3, BetAction::Bet(5.into()));
+        p1.finalize_round();
+        helper(p1);
+        let mut p2 = Pot::default();
+        p2.bet(1, BetAction::Call(5.into()));
+        p2.bet(2, BetAction::Call(5.into()));
+        p2.bet(3, BetAction::Call(5.into()));
+        p2.finalize_round();
+        helper(p2);
+        let mut p3 = Pot::default();
+        p3.bet(1, BetAction::Raise(5.into()));
+        p3.bet(2, BetAction::Raise(5.into()));
+        p3.bet(3, BetAction::Raise(5.into()));
+        p3.finalize_round();
+        helper(p3);
+    }
+
+    #[test]
+    fn multi_round_pot2() {
+        let mut p = Pot::default();
+        p.bet(1, BetAction::Bet(5.into()));
+        p.bet(2, BetAction::Call(5.into()));
+        p.bet(3, BetAction::Raise(15.into()));
+        p.bet(1, BetAction::Call(15.into()));
+        p.bet(2, BetAction::Call(15.into()));
+        p.finalize_round();
+        assert_eq!(p.total_value(), 45.into());
+        p.bet(1, BetAction::Bet(5.into()));
+        p.bet(2, BetAction::AllIn(50.into()));
+        p.bet(3, BetAction::Call(50.into()));
+        p.bet(1, BetAction::Raise(500.into()));
+        // 2 is all in and can't do anything
+        // 3 folds, so there's nothing more to do
+        p.finalize_round();
+        // lets pretend that's the end and make sure the pots are exactly as expected
+        dbg!(&p);
+
+        assert_eq!(p.players_in.len(), 3);
+        for v in p.players_in.values() {
+            assert_eq!(*v, 15.into());
+        }
+        assert_eq!(p.max_in, Currency::max());
+
+        let side_pot = p.side_pot.unwrap();
+        assert_eq!(side_pot.players_in.len(), 3);
+        for v in side_pot.players_in.values() {
+            assert_eq!(*v, 50.into());
+        }
+        assert_eq!(side_pot.max_in, 50.into());
+
+        let side_pot = side_pot.side_pot.unwrap();
+        assert_eq!(p.players_in.len(), 1);
+        for v in p.players_in.values() {
+            assert_eq!(*v, 450.into());
+        }
+        assert_eq!(side_pot.max_in, Currency::max());
     }
 }
