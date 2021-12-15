@@ -179,6 +179,7 @@ fn add_row_bet(table: &Element, e: &Epoch, b: &Bet, seq: SeqNum) -> Result<(), R
         BetAction::Fold => "folds".to_string(),
         BetAction::Call(n) => format!("calls {}", *n),
         BetAction::Bet(n) => format!("bets {}", *n),
+        BetAction::Raise(n) => format!("raises {}", *n),
         BetAction::AllIn(n) => format!("goes all in for {}", *n),
     };
     let s = format!("{} {}.", player_desc(p), bet_str);
