@@ -13,6 +13,7 @@ pub enum BetAction {
     Fold,
     Call(Currency),
     Bet(Currency),
+    Raise(Currency),
     AllIn(Currency),
 }
 

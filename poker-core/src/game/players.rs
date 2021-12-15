@@ -32,7 +32,7 @@ impl From<BetAction> for BetStatus {
         match ba {
             BetAction::AllIn(x) => BetStatus::AllIn(x),
             BetAction::Fold => BetStatus::Folded,
-            BetAction::Bet(x) | BetAction::Call(x) => BetStatus::In(x),
+            BetAction::Bet(x) | BetAction::Call(x) | BetAction::Raise(x) => BetStatus::In(x),
             BetAction::Check => unreachable!(),
         }
     }
@@ -353,18 +353,20 @@ impl SeatedPlayer {
             return Err(BetError::HasNoMoney);
         }
         let r = match bet {
-            BetAction::Bet(x) | BetAction::Call(x) => match self.monies.cmp(&x) {
-                Ordering::Less => {
-                    // Only called when blinds are short stacked.
-                    let r = BetAction::AllIn(self.monies);
-                    self.monies = 0.into();
-                    r
+            BetAction::Bet(x) | BetAction::Call(x) | BetAction::Raise(x) => {
+                match self.monies.cmp(&x) {
+                    Ordering::Less => {
+                        // Only called when blinds are short stacked.
+                        let r = BetAction::AllIn(self.monies);
+                        self.monies = 0.into();
+                        r
+                    }
+                    _ => {
+                        self.monies -= x;
+                        bet
+                    }
                 }
-                _ => {
-                    self.monies -= x;
-                    bet
-                }
-            },
+            }
             BetAction::AllIn(x) => {
                 if x != self.monies {
                     return Err(BetError::AllInWithoutBeingAllIn);

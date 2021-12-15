@@ -202,9 +202,9 @@ impl Pot {
                         v
                     }
                 },
-                BetAction::Bet(v) | BetAction::Call(v) => v,
-                // Folds and calls have no effect on the pot.
-                _ => return 0.into(),
+                BetAction::Bet(v) | BetAction::Call(v) | BetAction::Raise(v) => v,
+                // Folds and checks have no effect on the pot.
+                BetAction::Fold | BetAction::Check => return 0.into(),
             };
             self.overflowing_add(player, value - ov);
             0.into()
