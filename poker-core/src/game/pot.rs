@@ -247,6 +247,9 @@ mod tests {
         assert_eq!(payout[&1.into()], 8.into());
         assert_eq!(payout[&2.into()], 7.into());
 
+        // it is not possible for the 3rd person to be in for more than the others like this, but
+        // the pot does its best to function anyway. Garbage in => garbage out. It's the caller's
+        // fault for not knowing how Texas Holdem works.
         let mut p = Pot::default();
         p.bet(1, BetAction::Bet(5.into()));
         p.bet(2, BetAction::Bet(5.into()));
