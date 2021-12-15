@@ -40,7 +40,7 @@ impl From<BetAction> for BetStatus {
 
 impl BetStatus {
     /// Convience function so you don't have to match the enum.
-    pub fn is_folded(&self) -> bool {
+    pub(crate) const fn is_folded(&self) -> bool {
         matches!(self, &BetStatus::Folded)
     }
 }
@@ -52,7 +52,7 @@ impl Default for BetStatus {
 }
 
 #[derive(Debug)]
-pub struct SeatedPlayers {
+pub(crate) struct SeatedPlayers {
     players: [Option<SeatedPlayer>; MAX_PLAYERS],
     last_better: usize,
     pub dealer_token: usize,
@@ -81,7 +81,7 @@ impl SeatedPlayers {
     /// is an index (0-based).
     ///
     /// TODO abstract over Account struct?
-    pub fn sit_down<A: Into<PlayerId>, C: Into<Currency>>(
+    pub(crate) fn sit_down<A: Into<PlayerId>, C: Into<Currency>>(
         &mut self,
         aid: A,
         monies: C,
@@ -106,7 +106,7 @@ impl SeatedPlayers {
 
     /// Removes the player from the table and returns the amount of money the person had.
     /// Parent is responsible for making sure the player can not leave mid round
-    pub fn stand_up<A: Into<PlayerId> + Copy>(&mut self, aid: A) -> Option<Currency> {
+    pub(crate) fn stand_up<A: Into<PlayerId> + Copy>(&mut self, aid: A) -> Option<Currency> {
         let p = self.player_by_id(aid)?;
         let r = p.monies();
         self.players[p.seat_index] = None;
@@ -127,7 +127,7 @@ impl SeatedPlayers {
 
     /// Runs two bets, the blinds
     /// Needed in this struct because next_better is private
-    pub fn blinds_bet<C: Into<Currency>>(
+    pub(crate) fn blinds_bet<C: Into<Currency>>(
         &mut self,
         sb: C,
         bb: C,
@@ -139,7 +139,7 @@ impl SeatedPlayers {
     }
 
     /// The mutable version of `player_by_id`
-    pub fn player_by_id_mut<A: Into<PlayerId> + Copy>(
+    pub(crate) fn player_by_id_mut<A: Into<PlayerId> + Copy>(
         &mut self,
         player: A,
     ) -> Option<&mut SeatedPlayer> {
@@ -147,7 +147,10 @@ impl SeatedPlayers {
     }
 
     /// Gets a reference to the player if their account ID could be found
-    pub fn player_by_id<A: Into<PlayerId> + Copy>(&self, player: A) -> Option<&SeatedPlayer> {
+    pub(crate) fn player_by_id<A: Into<PlayerId> + Copy>(
+        &self,
+        player: A,
+    ) -> Option<&SeatedPlayer> {
         self.players_iter().find(|x| x.id == player.into())
     }
 
@@ -158,7 +161,7 @@ impl SeatedPlayers {
     /// * Validation that the bet meets the current bet amount
     ///
     /// Returns the account id of the next better.
-    pub fn bet<A: Into<PlayerId>>(
+    pub(crate) fn bet<A: Into<PlayerId>>(
         &mut self,
         player: A,
         action: BetAction,
@@ -182,7 +185,7 @@ impl SeatedPlayers {
     }
 
     /// Returns an iterator over all seated players, preserving seat index
-    pub fn players_iter(&self) -> impl Iterator<Item = &SeatedPlayer> + Clone + '_ {
+    fn players_iter(&self) -> impl Iterator<Item = &SeatedPlayer> + Clone + '_ {
         self.players
             .iter()
             .filter(|x| x.is_some())
@@ -190,7 +193,7 @@ impl SeatedPlayers {
     }
 
     /// Returns a mutable iterator over all seated players, preserving seat index
-    pub fn players_iter_mut(&mut self) -> impl Iterator<Item = &mut SeatedPlayer> + '_ {
+    fn players_iter_mut(&mut self) -> impl Iterator<Item = &mut SeatedPlayer> + '_ {
         self.players
             .iter_mut()
             .filter(|x| x.is_some())
@@ -201,15 +204,19 @@ impl SeatedPlayers {
     ///
     /// Note: say the only not-betting player is seat idx 2. This will list 0 and 1 before going
     /// on to 3 and the rest.
-    pub fn betting_players_iter(&self) -> impl Iterator<Item = &SeatedPlayer> + Clone + '_ {
+    fn betting_players_iter(&self) -> impl Iterator<Item = &SeatedPlayer> + Clone + '_ {
         self.players_iter().filter(|x| x.is_betting())
+    }
+
+    pub(crate) fn betting_players_count(&self) -> usize {
+        self.betting_players_iter().count()
     }
 
     /// Returns an iterator over players still in the betting, preserving seat index
     ///
     /// Note: say the only not-betting player is seat idx 2. This will list 0 and 1 before going
     /// on to 3 and the rest.
-    pub fn betting_players_iter_mut(&mut self) -> impl Iterator<Item = &mut SeatedPlayer> + '_ {
+    fn betting_players_iter_mut(&mut self) -> impl Iterator<Item = &mut SeatedPlayer> + '_ {
         self.players_iter_mut().filter(|x| x.is_betting())
     }
 
@@ -220,7 +227,7 @@ impl SeatedPlayers {
     /// will return an iterator over the seats starting at 1, through the end of the table, then
     /// start at 0 again and go through the end of the table. Only take the first few seats
     /// returned as you need them.
-    pub fn betting_players_iter_after(
+    fn betting_players_iter_after(
         &self,
         i: usize,
     ) -> impl Iterator<Item = &SeatedPlayer> + Clone + '_ {
@@ -238,7 +245,7 @@ impl SeatedPlayers {
     ///
     /// AllIn players aren't "betting", so when iterating over all betting players, they are
     /// skipped. The only expected BetStatuses are In and Waiting.
-    pub fn pot_is_ready<C: Into<Currency>>(&self, current_bet: C) -> bool {
+    pub(crate) fn pot_is_ready<C: Into<Currency>>(&self, current_bet: C) -> bool {
         let current_bet = current_bet.into();
         for player in self.betting_players_iter() {
             match player.bet_status {
@@ -261,13 +268,13 @@ impl SeatedPlayers {
         }
     }
 
-    pub fn end_hand(&mut self) -> Result<(), GameError> {
+    pub(crate) fn end_hand(&mut self) -> Result<(), GameError> {
         self.unfold_all();
         Ok(())
     }
 
     ///
-    pub fn start_hand(&mut self) -> Result<Vec<PlayerId>, GameError> {
+    pub(crate) fn start_hand(&mut self) -> Result<Vec<PlayerId>, GameError> {
         self.unfold_all();
         self.auto_fold_players();
         self.rotate_tokens()?;
@@ -290,7 +297,7 @@ impl SeatedPlayers {
         let mut s: [usize; 3] = [0, 0, 0];
         // iter borrows self, so have to work around borrowing rules
         // This might be fixable
-        // Unwraps can't because mis size is 2 above, and after returns count * 2 entries, making a minimum values in the iter 4
+        // Unwraps can't panic because iter size is at least 2 above, and `betting_players_iter_after` returns count * 2 entries, making a minimum values in the iter 4
         {
             let od = self.dealer_token;
             dbg!(&od);
@@ -302,18 +309,19 @@ impl SeatedPlayers {
             s[2] = iter.next().unwrap();
         }
 
-        dbg!(&s);
         self.dealer_token = s[0];
-        // dealer_token can also be big blind
         self.small_blind_token = s[1];
+        // dealer_token can also be big blind
         self.big_blind_token = s[2];
         Ok(())
     }
 
+    /// Takes a vector of cards and distributes them to the seated players.
+    ///
     /// # Panics
     ///
     /// Panics if asked to deal a different number of pockets than players that are seated.
-    pub fn deal_pockets(&mut self, mut pockets: Vec<[Card; 2]>) {
+    pub(crate) fn deal_pockets(&mut self, mut pockets: Vec<[Card; 2]>) {
         assert_eq!(pockets.len(), self.betting_players_iter().count());
         let dt = self.dealer_token;
         // Can't use a betting_players_iter_after_mut() becasue can't chain/cycle mutable iterator
@@ -347,7 +355,7 @@ pub struct SeatedPlayer {
 impl SeatedPlayer {
     /// This validates the user has enough money to make the given get
     /// It will concert bet() and call() into AllIn if required by user's stash
-    pub fn bet(&mut self, bet: BetAction) -> Result<BetAction, BetError> {
+    pub(self) fn bet(&mut self, bet: BetAction) -> Result<BetAction, BetError> {
         use std::cmp::Ordering;
         if !self.has_monies() {
             return Err(BetError::HasNoMoney);
@@ -381,7 +389,11 @@ impl SeatedPlayer {
         Ok(r)
     }
 
-    pub fn new<A: Into<PlayerId>, C: Into<Currency>>(id: A, monies: C, seat_index: usize) -> Self {
+    pub(self) fn new<A: Into<PlayerId>, C: Into<Currency>>(
+        id: A,
+        monies: C,
+        seat_index: usize,
+    ) -> Self {
         SeatedPlayer {
             id: id.into(),
             pocket: None,
@@ -391,20 +403,20 @@ impl SeatedPlayer {
             seat_index,
         }
     }
-    pub fn monies(&self) -> Currency {
+    pub(crate) const fn monies(&self) -> Currency {
         self.monies
     }
-    pub fn has_monies(&self) -> bool {
+    pub(crate) fn has_monies(&self) -> bool {
         self.monies > 0.into()
     }
 
-    pub fn is_folded(&self) -> bool {
+    pub(crate) const fn is_folded(&self) -> bool {
         self.bet_status.is_folded()
     }
 
     /// Returns true is player is still in the betting
     /// Notably, `all_in` players are no longer betting, and excluded
-    pub fn is_betting(&self) -> bool {
+    pub(crate) const fn is_betting(&self) -> bool {
         matches!(self.bet_status, BetStatus::In(_) | BetStatus::Waiting)
     }
 }

@@ -91,7 +91,7 @@ impl Default for GameInProgress {
 pub struct GameInProgress {
     table_type: TableType,
     pub table_cards: [Option<Card>; 5],
-    pub seated_players: SeatedPlayers,
+    seated_players: SeatedPlayers,
     pub pot: Pot,
     pub state: GameState,
     pub small_blind: Currency,
@@ -130,7 +130,7 @@ impl GameInProgress {
         self.state = GameState::Betting(first_better, BetRound::PreFlop(self.big_blind()));
 
         // Deal the pockets
-        let nump = self.seated_players.betting_players_iter().count() as u8;
+        let nump = self.seated_players.betting_players_count() as u8;
         let pockets = self.deck.deal_pockets(nump)?;
         self.seated_players.deal_pockets(pockets);
 

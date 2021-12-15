@@ -80,7 +80,7 @@ pub struct Pot {
 impl Pot {
     /// Returns the total value in this pot
     /// Not particularily useful due to each betting round spinning off a side pot
-    pub fn value(&self) -> Currency {
+    pub(crate) fn value(&self) -> Currency {
         self.players_in.values().copied().sum()
     }
 
@@ -140,7 +140,7 @@ impl Pot {
     /// Parent MUST call this in between betting rounds.
     /// Closes the betting round of all open pots. Next betting roung will create a fresh pot.
     /// This prevents confusion between max_in and next betting rounds.
-    pub fn finalize_round(&mut self) {
+    pub(crate) fn finalize_round(&mut self) {
         self.is_settled = true;
         if let Some(x) = self.side_pot.as_mut() {
             x.finalize_round();
@@ -179,7 +179,7 @@ impl Pot {
     ///
     /// Panics if the pot would pay out a different amount than is in the pot.
     /// This indicates a failure of the payout function and should be investigated.
-    pub fn payout(self, ranked_hands: &[Vec<PlayerId>]) -> HashMap<PlayerId, Currency> {
+    pub(crate) fn payout(self, ranked_hands: &[Vec<PlayerId>]) -> HashMap<PlayerId, Currency> {
         let mut hm: HashMap<PlayerId, Currency> = HashMap::new();
         let value = self.value();
         for best_hand in ranked_hands {
@@ -209,7 +209,7 @@ impl Pot {
 
     /// Takes the players TOTAL bet. I.e. Bet(10), Call(20) = bet of 20.
     /// As such, parent must track the current betting round.
-    pub fn bet<A: Into<PlayerId>>(&mut self, player: A, action: BetAction) -> Currency {
+    pub(crate) fn bet<A: Into<PlayerId>>(&mut self, player: A, action: BetAction) -> Currency {
         use std::cmp::Ordering;
         let player = player.into();
         if self.is_settled {
