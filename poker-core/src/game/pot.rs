@@ -34,14 +34,20 @@ impl Currency {
     }
 }
 
-/// Divide X as evenly as possible Y ways using only ints, and return those ints.
+/// Divide X as evenly as possible Y ways using only positive ints, and return those ints.
 ///
 /// Consider x=5 and y=3. 5 cannot be divided into 3 pieces evenly using ints. This function would
 /// return vec![2, 2, 1].
 /// x=8, y=5 returns 2, 2, 2, 1, 1.
 /// x=6, y=3 returns 2, 2, 2
+///
+/// # Panics
+///
+/// Panics if provided negative numbers. There should never be a negative payout, or a negative number of players
 fn split_x_by_y(x: i32, y: i32) -> Vec<i32> {
-    let mut ret = vec![];
+    assert!(y.is_positive());
+    assert!(x.is_positive());
+    let mut ret = Vec::with_capacity(y as usize);
     let mut frac_accum = 0;
     for i in 0..y {
         frac_accum += x % y;
