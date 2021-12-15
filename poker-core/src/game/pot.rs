@@ -164,7 +164,6 @@ impl Pot {
                     hm.insert(*player, payout);
                     paid_out = true;
                     if best_hand.len() > 1 && value % 2 == 1.into() {
-                        // TODO Randomize
                         hm.insert(best_hand[0], payout + 1.into());
                     }
                 }
