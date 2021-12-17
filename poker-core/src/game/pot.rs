@@ -451,6 +451,42 @@ mod tests {
         }
         assert_eq!(side_pot.max_in, Currency::max());
     }
+
+    #[test]
+    fn all_all_in() {
+        let mut p = Pot::default();
+        p.bet(1, BetAction::AllIn(5.into()));
+        p.bet(2, BetAction::AllIn(15.into()));
+        p.bet(3, BetAction::AllIn(45.into()));
+        p.finalize_round();
+        //dbg!(&p);
+        assert_eq!(p.players_in.len(), 3);
+        assert_eq!(*p.max_in, 5);
+        let side_pot = p.side_pot.unwrap();
+        assert_eq!(side_pot.players_in.len(), 2);
+        assert_eq!(*side_pot.max_in, 10);
+        let side_pot = side_pot.side_pot.unwrap();
+        assert_eq!(side_pot.players_in.len(), 1);
+        assert_eq!(*side_pot.max_in, 30);
+
+        let mut p = Pot::default();
+        p.bet(1, BetAction::AllIn(45.into()));
+        p.bet(2, BetAction::AllIn(15.into()));
+        p.bet(3, BetAction::AllIn(5.into()));
+        p.finalize_round();
+        dbg!(&p);
+        assert_eq!(p.players_in.len(), 3);
+        assert_eq!(*p.max_in, 5);
+        let side_pot = p.side_pot.unwrap();
+        assert_eq!(side_pot.players_in.len(), 2);
+        assert_eq!(*side_pot.max_in, 10);
+        let side_pot = side_pot.side_pot.unwrap();
+        assert_eq!(side_pot.players_in.len(), 1);
+        assert_eq!(*side_pot.max_in, 20);
+        let side_pot = side_pot.side_pot.unwrap();
+        assert_eq!(side_pot.players_in.len(), 1);
+        assert_eq!(*side_pot.max_in, 10);
+    }
 }
 
 #[cfg(test)]
