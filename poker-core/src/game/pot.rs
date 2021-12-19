@@ -3,6 +3,7 @@ use super::BetAction;
 use derive_more::{Add, AddAssign, Div, From, Mul, Rem, Sub, SubAssign, Sum};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::cmp::Ordering;
 
 #[derive(
     Debug,
@@ -31,6 +32,22 @@ pub struct Currency(i32);
 impl Currency {
     fn max() -> Self {
         i32::MAX.into()
+    }
+}
+
+/// Players put Stakes in Pots.
+#[derive(Debug, Copy, Clone)]
+struct Stake {
+    is_allin: bool,
+    amount: Currency,
+}
+
+impl From<(bool, Currency)> for Stake {
+    fn from(tup: (bool, Currency)) -> Self {
+        Self {
+            is_allin: tup.0,
+            amount: tup.1,
+        }
     }
 }
 
@@ -71,187 +88,185 @@ fn split_x_by_y(x: i32, y: i32) -> Vec<i32> {
 /// Parent must validate player has enough monies, and track the state of the betting round.
 #[derive(Debug)]
 pub struct Pot {
-    players_in: HashMap<PlayerId, Currency>,
-    max_in: Currency,
-    side_pot: Option<Box<Pot>>,
-    is_settled: bool,
+    settled: Vec<InnerPot>,
+    working: Vec<InnerPot>,
+}
+
+#[derive(Debug)]
+struct InnerPot {
+    players_in: HashMap<PlayerId, Stake>,
+    max_in: Option<Currency>,
 }
 
 impl Pot {
-    /// Returns the total value in this pot
-    /// Not particularily useful due to each betting round spinning off a side pot
-    pub(crate) fn value(&self) -> Currency {
-        self.players_in.values().copied().sum()
-    }
 
-    pub fn total_value(&self) -> Currency {
-        let mut v = self.players_in.values().copied().sum();
-        if let Some(x) = self.side_pot.as_ref() {
-            v += x.total_value();
-        }
-        v
-    }
-
-    fn overflowing_add(&mut self, player: PlayerId, amount: Currency) {
-        if self.is_settled {
-            self.side_pot().overflowing_add(player, amount);
-        } else {
-            let ov = self.players_in.get(&player).copied().unwrap_or_default();
-            let nv = ov + amount;
-            if nv > self.max_in {
-                self.players_in.insert(player, self.max_in);
-                let o = nv - self.max_in;
-                self.side_pot().overflowing_add(player, o);
-            } else {
-                self.players_in.insert(player, nv);
-            }
-        }
-    }
-
-    fn side_pot(&mut self) -> &mut Pot {
-        if self.side_pot.is_none() {
-            self.side_pot = Some(Box::new(Pot::default()));
-        }
-        self.side_pot.as_mut().unwrap()
-    }
-
-    fn update_max(&mut self, new_max: Currency) {
-        use std::cmp::Ordering;
-        if self.is_settled {
-            self.side_pot().update_max(new_max);
-        } else {
-            if new_max == Currency::max() || new_max < 1.into() {
-                return;
-            }
-            match new_max.cmp(&self.max_in) {
-                Ordering::Greater => self.side_pot().update_max(new_max),
-                Ordering::Less => {
-                    let ov = self.max_in;
-                    self.max_in = new_max;
-                    if ov != Currency::max() {
-                        self.side_pot().update_max(ov - new_max);
-                    }
-                }
-                Ordering::Equal => (),
-            }
-        }
-    }
-
-    /// Parent MUST call this in between betting rounds.
+    /// Parent *must* call this in between betting rounds.
     /// Closes the betting round of all open pots. Next betting roung will create a fresh pot.
     /// This prevents confusion between max_in and next betting rounds.
     pub(crate) fn finalize_round(&mut self) {
-        self.is_settled = true;
-        if let Some(x) = self.side_pot.as_mut() {
-            x.finalize_round();
-        }
+        self.settled.append(&mut self.working);
+        assert!(self.working.is_empty());
     }
 
-    /// Detected a change in max_bet that could have consquences, forcing a rebuild
-    fn overflow(&mut self) {
-        if self.is_settled {
-            self.side_pot().overflow();
-        } else {
-            for (player, value) in self.players_in.clone() {
-                if value > self.max_in {
-                    let delta = value - self.max_in;
-                    self.players_in.insert(player, self.max_in);
-                    self.overflowing_add(player, delta);
+    // /// Consumes the pot and returns the total payout.
+    // ///
+    // /// # Panics
+    // ///
+    // /// Panics if the pot would pay out a different amount than is in the pot.
+    // /// This indicates a failure of the payout function and should be investigated.
+    // pub(crate) fn payout(self, ranked_hands: &[Vec<PlayerId>]) -> HashMap<PlayerId, Currency> {
+    //     let mut hm: HashMap<PlayerId, Currency> = HashMap::new();
+    //     let value = self.value();
+    //     for best_hand in ranked_hands {
+    //         let hands_in = self.num_players_in(best_hand);
+    //         // Prevents divide by zero below
+    //         if hands_in == 0 {
+    //             continue;
+    //         }
+    //         let players = best_hand
+    //             .iter()
+    //             .filter(|p| self.players_in.contains_key(p))
+    //             .collect::<Vec<_>>();
+    //         assert!(!players.is_empty());
+    //         let payouts = split_x_by_y(*value, players.len().try_into().unwrap());
+    //         assert_eq!(players.len(), payouts.len());
+    //         for (player, payout) in itertools::zip(players, payouts) {
+    //             hm.insert(*player, payout.into());
+    //         }
+    //         break;
+    //     }
+    //     assert_eq!(hm.values().copied().sum::<Currency>(), self.value());
+    //     if let Some(x) = self.side_pot {
+    //         crate::util::merge_hashmap(&mut hm, x.payout(ranked_hands));
+    //     }
+    //     hm
+    // }
+
+    fn bet_helper(&mut self, player: PlayerId, stake: Stake, idx: usize) {
+        // other than being less, the only expected possibility here is that the idx is equal to
+        // the len, in which case we need to make one more and later use it.
+        if idx >= self.working.len() {
+            self.working.resize_with(idx+1, || InnerPot::default());
+        }
+        assert!(idx < self.working.len());
+        let mut pot = &mut self.working[idx];
+        match (stake.is_allin, pot.max_in) {
+            (false, None) => {
+                pot.players_in.insert(player, stake);
+            },
+            (true, None) => {
+                pot.players_in.insert(player, stake);
+                let max_in = stake.amount;
+                pot.max_in = Some(stake.amount);
+                // there may be bets in the pot that are larger than this AllIn. Need to overflow
+                let buf: Vec<(PlayerId, Stake)> = pot.players_in.drain().collect();
+                for (p, s) in buf.into_iter() {
+                    match s.amount.cmp(&max_in) {
+                        Ordering::Less | Ordering::Equal => {
+                            pot.players_in.insert(p, s);
+                        }
+                        Ordering::Greater => {
+                            pot.players_in.insert(p, (s.is_allin, max_in).into());
+                            self.bet_helper(p, (s.is_allin, s.amount - max_in).into(), idx+1);
+                        }
+                    }
+                }
+            }
+            (false, Some(max_in)) => {
+                // Put as much of this bet as possible in this pot, and put the rest in additional
+                // pots. This new bet isn't an AllIn, so no overflowing is necessary. Just put as
+                // much as possible in this pot, and the remainder in the next (by calling this
+                // function, and maybe having to do as much as possible again with remainder in the
+                // next, but that's ok.)
+                match stake.amount.cmp(&max_in) {
+                    Ordering::Less | Ordering::Equal => {
+                        pot.players_in.insert(player, stake);
+                    }
+                    Ordering::Greater => {
+                        pot.players_in.insert(player, (false, max_in).into());
+                        self.bet_helper(player, (false, stake.amount - max_in).into(), idx+1);
+                    }
+                }
+            }
+            (true, Some(max_in)) => {
+                // Like the previous match arm, we want to put as much as possible in each pot
+                // before moving on to the next. But this is complicated by the following:
+                // - This AllIn could be less or greater than the existing max.
+                //     - If less, the existing max should be lowered and any overflow from existing
+                //       bets moved for each player into the next pot.
+                //     - If greater, as much as possible is put in this pot, and the remainder in
+                //       the next.
+                match stake.amount.cmp(&max_in) {
+                    Ordering::Equal => {
+                        pot.players_in.insert(player, stake);
+                    }
+                    Ordering::Greater => {
+                        pot.players_in.insert(player, (true, max_in).into());
+                        self.bet_helper(player, (true, stake.amount - max_in).into(), idx+1);
+                    }
+                    Ordering::Less => {
+                        pot.players_in.insert(player, stake);
+                        // update this pot's max to this new lower amount
+                        let max_in = stake.amount;
+                        pot.max_in = Some(max_in);
+                        // Collect all players (incl. this new one) in a buffer. Many may go right
+                        // back into this pot unchanged, but some need their amount lowered and the
+                        // remainder sent into the next pot. This was the most logical way I came
+                        // up with for doing this.
+                        let buf: Vec<(PlayerId, Stake)> = pot.players_in.drain().collect();
+                        for (p, s) in buf.into_iter() {
+                            match s.amount.cmp(&max_in) {
+                                // If the player is is for less or equal to the new max amount,
+                                // just put them right back in.
+                                Ordering::Less | Ordering::Equal => {
+                                    pot.players_in.insert(p, s);
+                                }
+                                // Otherwise, put them in for the new (lower) max amount, and send
+                                // the overflow into the next pot.
+                                Ordering::Greater => {
+                                    pot.players_in.insert(p, (s.is_allin, max_in).into());
+                                    self.bet_helper(p, (s.is_allin, s.amount - max_in).into(), idx+1);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
-
-    /// Takes a vector of player Ids and returns the count of them that are in the current pot
-    fn num_players_in(&self, hand: &[PlayerId]) -> usize {
-        let mut r = 0;
-        for i in hand {
-            if self.players_in.contains_key(i) {
-                r += 1;
-            }
-        }
-        r
-    }
-
-    /// Consumes the pot and returns the total payout.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pot would pay out a different amount than is in the pot.
-    /// This indicates a failure of the payout function and should be investigated.
-    pub(crate) fn payout(self, ranked_hands: &[Vec<PlayerId>]) -> HashMap<PlayerId, Currency> {
-        let mut hm: HashMap<PlayerId, Currency> = HashMap::new();
-        let value = self.value();
-        for best_hand in ranked_hands {
-            let hands_in = self.num_players_in(best_hand);
-            // Prevents divide by zero below
-            if hands_in == 0 {
-                continue;
-            }
-            let players = best_hand
-                .iter()
-                .filter(|p| self.players_in.contains_key(p))
-                .collect::<Vec<_>>();
-            assert!(!players.is_empty());
-            let payouts = split_x_by_y(*value, players.len().try_into().unwrap());
-            assert_eq!(players.len(), payouts.len());
-            for (player, payout) in itertools::zip(players, payouts) {
-                hm.insert(*player, payout.into());
-            }
-            break;
-        }
-        assert_eq!(hm.values().copied().sum::<Currency>(), self.value());
-        if let Some(x) = self.side_pot {
-            crate::util::merge_hashmap(&mut hm, x.payout(ranked_hands));
-        }
-        hm
     }
 
     /// Takes the players TOTAL bet. I.e. Bet(10), Call(20) = bet of 20.
     /// As such, parent must track the current betting round.
-    pub(crate) fn bet<A: Into<PlayerId>>(&mut self, player: A, action: BetAction) -> Currency {
-        use std::cmp::Ordering;
+    pub(crate) fn bet<A: Into<PlayerId>>(&mut self, player: A, action: BetAction) {
         let player = player.into();
-        if self.is_settled {
-            self.side_pot().bet(player, action)
-        } else {
-            let ov = self.players_in.get(&player).copied().unwrap_or_default();
-            let value = match action {
-                BetAction::AllIn(v) => match v.cmp(&self.max_in) {
-                    Ordering::Greater => {
-                        let nv = v - self.max_in - ov;
-                        self.players_in.insert(player, self.max_in);
-                        self.side_pot().bet(player, BetAction::AllIn(nv))
-                    }
-                    Ordering::Equal => v,
-                    Ordering::Less => {
-                        self.update_max(v);
-                        self.overflow();
-                        v
-                    }
-                },
-                BetAction::Bet(v) | BetAction::Call(v) | BetAction::Raise(v) => v,
-                // Folds and checks have no effect on the pot.
-                BetAction::Fold | BetAction::Check => return 0.into(),
-            };
-            self.overflowing_add(player, value - ov);
-            0.into()
-        }
+        let stake = match action {
+            BetAction::Check | BetAction::Fold => { return; },
+            BetAction::Call(v)| BetAction::Bet(v) | BetAction::Raise(v) => (false, v),
+            BetAction::AllIn(v) => (true, v),
+        }.into();
+        self.bet_helper(player, stake, 0)
     }
 }
 
 impl Default for Pot {
     fn default() -> Self {
         Pot {
-            players_in: HashMap::new(),
-            max_in: Currency::max(),
-            side_pot: None,
-            is_settled: false,
+            settled: vec![],
+            working: vec![],
+        
         }
     }
 }
 
-#[cfg(test)]
+impl Default for InnerPot {
+    fn default() -> Self {
+        Self {
+            players_in: HashMap::new(),
+            max_in: None
+        }
+    }
+}
+
 mod tests {
     use super::*;
 
