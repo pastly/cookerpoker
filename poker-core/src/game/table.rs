@@ -211,38 +211,38 @@ impl GameInProgress {
 mod tests {
     use super::*;
 
-    #[test]
-    #[ignore = "Not yet finished"]
-    fn basic_game() {
-        let mut gt = GameInProgress::default();
-        gt.sit_down(0, 100, 0).unwrap();
-        gt.sit_down(1, 100, 1).unwrap();
-        gt.sit_down(2, 100, 2).unwrap();
-        gt.sit_down(3, 100, 3).unwrap();
-        gt.start_round().unwrap();
-        // Blinds are in
-        assert_eq!(gt.get_player_info(0).unwrap().monies(), 100.into());
-        assert_eq!(gt.get_player_info(1).unwrap().monies(), 95.into());
-        assert_eq!(gt.get_player_info(2).unwrap().monies(), 90.into());
-        assert_eq!(gt.pot.total_value(), 15.into());
+    // #[test]
+    // #[ignore = "Not yet finished"]
+    // fn basic_game() {
+    //     let mut gt = GameInProgress::default();
+    //     gt.sit_down(0, 100, 0).unwrap();
+    //     gt.sit_down(1, 100, 1).unwrap();
+    //     gt.sit_down(2, 100, 2).unwrap();
+    //     gt.sit_down(3, 100, 3).unwrap();
+    //     gt.start_round().unwrap();
+    //     // Blinds are in
+    //     assert_eq!(gt.get_player_info(0).unwrap().monies(), 100.into());
+    //     assert_eq!(gt.get_player_info(1).unwrap().monies(), 95.into());
+    //     assert_eq!(gt.get_player_info(2).unwrap().monies(), 90.into());
+    //     assert_eq!(gt.pot.total_value(), 15.into());
 
-        gt.bet(3, BetAction::Call(10.into())).unwrap();
-        gt.bet(0, BetAction::Fold).unwrap();
-        // TODO decide if invald Check's should fail or be converted to calls
-        let _r = gt.bet(1, BetAction::Check).unwrap();
-        gt.bet(2, BetAction::Check).unwrap();
+    //     gt.bet(3, BetAction::Call(10.into())).unwrap();
+    //     gt.bet(0, BetAction::Fold).unwrap();
+    //     // TODO decide if invald Check's should fail or be converted to calls
+    //     let _r = gt.bet(1, BetAction::Check).unwrap();
+    //     gt.bet(2, BetAction::Check).unwrap();
 
-        // First betting round is over.
-        // Table should recognize that all players are in and pot is right and forward the round
-        assert_eq!(gt.get_player_info(0).unwrap().monies(), 100.into());
-        assert_eq!(gt.get_player_info(1).unwrap().monies(), 90.into());
-        assert_eq!(gt.get_player_info(2).unwrap().monies(), 90.into());
-        assert_eq!(gt.get_player_info(3).unwrap().monies(), 90.into());
-        assert_eq!(gt.pot.total_value(), 30.into());
-        assert!(gt.table_cards[2].is_some());
+    //     // First betting round is over.
+    //     // Table should recognize that all players are in and pot is right and forward the round
+    //     assert_eq!(gt.get_player_info(0).unwrap().monies(), 100.into());
+    //     assert_eq!(gt.get_player_info(1).unwrap().monies(), 90.into());
+    //     assert_eq!(gt.get_player_info(2).unwrap().monies(), 90.into());
+    //     assert_eq!(gt.get_player_info(3).unwrap().monies(), 90.into());
+    //     assert_eq!(gt.pot.total_value(), 30.into());
+    //     assert!(gt.table_cards[2].is_some());
 
-        // TODO rest of the test once the above passes
-    }
+    //     // TODO rest of the test once the above passes
+    // }
 
     // TODO test where players who are folded try to bet again
 
