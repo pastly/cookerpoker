@@ -1,8 +1,11 @@
 use super::{deck::Card, BetAction, BetError, Currency, GameError};
 use serde::{Deserialize, Serialize};
 pub const MAX_PLAYERS: usize = 12;
+use derive_more::AsRef;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::Deref, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::Deref, Serialize, Deserialize, AsRef,
+)]
 pub struct PlayerId(i32);
 
 type PlayerBetAction = (PlayerId, BetAction);

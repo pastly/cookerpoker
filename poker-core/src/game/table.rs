@@ -176,18 +176,26 @@ impl GameInProgress {
         player: A,
         ba: BetAction,
     ) -> Result<Currency, GameError> {
-        // Convert check into related call
-        // TODO OR return an error and not accept the check?
-        let ba = if matches!(ba, BetAction::Check) {
-            BetAction::Call(self.current_bet)
-        } else {
-            ba
-        };
-        // Make sure calls equal the current bet
-        // Make sure bets are >= current bet
+        // Handle betting errors
+        match &ba {
+            BetAction::Bet(x) | BetAction::Call(x) => {
+                if x < &self.current_bet {
+                    return Err(GameError::InvalidBet(format!(
+                        "Bet must be at least {}",
+                        &self.current_bet
+                    )));
+                }
+            }
+            BetAction::Check => todo!(),
+            BetAction::AllIn(_) => todo!(),
+            BetAction::Fold => todo!(),
+            BetAction::Raise(_) => todo!(),
+        }
+
         // Call seated players bet, which will convert to AllIn as neccesary
+        self.seated_players.bet(&player, ba)?;
         // Update Pot
-        self.pot.bet(player, ba);
+        self.pot.bet(&player, ba);
         // Play pending action for next better
         // Determine if this was the final bet and round is over
         unimplemented!()

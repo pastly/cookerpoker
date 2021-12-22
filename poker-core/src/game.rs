@@ -39,6 +39,7 @@ pub enum GameError {
     PlayerAlreadySeated,
     InvalidSeat,
     BettingPlayerCantStand,
+    InvalidBet(String),
 }
 
 impl std::error::Error for GameError {}

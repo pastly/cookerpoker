@@ -34,6 +34,14 @@ impl Currency {
     }
 }
 
+impl std::fmt::Display for Currency {
+    fn fmt(&self, &mut f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let dollars = self.0 / 100;
+        let cents = self.0 - dollars;
+        write!(f, "{}.{}", dollars, cents)
+    }
+}
+
 /// Divide X as evenly as possible Y ways using only positive ints, and return those ints.
 ///
 /// Consider x=5 and y=3. 5 cannot be divided into 3 pieces evenly using ints. This function would
