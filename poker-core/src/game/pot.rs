@@ -35,7 +35,7 @@ impl Currency {
 }
 
 impl std::fmt::Display for Currency {
-    fn fmt(&self, &mut f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let dollars = self.0 / 100;
         let cents = self.0 - dollars;
         write!(f, "{}.{}", dollars, cents)

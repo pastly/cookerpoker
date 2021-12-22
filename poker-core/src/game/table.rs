@@ -139,23 +139,20 @@ impl GameInProgress {
 
     /// Gets the seated player by id if they are seated at the current table.
     /// Front-end is responsible for making sure there isn't data leakage
-    pub fn get_player_info<A: Into<PlayerId> + Copy>(&self, player_id: A) -> Option<&SeatedPlayer> {
+    pub fn get_player_info(&self, player_id: PlayerId) -> Option<&SeatedPlayer> {
         self.seated_players.player_by_id(player_id).map(|x| &*x)
     }
 
-    pub fn sit_down<A: Into<PlayerId>, C: Into<Currency>>(
+    pub fn sit_down<C: Into<Currency>>(
         &mut self,
-        player_id: A,
+        player_id: PlayerId,
         monies: C,
         seat: usize,
     ) -> Result<(), GameError> {
         self.seated_players.sit_down(player_id, monies, seat)
     }
 
-    pub fn stand_up<A: Into<PlayerId> + Copy>(
-        &mut self,
-        player_id: A,
-    ) -> Option<Result<Currency, GameError>> {
+    pub fn stand_up(&mut self, player_id: PlayerId) -> Option<Result<Currency, GameError>> {
         match self.state {
             GameState::Winner(..) | GameState::WinnerDuringBet(..) => {
                 self.seated_players.stand_up(player_id).map(Ok)
@@ -171,11 +168,7 @@ impl GameInProgress {
         }
     }
 
-    pub fn bet<A: Into<PlayerId>>(
-        &mut self,
-        player: A,
-        ba: BetAction,
-    ) -> Result<Currency, GameError> {
+    pub fn bet(&mut self, player: PlayerId, ba: BetAction) -> Result<Currency, GameError> {
         // Handle betting errors
         match &ba {
             BetAction::Bet(x) | BetAction::Call(x) => {
@@ -193,9 +186,9 @@ impl GameInProgress {
         }
 
         // Call seated players bet, which will convert to AllIn as neccesary
-        self.seated_players.bet(&player, ba)?;
+        self.seated_players.bet(player, ba)?;
         // Update Pot
-        self.pot.bet(&player, ba);
+        self.pot.bet(player, ba);
         // Play pending action for next better
         // Determine if this was the final bet and round is over
         unimplemented!()

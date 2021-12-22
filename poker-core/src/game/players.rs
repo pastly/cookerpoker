@@ -1,26 +1,10 @@
 use super::{deck::Card, BetAction, BetError, Currency, GameError};
 use serde::{Deserialize, Serialize};
 pub const MAX_PLAYERS: usize = 12;
-use derive_more::AsRef;
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::Deref, Serialize, Deserialize, AsRef,
-)]
-pub struct PlayerId(i32);
+pub type PlayerId = i32;
 
 type PlayerBetAction = (PlayerId, BetAction);
-
-impl From<i32> for PlayerId {
-    fn from(i: i32) -> Self {
-        Self(i)
-    }
-}
-
-impl std::fmt::Display for PlayerId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum BetStatus {
@@ -109,7 +93,7 @@ impl SeatedPlayers {
 
     /// Removes the player from the table and returns the amount of money the person had.
     /// Parent is responsible for making sure the player can not leave mid round
-    pub(crate) fn stand_up<A: Into<PlayerId> + Copy>(&mut self, aid: A) -> Option<Currency> {
+    pub(crate) fn stand_up(&mut self, aid: PlayerId) -> Option<Currency> {
         let p = self.player_by_id(aid)?;
         let r = p.monies();
         self.players[p.seat_index] = None;
@@ -142,18 +126,12 @@ impl SeatedPlayers {
     }
 
     /// The mutable version of `player_by_id`
-    pub(crate) fn player_by_id_mut<A: Into<PlayerId> + Copy>(
-        &mut self,
-        player: A,
-    ) -> Option<&mut SeatedPlayer> {
+    pub(crate) fn player_by_id_mut(&mut self, player: PlayerId) -> Option<&mut SeatedPlayer> {
         self.players_iter_mut().find(|x| x.id == player.into())
     }
 
     /// Gets a reference to the player if their account ID could be found
-    pub(crate) fn player_by_id<A: Into<PlayerId> + Copy>(
-        &self,
-        player: A,
-    ) -> Option<&SeatedPlayer> {
+    pub(crate) fn player_by_id(&self, player: PlayerId) -> Option<&SeatedPlayer> {
         self.players_iter().find(|x| x.id == player.into())
     }
 
@@ -164,9 +142,9 @@ impl SeatedPlayers {
     /// * Validation that the bet meets the current bet amount
     ///
     /// Returns the account id of the next better.
-    pub(crate) fn bet<A: Into<PlayerId>>(
+    pub(crate) fn bet(
         &mut self,
-        player: A,
+        player: PlayerId,
         action: BetAction,
     ) -> Result<PlayerBetAction, BetError> {
         let player = player.into();
@@ -392,11 +370,7 @@ impl SeatedPlayer {
         Ok(r)
     }
 
-    pub(self) fn new<A: Into<PlayerId>, C: Into<Currency>>(
-        id: A,
-        monies: C,
-        seat_index: usize,
-    ) -> Self {
+    pub(self) fn new<C: Into<Currency>>(id: PlayerId, monies: C, seat_index: usize) -> Self {
         SeatedPlayer {
             id: id.into(),
             pocket: None,
