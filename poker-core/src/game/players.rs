@@ -1,5 +1,4 @@
 use super::{deck::Card, BetAction, BetError, Currency, GameError};
-use serde::{Deserialize, Serialize};
 pub const MAX_PLAYERS: usize = 12;
 
 pub type PlayerId = i32;
@@ -127,12 +126,12 @@ impl SeatedPlayers {
 
     /// The mutable version of `player_by_id`
     pub(crate) fn player_by_id_mut(&mut self, player: PlayerId) -> Option<&mut SeatedPlayer> {
-        self.players_iter_mut().find(|x| x.id == player.into())
+        self.players_iter_mut().find(|x| x.id == player)
     }
 
     /// Gets a reference to the player if their account ID could be found
     pub(crate) fn player_by_id(&self, player: PlayerId) -> Option<&SeatedPlayer> {
-        self.players_iter().find(|x| x.id == player.into())
+        self.players_iter().find(|x| x.id == player)
     }
 
     /// This function is not aware of the current bet. As such validation must be handled before
@@ -147,7 +146,6 @@ impl SeatedPlayers {
         player: PlayerId,
         action: BetAction,
     ) -> Result<PlayerBetAction, BetError> {
-        let player = player.into();
         // Check player is even in the betting
         let p: &mut SeatedPlayer = self
             .player_by_id_mut(player)
@@ -372,7 +370,7 @@ impl SeatedPlayer {
 
     pub(self) fn new<C: Into<Currency>>(id: PlayerId, monies: C, seat_index: usize) -> Self {
         SeatedPlayer {
-            id: id.into(),
+            id,
             pocket: None,
             monies: monies.into(),
             bet_status: BetStatus::Folded,
