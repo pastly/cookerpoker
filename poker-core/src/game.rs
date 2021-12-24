@@ -17,6 +17,19 @@ pub enum BetAction {
     AllIn(Currency),
 }
 
+impl std::fmt::Display for BetAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            BetAction::Check => write!(f, "Check"),
+            BetAction::Fold => write!(f, "Fold"),
+            BetAction::Call(v) => write!(f, "Call({})", v),
+            BetAction::Bet(v) => write!(f, "Bet({})", v),
+            BetAction::Raise(v) => write!(f, "Raise({})", v),
+            BetAction::AllIn(v) => write!(f, "AllIn({})", v),
+        }
+    }
+}
+
 #[derive(Debug, derive_more::Display)]
 pub enum BetError {
     AllInWithoutBeingAllIn,

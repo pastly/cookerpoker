@@ -30,26 +30,90 @@ use std::collections::HashMap;
 )]
 pub struct Currency(i32);
 
-impl Currency {
-    fn max() -> Self {
-        i32::MAX.into()
-    }
-}
-
 impl std::fmt::Display for Currency {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let dollars = self.0 / 100;
         let cents = self.0 - dollars;
-        write!(f, "{}.{}", dollars, cents)
+        write!(f, "{}.{:02}", dollars, cents)
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum LogItem {
+    Bet(PlayerId, BetAction),
+    RoundEnd(usize),
+    BetsSorted(Vec<(PlayerId, Stake)>),
+    EntireStakeInPot(usize, PlayerId, Stake),
+    PartialStakeInPot(usize, PlayerId, Stake, Currency),
+    NewPotCreated(usize, PlayerId, Stake),
+    Payouts(Option<usize>, HashMap<PlayerId, Currency>),
+}
+
+impl std::fmt::Display for LogItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            LogItem::Bet(player, bet) => write!(f, "Player {} makes bet {}", player, bet),
+            LogItem::RoundEnd(settled_n) => write!(
+                f,
+                "The betting round has ended. There are {} settled pots",
+                settled_n
+            ),
+            LogItem::BetsSorted(bets) => {
+                let middle: String = bets
+                    .iter()
+                    .map(|(player, stake)| format!("p{}: {}", player, stake))
+                    .join(", ");
+                let s = "[".to_string() + &middle + "]";
+                write!(f, "Betting round is ending. Bets are sorted: {}", s)
+            }
+            LogItem::EntireStakeInPot(pot_n, player, stake) => write!(
+                f,
+                "Player {}'s bet {} entirely allocated to pot {}",
+                player, stake, pot_n
+            ),
+            LogItem::PartialStakeInPot(pot_n, player, stake, max_in) => write!(
+                f,
+                "{} of Player {}'s bet {} allocated to pot {}",
+                max_in, player, stake, pot_n
+            ),
+            LogItem::NewPotCreated(pot_n, player, stake) => write!(
+                f,
+                "Player {}'s bet {} allocated to new pot {}",
+                player, stake, pot_n
+            ),
+            LogItem::Payouts(pot_n, payouts) => {
+                let middle: String = payouts
+                    .iter()
+                    .map(|(player, amount)| format!("p{}: {}", player, amount))
+                    .join(", ");
+                let s = "[".to_string() + &middle + "]";
+                let prefix = match pot_n {
+                    None => "Total".to_string(),
+                    Some(pot_n) => format!("Settled pot {}", pot_n),
+                };
+                write!(f, "{} payouts: {}", prefix, s)
+            }
+        }
     }
 }
 
 /// Players put Stakes in Pots. Binds an is_allin flag to the bet amount, as an important part of
 /// pot logic is keeping track of AllIn-related limits on winnings.
 #[derive(Debug, Copy, Clone)]
-struct Stake {
+pub(crate) struct Stake {
     is_allin: bool,
     amount: Currency,
+}
+
+impl std::fmt::Display for Stake {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "({}{})",
+            self.amount,
+            if self.is_allin { " allin" } else { "" }
+        )
+    }
 }
 
 impl From<(bool, Currency)> for Stake {
@@ -131,6 +195,9 @@ pub struct Pot {
     /// bets. When a betting round is finalized, this is emptied, and InnerPot(s) are created and
     /// added to settled.
     working: HashMap<PlayerId, Stake>,
+    /// List of actions we are told about and actions we take, in order. The purpose is to aide in
+    /// debugging or explaining why payouts are what they are.
+    log: Vec<LogItem>,
 }
 
 /// An innner subpot that Pot uses to keep track of pools of money that players can win. New
@@ -194,28 +261,35 @@ impl Pot {
         // Sort the players that are in this betting round such that:
         // - players that went all in are first, and
         // - a player that are all in for less than another all in player comes first.
-        let iter = self.working.drain().sorted_unstable_by(|l, r| {
-            match (l.1.is_allin, r.1.is_allin) {
-                // both all in, and smallest amount should be first.
-                (true, true) => l.1.amount.cmp(&r.1.amount),
-                // left all in, so must be less than (before) right
-                (true, false) => Ordering::Less,
-                // right all in, so must be less than left
-                (false, true) => Ordering::Greater,
-                // neither all in, so equal
-                (false, false) => Ordering::Equal,
-            }
-        });
-        // for each player, add their stake to the pots, possibly splitting it up across pots if
-        // necessary due to other players going all in.
+        let iter: Vec<_> = self
+            .working
+            .drain()
+            .sorted_unstable_by(|l, r| {
+                match (l.1.is_allin, r.1.is_allin) {
+                    // both all in, and smallest amount should be first.
+                    (true, true) => l.1.amount.cmp(&r.1.amount),
+                    // left all in, so must be less than (before) right
+                    (true, false) => Ordering::Less,
+                    // right all in, so must be less than left
+                    (false, true) => Ordering::Greater,
+                    // neither all in, so equal
+                    (false, false) => Ordering::Equal,
+                }
+            })
+            .collect();
+        self.log.push(LogItem::BetsSorted(iter.clone()));
+        // Back to actual work. For each player, add their stake to the pots, possibly splitting it
+        // up across pots if necessary due to other players going all in.
         for (player, mut stake) in iter {
-            for pot in &mut pots {
+            for (pot_n, pot) in pots.iter_mut().enumerate() {
                 match pot.max_in {
                     // This pot doesn't have an existing all in player, so this player can add an
                     // unlimted amount to it. (In practice, assuming no all ins, the caller should
                     // be verifying that all players are in for the same amount, so "unlimted"
                     // really means "the same exact amount as everyone else").
                     None => {
+                        self.log
+                            .push(LogItem::EntireStakeInPot(pot_n, player, stake));
                         pot.players.insert(player, stake);
                         // Reduce the amount to 0, indicating to future code that the player's bet
                         // is fully accounted for.
@@ -231,6 +305,8 @@ impl Pot {
                         // simply add them to the pot and be done. (In practice, we expect them to
                         // be adding equal as they have called an all in).
                         Ordering::Less | Ordering::Equal => {
+                            self.log
+                                .push(LogItem::EntireStakeInPot(pot_n, player, stake));
                             pot.players.insert(player, stake);
                             // Indicate the bet is fully accounted for.
                             stake.amount = 0.into();
@@ -240,6 +316,8 @@ impl Pot {
                         // The player wants to add more than the limit, so add the limit for them
                         // and reduce their stake that shall be put into the next pot(s)
                         Ordering::Greater => {
+                            self.log
+                                .push(LogItem::PartialStakeInPot(pot_n, player, stake, max_in));
                             pot.players.insert(player, (stake.is_allin, max_in).into());
                             stake.amount -= max_in;
                         }
@@ -261,10 +339,13 @@ impl Pot {
                 };
                 new.players.insert(player, stake);
                 pots.push(new);
+                self.log
+                    .push(LogItem::NewPotCreated(pots.len() - 1, player, stake));
             }
         }
         // Finally done creating all the new pots, so move them to settled.
         self.settled.append(&mut pots);
+        self.log.push(LogItem::RoundEnd(self.settled.len()));
     }
 
     #[cfg(test)]
@@ -295,10 +376,16 @@ impl Pot {
     /// # Returns
     ///
     /// HashMap of players and the amount they should be awared from the pot(s).
-    pub(crate) fn payout(
+    pub(crate) fn payout(self, ranked_players: &[Vec<PlayerId>]) -> HashMap<PlayerId, Currency> {
+        let (hm, _) = self.payout_with_log(ranked_players);
+        hm
+    }
+
+    /// Like payout function, but also provides the log of actions we saw and took.
+    pub(crate) fn payout_with_log(
         mut self,
         ranked_players: &[Vec<PlayerId>],
-    ) -> HashMap<PlayerId, Currency> {
+    ) -> (HashMap<PlayerId, Currency>, Vec<LogItem>) {
         // In case caller didn't call finalize_round() after the last betting round, do it for them.
         if !self.working.is_empty() {
             self.finalize_round();
@@ -308,16 +395,20 @@ impl Pot {
         let mut hm: HashMap<PlayerId, Currency> = HashMap::new();
         // Ha! Made you look. All the hard work is done in each inner pot, and the results simply
         // merged together here.
-        for pot in self.settled {
-            crate::util::merge_hashmap(&mut hm, pot.payout(&ranked_players));
+        for (pot_n, pot) in self.settled.into_iter().enumerate() {
+            let hm_n = pot.payout(ranked_players);
+            self.log.push(LogItem::Payouts(Some(pot_n), hm_n.clone()));
+            crate::util::merge_hashmap(&mut hm, hm_n);
         }
-        hm
+        self.log.push(LogItem::Payouts(None, hm.clone()));
+        (hm, self.log)
     }
 
     /// Record that a player has made a bet. The player's **total** bet is to be provided. I.e. if
     /// in a single betting round a player Bet(10) and then Call(30) (due to another player
     /// raising), give this function Call(30), not Call(20).
     pub(crate) fn bet(&mut self, player: PlayerId, action: BetAction) {
+        self.log.push(LogItem::Bet(player, action));
         let stake: Stake = match action {
             BetAction::Check | BetAction::Fold => {
                 return;
@@ -338,6 +429,7 @@ impl Default for Pot {
             // avoid reallocation. It can/will be more if people go all in.
             settled: Vec::with_capacity(3),
             working: HashMap::default(),
+            log: Vec::new(),
         }
     }
 }
@@ -410,6 +502,9 @@ mod tests {
     use super::*;
 
     #[test]
+    fn foo() {}
+
+    #[test]
     fn all_in_blind() {
         let mut p = Pot::default();
         p.bet(1, BetAction::AllIn(5.into()));
@@ -479,8 +574,12 @@ mod tests {
         p.finalize_round();
         // 43 + 6,6 + 4 = 59 in pot
         dbg!(&p);
-        let payout = p.payout(&vec![vec![3], vec![2], vec![1]]);
+        let (payout, log) = p.payout_with_log(&vec![vec![3], vec![2], vec![1]]);
         dbg!(&payout);
+        for log_item in &log {
+            println!("{}", log_item);
+        }
+        assert!(false);
         assert_eq!(payout[&3], 39.into());
         assert_eq!(payout[&2], 16.into());
         // 1 overbet and was returned pot nobody else could claim
