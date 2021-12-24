@@ -579,7 +579,6 @@ mod tests {
         for log_item in &log {
             println!("{}", log_item);
         }
-        assert!(false);
         assert_eq!(payout[&3], 39.into());
         assert_eq!(payout[&2], 16.into());
         // 1 overbet and was returned pot nobody else could claim
