@@ -295,9 +295,9 @@ impl Pot {
     /// # Returns
     ///
     /// HashMap of players and the amount they should be awared from the pot(s).
-    pub(crate) fn payout<P: Into<PlayerId> + Copy>(
+    pub(crate) fn payout(
         mut self,
-        ranked_players: &[Vec<P>],
+        ranked_players: &[Vec<PlayerId>],
     ) -> HashMap<PlayerId, Currency> {
         // In case caller didn't call finalize_round() after the last betting round, do it for them.
         if !self.working.is_empty() {
@@ -305,11 +305,6 @@ impl Pot {
         }
         assert!(self.working.is_empty());
 
-        // The items are Into<PlayerId> ... this gets PlayerIds.
-        let ranked_players: Vec<Vec<PlayerId>> = ranked_players
-            .iter()
-            .map(|list| list.iter().map(|&p| p.into()).collect())
-            .collect();
         let mut hm: HashMap<PlayerId, Currency> = HashMap::new();
         // Ha! Made you look. All the hard work is done in each inner pot, and the results simply
         // merged together here.
@@ -322,8 +317,7 @@ impl Pot {
     /// Record that a player has made a bet. The player's **total** bet is to be provided. I.e. if
     /// in a single betting round a player Bet(10) and then Call(30) (due to another player
     /// raising), give this function Call(30), not Call(20).
-    pub(crate) fn bet<A: Into<PlayerId>>(&mut self, player: A, action: BetAction) {
-        let player = player.into();
+    pub(crate) fn bet(&mut self, player: PlayerId, action: BetAction) {
         let stake: Stake = match action {
             BetAction::Check | BetAction::Fold => {
                 return;
@@ -369,7 +363,7 @@ mod test_payout {
         p.bet(3, BetAction::Call(5.into()));
         p.finalize_round();
         let payout = p.payout(&vec![vec![1]]);
-        assert_eq!(payout[&1.into()], 15.into());
+        assert_eq!(payout[&1], 15.into());
     }
 
     #[test]
@@ -380,8 +374,8 @@ mod test_payout {
         p.bet(3, BetAction::Call(5.into()));
         p.finalize_round();
         let payout = p.payout(&vec![vec![1, 2]]);
-        assert_eq!(payout[&1.into()], 8.into());
-        assert_eq!(payout[&2.into()], 7.into());
+        assert_eq!(payout[&1], 8.into());
+        assert_eq!(payout[&2], 7.into());
 
         // it is not possible for the 3rd person to be in for more than the others like this, but
         // the pot does its best to function anyway. Garbage in => garbage out. It's the caller's
@@ -392,8 +386,8 @@ mod test_payout {
         p.bet(3, BetAction::Bet(6.into()));
         p.finalize_round();
         let payout = p.payout(&vec![vec![1, 2]]);
-        assert_eq!(payout[&1.into()], 8.into());
-        assert_eq!(payout[&2.into()], 8.into());
+        assert_eq!(payout[&1], 8.into());
+        assert_eq!(payout[&2], 8.into());
     }
 
     #[test]
@@ -405,9 +399,9 @@ mod test_payout {
         p.finalize_round();
         let payout = p.payout(&vec![vec![1, 2, 3]]);
         dbg!(&payout);
-        assert_eq!(payout[&1.into()], 5.into());
-        assert_eq!(payout[&2.into()], 5.into());
-        assert_eq!(payout[&3.into()], 5.into());
+        assert_eq!(payout[&1], 5.into());
+        assert_eq!(payout[&2], 5.into());
+        assert_eq!(payout[&3], 5.into());
     }
 }
 
@@ -426,14 +420,14 @@ mod tests {
         let payout = p.payout(&vec![vec![1], vec![2, 3]]);
         dbg!(&payout);
         // 5 from each player, 8 remains (5 from p2's call and 3 from p3's allin)
-        assert_eq!(payout[&1.into()], 15.into());
+        assert_eq!(payout[&1], 15.into());
         // a second side pot containing 6 (3 for p3's all in, and 3 from p2's call) exists. p2 and
         // p3 tied, so they split it.
         // p2 has 3 and p3 has 3.
         // The final pot has just p2 and their remaining 2. They get that whole pot.
         // p2 has 3+2 and p3 has 3 still.
-        assert_eq!(payout[&2.into()], 5.into());
-        assert_eq!(payout[&3.into()], 3.into());
+        assert_eq!(payout[&2], 5.into());
+        assert_eq!(payout[&3], 3.into());
     }
 
     #[test]
@@ -445,9 +439,9 @@ mod tests {
         p.finalize_round();
         dbg!(&p);
         let payout = p.payout(&vec![vec![2], vec![1, 3]]);
-        assert_eq!(payout[&2.into()], 15.into());
-        assert_eq!(payout[&1.into()], 5.into());
-        assert_eq!(payout[&3.into()], 5.into());
+        assert_eq!(payout[&2], 15.into());
+        assert_eq!(payout[&1], 5.into());
+        assert_eq!(payout[&3], 5.into());
     }
 
     #[test]
@@ -460,10 +454,10 @@ mod tests {
         dbg!(&p);
         let payout = p.payout(&vec![vec![3], vec![2], vec![1]]);
         dbg!(&payout);
-        assert_eq!(payout[&3.into()], 9.into());
-        assert_eq!(payout[&2.into()], 4.into());
+        assert_eq!(payout[&3], 9.into());
+        assert_eq!(payout[&2], 4.into());
         // 1 overbet and was returned pot nobody else could claim
-        assert_eq!(payout[&1.into()], 5.into());
+        assert_eq!(payout[&1], 5.into());
     }
 
     #[test]
@@ -487,10 +481,10 @@ mod tests {
         dbg!(&p);
         let payout = p.payout(&vec![vec![3], vec![2], vec![1]]);
         dbg!(&payout);
-        assert_eq!(payout[&3.into()], 39.into());
-        assert_eq!(payout[&2.into()], 16.into());
+        assert_eq!(payout[&3], 39.into());
+        assert_eq!(payout[&2], 16.into());
         // 1 overbet and was returned pot nobody else could claim
-        assert_eq!(payout[&1.into()], 4.into());
+        assert_eq!(payout[&1], 4.into());
     }
 
     #[test]
@@ -506,7 +500,7 @@ mod tests {
             assert_eq!(ip.max_in, None);
             dbg!(&p);
             let payout = p.payout(&vec![vec![1]]);
-            assert_eq!(payout[&(1.into())], 15.into());
+            assert_eq!(payout[&1], 15.into());
             dbg!(&payout);
         }
         let mut p1 = Pot::default();
