@@ -348,13 +348,23 @@ impl Pot {
         self.log.push(LogItem::RoundEnd(self.settled.len()));
     }
 
-    #[cfg(test)]
+    /// The value of all InnerPots that are settled and will not change. I.e. funds from previous
+    /// betting rounds
     fn settled_value(&self) -> Currency {
         let mut ret = 0.into();
         for sp in &self.settled {
             ret += sp.players.values().copied().map(|s| s.amount).sum();
         }
         ret
+    }
+
+    /// The value of all settled and unsettled bets in the pot.
+    ///
+    /// Settled means funds that are in InnerPots that will not change because they are from
+    /// previous betting rounds. Unsettled means they are still potentially going to change due to
+    /// calling raises, etc.
+    pub(crate) fn total_value(&self) -> Currency {
+        self.settled_value() + self.working.values().copied().map(|s| s.amount).sum()
     }
 
     /// Consumes the pot and returns the total payout.

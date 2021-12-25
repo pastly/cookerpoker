@@ -107,7 +107,7 @@ impl GameInProgress {
         let (deck, _seed) = Deck::deck_and_seed();
         self.deck = deck;
 
-        // TODO save seed for DB
+        // TODO save seed for DB, and perhaps the log
         self.hand_num += 1;
 
         // Handles auto folds and moving the tokens
@@ -125,13 +125,14 @@ impl GameInProgress {
 
         self.pot.bet(small_blind.0, small_blind.1);
         self.pot.bet(big_blind.0, big_blind.1);
-        // TODO Log Blinds
+        // TODO Log Blinds, perhaps edit Pot::bet (and its other funcs?) to return pot LogItems
 
         self.state = GameState::Betting(first_better, BetRound::PreFlop(self.big_blind()));
 
         // Deal the pockets
         let nump = self.seated_players.betting_players_count() as u8;
         let pockets = self.deck.deal_pockets(nump)?;
+        //println!("{:?}", pockets);
         self.seated_players.deal_pockets(pockets);
 
         Ok(())
