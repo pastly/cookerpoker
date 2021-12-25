@@ -389,7 +389,7 @@ impl SeatedPlayer {
         self.bet_status.is_folded()
     }
 
-    /// Returns true is player is still in the betting
+    /// Returns true if player is still in the betting
     /// Notably, `all_in` players are no longer betting, and excluded
     pub(crate) const fn is_betting(&self) -> bool {
         matches!(self.bet_status, BetStatus::In(_) | BetStatus::Waiting)
