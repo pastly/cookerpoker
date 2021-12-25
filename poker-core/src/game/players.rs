@@ -305,16 +305,19 @@ impl SeatedPlayers {
         // Can't use a betting_players_iter_after_mut() becasue can't chain/cycle mutable iterator
         // May be able to fix this with custom iterator
         // Until then, iterate wtice
+        // println!("dealer seat {}", dt);
         for player in self
             .betting_players_iter_mut()
             .skip_while(|x| x.seat_index < dt)
         {
+            // println!("p{} seat {} getting pocket", player.id, player.seat_index);
             player.pocket = Some(pockets.pop().unwrap());
         }
         for player in self
             .betting_players_iter_mut()
-            .take_while(|x| x.seat_index <= dt)
+            .take_while(|x| x.seat_index < dt)
         {
+            // println!("p{} seat {} getting pocket", player.id, player.seat_index);
             player.pocket = Some(pockets.pop().unwrap());
         }
     }
@@ -397,6 +400,7 @@ impl SeatedPlayer {
 
 #[cfg(test)]
 mod tests {
+    use super::super::deck::Deck;
     use super::*;
 
     #[test]
@@ -466,5 +470,33 @@ mod tests {
         sp.sit_down(1, 10, 0).unwrap();
         let r = sp.sit_down(2, 10, 0);
         assert!(r.is_err());
+    }
+
+    /// deal_pockets function doesn't panic, likely because it's trying to deal more pockets than
+    /// it was given (by giving the same person two pockets)
+    #[test]
+    fn deal_pockets() {
+        // make sure it works for a variety of number of players
+        for n_players in 2..=MAX_PLAYERS {
+            // make sure it works when any player is the first one
+            for first in 0..n_players {
+                let mut sp = SeatedPlayers::default();
+                for seat in 0..n_players {
+                    sp.sit_down(seat as PlayerId, 100, seat as usize).unwrap();
+                }
+                // move dealer token to correct player
+                while sp.dealer_token != first as usize {
+                    sp.start_hand().unwrap();
+                }
+                let mut deck = Deck::default();
+                let pockets = deck.deal_pockets(n_players as u8).unwrap();
+                // this is the actual test. Does this panic?
+                sp.deal_pockets(pockets);
+                // okay so it didn't. let's make sure every player has a pocket.
+                for player in sp.players_iter() {
+                    assert!(player.pocket.is_some());
+                }
+            }
+        }
     }
 }
