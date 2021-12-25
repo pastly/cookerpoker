@@ -36,14 +36,14 @@ pub struct PlayerInfo {
 }
 
 impl PlayerInfo {
-    pub fn new<P: Into<PlayerId>, C: Into<Currency>>(
-        player_id: P,
+    pub fn new<C: Into<Currency>>(
+        player_id: PlayerId,
         name: String,
         monies: C,
         seat: usize,
     ) -> Self {
         Self {
-            player_id: player_id.into(),
+            player_id,
             name,
             monies: monies.into(),
             seat,

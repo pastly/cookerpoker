@@ -599,8 +599,8 @@ pub fn best_of_cards(cards: &[Card]) -> Vec<Hand> {
 ///
 ///   - `HandError::NotTwoCards` if any pocket isn't two cards long
 ///   - `HandError::NotFiveCards` if the community isn't five cards long
-pub fn best_hands<A: Into<PlayerId> + Copy>(
-    pockets: &HashMap<A, [Card; 2]>,
+pub fn best_hands(
+    pockets: &HashMap<PlayerId, [Card; 2]>,
     community: [Card; 5],
 ) -> Result<Vec<Vec<(PlayerId, Hand)>>, HandError> {
     if pockets.is_empty() {
@@ -633,15 +633,14 @@ pub fn best_hands<A: Into<PlayerId> + Copy>(
     let mut inner: Vec<(PlayerId, Hand)> = vec![];
     let mut current_best = hands[hands.len() - 1].1;
     while let Some((account_id, hand)) = hands.pop() {
-        let account_id: PlayerId = (*account_id).into();
         match hand.cmp(&current_best) {
             Ordering::Equal => {
-                inner.push((account_id, hand));
+                inner.push((*account_id, hand));
             }
             Ordering::Less => {
                 ret.push(inner.clone());
                 inner.truncate(0);
-                inner.push((account_id, hand));
+                inner.push((*account_id, hand));
                 current_best = hand;
             }
             Ordering::Greater => {

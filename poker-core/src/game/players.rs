@@ -67,13 +67,12 @@ impl SeatedPlayers {
     /// is an index (0-based).
     ///
     /// TODO abstract over Account struct?
-    pub(crate) fn sit_down<A: Into<PlayerId>, C: Into<Currency>>(
+    pub(crate) fn sit_down<C: Into<Currency>>(
         &mut self,
-        aid: A,
+        aid: PlayerId,
         monies: C,
         seat: usize,
     ) -> Result<(), GameError> {
-        let aid = aid.into();
         if self.player_by_id(aid).is_some() {
             return Err(GameError::PlayerAlreadySeated);
         }
