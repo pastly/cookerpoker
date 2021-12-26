@@ -98,29 +98,33 @@ impl SeatedPlayers {
         Some(r)
     }
 
-    /// Moves betting round forward and returns account id of next better
-    fn next_better(&mut self) -> PlayerId {
-        let p: &SeatedPlayer = self
-            .betting_players_iter_after(self.last_better)
-            .next()
-            .unwrap();
-        // Explode p because it can't be used twice since it's a borrowed reference
-        let (lb, pid) = (p.seat_index, p.id);
-        self.last_better = lb;
-        pid
-    }
-
-    /// Runs two bets, the blinds
-    /// Needed in this struct because next_better is private
+    /// Runs two bets, the small and big blind, and return the players and the bets they made
     pub(crate) fn blinds_bet<C: Into<Currency>>(
         &mut self,
         sb: C,
         bb: C,
-    ) -> Result<(PlayerBetAction, PlayerBetAction, PlayerId), BetError> {
-        let sbp = self.next_better();
-        let (bbp, sba) = self.bet(sbp, BetAction::Bet(sb.into()))?;
-        let (nb, bba) = self.bet(bbp, BetAction::Bet(bb.into()))?;
-        Ok(((sbp, sba), (bbp, bba), nb))
+    ) -> Result<(PlayerBetAction, PlayerBetAction), GameError> {
+        let sbp = self
+            .player_by_seat(self.small_blind_token)
+            .ok_or(GameError::InvalidSeat)?
+            .id;
+        let bbp = self
+            .player_by_seat(self.big_blind_token)
+            .ok_or(GameError::InvalidSeat)?
+            .id;
+        let sba = self.bet(sbp, BetAction::Bet(sb.into()))?;
+        let bba = self.bet(bbp, BetAction::Bet(bb.into()))?;
+        Ok(((sbp, sba), (bbp, bba)))
+    }
+
+    /// The mutable version of `player_by_seat`
+    fn player_by_seat_mut(&mut self, n: usize) -> Option<&mut SeatedPlayer> {
+        self.players_iter_mut().find(|x| x.seat_index == n)
+    }
+
+    /// Get a reference to the player in the given seat, if there is one
+    fn player_by_seat(&self, n: usize) -> Option<&SeatedPlayer> {
+        self.players_iter().find(|x| x.seat_index == n)
     }
 
     /// The mutable version of `player_by_id`
@@ -139,12 +143,12 @@ impl SeatedPlayers {
     /// * Check's should be converted to Calls
     /// * Validation that the bet meets the current bet amount
     ///
-    /// Returns the account id of the next better.
+    /// Returns the bet action, possibly edited. E.g. to convert to AllIn because not enough money
     pub(crate) fn bet(
         &mut self,
         player: PlayerId,
         action: BetAction,
-    ) -> Result<PlayerBetAction, BetError> {
+    ) -> Result<BetAction, BetError> {
         // Check player is even in the betting
         let p: &mut SeatedPlayer = self
             .player_by_id_mut(player)
@@ -152,14 +156,7 @@ impl SeatedPlayers {
         if !p.is_betting() {
             return Err(BetError::PlayerIsNotBetting);
         }
-        // Call player.bet()
-        let ba = p.bet(action)?;
-
-        // Move the betting round forward
-        let nb = self.next_better();
-
-        // Return the BetAction to be committed to the Pot, and the next better
-        Ok((nb, ba))
+        p.bet(action)
     }
 
     /// Returns an iterator over all seated players, preserving seat index
@@ -228,10 +225,9 @@ impl SeatedPlayers {
         for player in self.betting_players_iter() {
             match player.bet_status {
                 BetStatus::In(x) => {
-                    if x == current_bet {
-                        continue;
+                    if x != current_bet {
+                        return false;
                     }
-                    return false;
                 }
                 BetStatus::Waiting => return false,
                 _ => unreachable!(),
@@ -277,8 +273,6 @@ impl SeatedPlayers {
         // This might be fixable
         // Unwraps can't panic because iter size is at least 2 above, and `betting_players_iter_after` returns count * 2 entries, making a minimum values in the iter 4
         {
-            let od = self.dealer_token;
-            dbg!(&od);
             let mut iter = self
                 .betting_players_iter_after(self.dealer_token)
                 .map(|x| x.seat_index);
