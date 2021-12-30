@@ -60,6 +60,7 @@ pub enum GameError {
     PlayerAlreadySeated,
     InvalidSeat,
     BettingPlayerCantStand,
+    BetNotExpected,
     InvalidBet(String),
 }
 

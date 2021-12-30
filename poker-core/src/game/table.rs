@@ -60,12 +60,12 @@ pub enum GameState {
     WinnerDuringBet(i32, i32),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum BetRound {
-    PreFlop(Currency),
-    Flop(Currency),
-    Turn(Currency),
-    River(Currency),
+    PreFlop,
+    Flop,
+    Turn,
+    River,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -132,7 +132,7 @@ impl GameInProgress {
         self.pot.bet(big_blind.0, big_blind.1);
         // TODO Log Blinds, perhaps edit Pot::bet (and its other funcs?) to return pot LogItems
 
-        self.state = GameState::Betting(BetRound::PreFlop(self.big_blind()));
+        self.state = GameState::Betting(BetRound::PreFlop);
 
         // Deal the pockets
         let nump = self.seated_players.betting_players_count() as u8;
@@ -174,24 +174,30 @@ impl GameInProgress {
         }
     }
 
-    pub fn bet(&mut self, player: PlayerId, ba: BetAction) -> Result<Currency, BetError> {
-        // This function needs to handle all betting errors
+    pub fn bet(&mut self, player: PlayerId, ba: BetAction) -> Result<Currency, GameError> {
+        // Make sure we're in a state where bets are expected
+        match self.state {
+            GameState::Betting(_) => {}
+            _ => return Err(GameError::BetNotExpected),
+        }
+        // Make sure bet is for an appropriate amount
         match &ba {
             BetAction::Bet(x) | BetAction::Call(x) => {
                 match x.cmp(&self.current_bet) {
-                    Ordering::Less => return Err(BetError::BetTooLow),
-                    Ordering::Greater => return Err(BetError::BetTooHigh),
+                    Ordering::Less => return Err(BetError::BetTooLow.into()),
+                    Ordering::Greater => return Err(BetError::BetTooHigh.into()),
                     // No errors to account for and no maintenance to do
                     Ordering::Equal => {}
                 }
             }
             // No errors to account for and no maintenance to do
             BetAction::Check | BetAction::Fold => {}
-            BetAction::AllIn(_) => todo!(),
+            // AllIn can be for any amount, so no errors to catch
+            BetAction::AllIn(_) => {}
             BetAction::Raise(x) => {
-                // 
+                // A raise is only in error if it doesn't meet the min raise
                 if x < &self.min_raise {
-                    return Err(BetError::BetTooLow);
+                    return Err(BetError::BetTooLow.into());
                 }
             }
         }
@@ -206,9 +212,40 @@ impl GameInProgress {
         }
         // Update Pot
         self.pot.bet(player, new_ba);
-        // Play pending action for next better
+
         // Determine if this was the final bet and round is over
-        unimplemented!()
+        if self.seated_players.is_pot_ready(self.current_bet) {
+            // Advance game state
+            let new_round = match self.state {
+                GameState::Betting(round) => match round {
+                    BetRound::PreFlop => {
+                        self.deck.burn();
+                        self.table_cards[0] = Some(self.deck.draw()?);
+                        self.table_cards[1] = Some(self.deck.draw()?);
+                        self.table_cards[2] = Some(self.deck.draw()?);
+                        // reset bet status for all betting players
+                        BetRound::Flop
+                    }
+                    BetRound::Flop => {
+                        self.deck.burn();
+                        self.table_cards[3] = Some(self.deck.draw()?);
+                        // reset bet status for all betting players
+                        BetRound::Turn
+                    }
+                    BetRound::Turn => {
+                        self.deck.burn();
+                        self.table_cards[4] = Some(self.deck.draw()?);
+                        // reset bet status for all betting players
+                        BetRound::River
+                    }
+                    BetRound::River => todo!(),
+                },
+                _ => unreachable!(),
+            };
+            self.state = GameState::Betting(new_round);
+            // Inform seated_players of new round
+        }
+        Ok(0.into())
     }
 
     /// Simple abstraction so can make big blinds that are not x2 later
@@ -232,8 +269,8 @@ mod tests {
     fn basic_game() {
         let mut gt = GameInProgress::default();
         gt.sit_down(0, 100, 0).unwrap();
-        gt.sit_down(1, 100, 1).unwrap();
-        gt.sit_down(2, 100, 2).unwrap();
+        gt.sit_down(1, 100, 1).unwrap(); // small blind
+        gt.sit_down(2, 100, 2).unwrap(); // big blind
         gt.sit_down(3, 100, 3).unwrap();
         gt.start_round().unwrap();
         // Blinds are in
@@ -241,11 +278,13 @@ mod tests {
         assert_eq!(gt.get_player_info(1).unwrap().monies(), 95.into());
         assert_eq!(gt.get_player_info(2).unwrap().monies(), 90.into());
         assert_eq!(gt.pot.total_value(), 15.into());
+        assert_eq!(gt.seated_players.dealer_token, 0);
+        assert_eq!(gt.seated_players.small_blind_token, 1);
+        assert_eq!(gt.seated_players.big_blind_token, 2);
 
         gt.bet(3, BetAction::Call(10.into())).unwrap();
         gt.bet(0, BetAction::Fold).unwrap();
-        // TODO decide if invald Check's should fail or be converted to calls
-        let _r = gt.bet(1, BetAction::Check).unwrap();
+        gt.bet(1, BetAction::Call(10.into())).unwrap();
         gt.bet(2, BetAction::Check).unwrap();
 
         // First betting round is over.
@@ -255,7 +294,11 @@ mod tests {
         assert_eq!(gt.get_player_info(2).unwrap().monies(), 90.into());
         assert_eq!(gt.get_player_info(3).unwrap().monies(), 90.into());
         assert_eq!(gt.pot.total_value(), 30.into());
+        assert!(gt.table_cards[0].is_some());
+        assert!(gt.table_cards[1].is_some());
         assert!(gt.table_cards[2].is_some());
+        assert!(gt.table_cards[3].is_none());
+        assert!(gt.table_cards[4].is_none());
 
         // TODO rest of the test once the above passes
     }

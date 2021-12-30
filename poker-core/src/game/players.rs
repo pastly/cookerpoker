@@ -119,6 +119,14 @@ impl SeatedPlayers {
         let bb = bb.into();
         let sba = self.bet(sbp, BetAction::Bet(sb), sb)?.0;
         let bba = self.bet(bbp, BetAction::Bet(bb), bb)?.0;
+        // the blinds have bet, and we need to make sure they have the opportunity to bet again this
+        // round, so rebuild need_bets_from
+        self.need_bets_from = self
+            .betting_players_iter_after(self.big_blind_token)
+            .map(|sp| sp.id)
+            .take(self.betting_players_count())
+            .collect();
+        self.need_bets_from.reverse();
         Ok(((sbp, sba), (bbp, bba)))
     }
 
@@ -156,6 +164,7 @@ impl SeatedPlayers {
     ) -> Result<(BetAction, Currency), BetError> {
         // Check player is even in the betting and that they're up next.
         // Stupidness here (getting the player_seat) because we don't want to maintain a borrow
+        println!("{:?}", self.need_bets_from);
         let player_seat = {
             let p = self.player_by_id(player).ok_or(BetError::PlayerNotFound)?;
             if !p.is_betting() {
@@ -180,7 +189,10 @@ impl SeatedPlayers {
         // It'll be equal for calls. It'll be less for people going AllIn for less. It's more for
         // Raises (incl ALlIn Raises).
         match ba {
-            BetAction::Check | BetAction::Fold => Ok((ba, current_bet)),
+            BetAction::Check | BetAction::Fold => {
+                self.need_bets_from.pop();
+                Ok((ba, current_bet))
+            }
             BetAction::Call(v) | BetAction::Bet(v) | BetAction::Raise(v) | BetAction::AllIn(v) => {
                 match v.cmp(&current_bet) {
                     Ordering::Less => {
@@ -200,13 +212,11 @@ impl SeatedPlayers {
                     Ordering::Greater => {
                         // yeah, the new bet is greater than old current bet, so need a bet from all
                         // players after this one at the table
-                        self.need_bets_from.clear();
-                        let mut need: Vec<_> = self
+                        self.need_bets_from = self
                             .betting_players_iter_after(player_seat)
                             .map(|sp| sp.id)
                             .take(self.betting_players_count() - 1)
                             .collect();
-                        self.need_bets_from.append(&mut need);
                         self.need_bets_from.reverse();
                         Ok((ba, v))
                     }
@@ -277,7 +287,7 @@ impl SeatedPlayers {
     ///
     /// AllIn players aren't "betting", so when iterating over all betting players, they are
     /// skipped. The only expected BetStatuses are In and Waiting.
-    pub(crate) fn pot_is_ready(&self, current_bet: Currency) -> bool {
+    pub(crate) fn is_pot_ready(&self, current_bet: Currency) -> bool {
         // I believe this is the only check actually needed. If we're always given an acurate
         // current_bet in bet(...), then we'll always update need_bets_from. Thus, if the caller
         // calls bet(...) the right number of times, this should be enough.
@@ -321,7 +331,7 @@ impl SeatedPlayers {
         self.auto_fold_players();
         self.rotate_tokens()?;
         self.last_better = self.dealer_token;
-        self.need_bets_from.clear();
+        // prepare need_bets_from for the blinds bets
         self.need_bets_from = self
             .betting_players_iter_after(self.dealer_token)
             .map(|sp| sp.id)
@@ -409,29 +419,55 @@ impl SeatedPlayer {
         if !self.has_monies() {
             return Err(BetError::HasNoMoney);
         }
+        let existing_in = match self.bet_status {
+            BetStatus::In(x) | BetStatus::AllIn(x) => x,
+            BetStatus::Waiting => 0.into(),
+            BetStatus::Folded => unreachable!(),
+        };
         let r = match bet {
             BetAction::Bet(x) | BetAction::Call(x) | BetAction::Raise(x) => {
-                match self.monies.cmp(&x) {
+                if x < existing_in {
+                    // Can't bet less than existing bet. Rememeber, seeing Call(10), Call(20) from
+                    // the same player means the player means they want to be in for a total of 20,
+                    // not 30.
+                    return Err(BetError::BetTooLow);
+                }
+                let additional_in = x - existing_in;
+                match self.monies.cmp(&additional_in) {
                     Ordering::Less => {
                         // Only called when blinds are short stacked.
-                        let r = BetAction::AllIn(self.monies);
+                        let r = BetAction::AllIn(self.monies + existing_in);
                         self.monies = 0.into();
                         r
                     }
                     _ => {
-                        self.monies -= x;
+                        self.monies -= additional_in;
                         bet
                     }
                 }
             }
             BetAction::AllIn(x) => {
-                if x != self.monies {
+                if x < existing_in {
+                    // Can't bet less than existing bet. Rememeber, seeing Call(10), Call(20) from
+                    // the same player means the player means they want to be in for a total of 20,
+                    // not 30.
+                    return Err(BetError::BetTooLow);
+                }
+                let additional_in = x - existing_in;
+                if additional_in != self.monies {
                     return Err(BetError::AllInWithoutBeingAllIn);
                 }
                 self.monies = 0.into();
-                BetAction::AllIn(self.monies)
+                bet
             }
-            BetAction::Check => unimplemented!(),
+            BetAction::Check => match self.bet_status {
+                // check with no current bet from us means we're in for 0 (e.g. post flop first to
+                // act)
+                BetStatus::Waiting => BetAction::Bet(0.into()),
+                // check with a current bet means we're the big blind preflop (hopefully, else bug)
+                BetStatus::In(x) => BetAction::Bet(x),
+                BetStatus::Folded | BetStatus::AllIn(_) => unreachable!(),
+            },
             BetAction::Fold => bet,
         };
         self.bet_status = BetStatus::from(r);
