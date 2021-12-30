@@ -6,6 +6,7 @@ use super::pot::Pot;
 
 use super::{BetAction, Currency, GameError};
 use derive_more::Display;
+use std::cmp::Ordering;
 
 impl TableType {
     /// Helper function because dumb
@@ -82,6 +83,7 @@ impl Default for GameInProgress {
             state: GameState::NotStarted,
             small_blind: 5.into(),
             current_bet: 10.into(),
+            min_raise: 20.into(),
             hand_num: 0,
             event_log: Vec::new(),
             deck: Deck::default(),
@@ -98,6 +100,7 @@ pub struct GameInProgress {
     pub state: GameState,
     pub small_blind: Currency,
     pub current_bet: Currency,
+    pub min_raise: Currency,
     pub hand_num: i16,
     pub event_log: Vec<GameEvent>,
     deck: Deck,
@@ -175,20 +178,32 @@ impl GameInProgress {
         // This function needs to handle all betting errors
         match &ba {
             BetAction::Bet(x) | BetAction::Call(x) => {
-                if x < &self.current_bet {
+                match x.cmp(&self.current_bet) {
+                    Ordering::Less => return Err(BetError::BetTooLow),
+                    Ordering::Greater => return Err(BetError::BetTooHigh),
+                    // No errors to account for and no maintenance to do
+                    Ordering::Equal => {}
+                }
+            }
+            // No errors to account for and no maintenance to do
+            BetAction::Check | BetAction::Fold => {}
+            BetAction::AllIn(_) => todo!(),
+            BetAction::Raise(x) => {
+                // 
+                if x < &self.min_raise {
                     return Err(BetError::BetTooLow);
                 }
             }
-            BetAction::Check => todo!(),
-            BetAction::AllIn(_) => todo!(),
-            BetAction::Fold => todo!(),
-            BetAction::Raise(_) => todo!(),
         }
 
         // Call seated players bet, which will convert to AllIn as neccesary
         let new_ba_and_current_bet = self.seated_players.bet(player, ba, self.current_bet)?;
         let new_ba = new_ba_and_current_bet.0;
+        let old_current_bet = self.current_bet;
         self.current_bet = new_ba_and_current_bet.1;
+        if old_current_bet != self.current_bet {
+            self.min_raise = old_current_bet + (self.current_bet - old_current_bet);
+        }
         // Update Pot
         self.pot.bet(player, new_ba);
         // Play pending action for next better
