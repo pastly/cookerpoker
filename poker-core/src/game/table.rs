@@ -1,3 +1,5 @@
+use crate::game::BetError;
+
 use super::deck::{Card, Deck};
 use super::players::{PlayerId, SeatedPlayer, SeatedPlayers};
 use super::pot::Pot;
@@ -110,8 +112,8 @@ impl GameInProgress {
         // TODO save seed for DB, and perhaps the log
         self.hand_num += 1;
 
-        // Handles auto folds and moving the tokens
-        let _players_in = self.seated_players.start_hand()?;
+        // Handles auto folds and moving the okens
+        self.seated_players.start_hand()?;
 
         // TODO log players in hand
 
@@ -169,15 +171,12 @@ impl GameInProgress {
         }
     }
 
-    pub fn bet(&mut self, player: PlayerId, ba: BetAction) -> Result<Currency, GameError> {
+    pub fn bet(&mut self, player: PlayerId, ba: BetAction) -> Result<Currency, BetError> {
         // This function needs to handle all betting errors
         match &ba {
             BetAction::Bet(x) | BetAction::Call(x) => {
                 if x < &self.current_bet {
-                    return Err(GameError::InvalidBet(format!(
-                        "Bet must be at least {}",
-                        &self.current_bet
-                    )));
+                    return Err(BetError::BetTooLow);
                 }
             }
             BetAction::Check => todo!(),
@@ -187,9 +186,11 @@ impl GameInProgress {
         }
 
         // Call seated players bet, which will convert to AllIn as neccesary
-        self.seated_players.bet(player, ba)?;
+        let new_ba_and_current_bet = self.seated_players.bet(player, ba, self.current_bet)?;
+        let new_ba = new_ba_and_current_bet.0;
+        self.current_bet = new_ba_and_current_bet.1;
         // Update Pot
-        self.pot.bet(player, ba);
+        self.pot.bet(player, new_ba);
         // Play pending action for next better
         // Determine if this was the final bet and round is over
         unimplemented!()

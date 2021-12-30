@@ -17,6 +17,12 @@ pub enum BetAction {
     AllIn(Currency),
 }
 
+impl BetAction {
+    pub const fn is_allin(&self) -> bool {
+        matches!(self, &BetAction::AllIn(_))
+    }
+}
+
 impl std::fmt::Display for BetAction {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -34,11 +40,12 @@ impl std::fmt::Display for BetAction {
 pub enum BetError {
     AllInWithoutBeingAllIn,
     HasNoMoney,
-    BetLowerThanCall,
-    InvalidCall,
+    BetTooLow,
     PlayerIsNotBetting,
     PlayerNotFound,
     BadAction,
+    OutOfTurn,
+    NoBetExpected,
 }
 
 impl std::error::Error for BetError {}

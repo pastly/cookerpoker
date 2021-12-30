@@ -1,4 +1,5 @@
 use super::{deck::Card, BetAction, BetError, Currency, GameError};
+use std::cmp::Ordering;
 pub const MAX_PLAYERS: usize = 12;
 
 pub type PlayerId = i32;
@@ -40,6 +41,7 @@ impl Default for BetStatus {
 #[derive(Debug)]
 pub(crate) struct SeatedPlayers {
     players: [Option<SeatedPlayer>; MAX_PLAYERS],
+    need_bets_from: Vec<PlayerId>,
     last_better: usize,
     pub dealer_token: usize,
     pub small_blind_token: usize,
@@ -54,6 +56,7 @@ impl Default for SeatedPlayers {
             players: [
                 None, None, None, None, None, None, None, None, None, None, None, None,
             ],
+            need_bets_from: Vec::with_capacity(MAX_PLAYERS),
             last_better: usize::MAX,
             dealer_token: usize::MAX,
             small_blind_token: usize::MAX,
@@ -112,8 +115,10 @@ impl SeatedPlayers {
             .player_by_seat(self.big_blind_token)
             .ok_or(GameError::InvalidSeat)?
             .id;
-        let sba = self.bet(sbp, BetAction::Bet(sb.into()))?;
-        let bba = self.bet(bbp, BetAction::Bet(bb.into()))?;
+        let sb = sb.into();
+        let bb = bb.into();
+        let sba = self.bet(sbp, BetAction::Bet(sb), sb)?.0;
+        let bba = self.bet(bbp, BetAction::Bet(bb), bb)?.0;
         Ok(((sbp, sba), (bbp, bba)))
     }
 
@@ -137,26 +142,77 @@ impl SeatedPlayers {
         self.players_iter().find(|x| x.id == player)
     }
 
-    /// This function is not aware of the current bet. As such validation must be handled before
-    /// this function:
+    /// Check that the player can make the given bet, adjusting it if possible. Returns the
+    /// (possibly adjusted) bet this player made and the bet amount that all players must meet
+    /// (possibly adjusted).
     ///
-    /// * Check's should be converted to Calls
-    /// * Validation that the bet meets the current bet amount
-    ///
-    /// Returns the bet action, possibly edited. E.g. to convert to AllIn because not enough money
+    /// There is an unfortunate amount of stupidness in this code to make the borrow checker
+    /// happy. Sorry.
     pub(crate) fn bet(
         &mut self,
         player: PlayerId,
         action: BetAction,
-    ) -> Result<BetAction, BetError> {
-        // Check player is even in the betting
-        let p: &mut SeatedPlayer = self
+        current_bet: Currency,
+    ) -> Result<(BetAction, Currency), BetError> {
+        // Check player is even in the betting and that they're up next.
+        // Stupidness here (getting the player_seat) because we don't want to maintain a borrow
+        let player_seat = {
+            let p = self.player_by_id(player).ok_or(BetError::PlayerNotFound)?;
+            if !p.is_betting() {
+                return Err(BetError::PlayerIsNotBetting);
+            } else if self.need_bets_from.is_empty() {
+                // perhaps the round should have been marked as ended?
+                return Err(BetError::NoBetExpected);
+            } else if self.need_bets_from[self.need_bets_from.len() - 1] != p.id {
+                // the next player we expect a bet from is the last item in the list
+                return Err(BetError::OutOfTurn);
+            }
+            p.seat_index
+        };
+        // Stupidness here (don't grab and keep the player reference) because we don't want to
+        // maintain a borrow
+        let ba = self
             .player_by_id_mut(player)
-            .ok_or(BetError::PlayerNotFound)?;
-        if !p.is_betting() {
-            return Err(BetError::PlayerIsNotBetting);
+            .ok_or(BetError::PlayerNotFound)?
+            .bet(action)?;
+        // if the bet is for an amount greater than the current_bet, then we need to do a full
+        // orbit around the table after this player to given everyone a chance to match it.
+        // It'll be equal for calls. It'll be less for people going AllIn for less. It's more for
+        // Raises (incl ALlIn Raises).
+        match ba {
+            BetAction::Check | BetAction::Fold => Ok((ba, current_bet)),
+            BetAction::Call(v) | BetAction::Bet(v) | BetAction::Raise(v) | BetAction::AllIn(v) => {
+                match v.cmp(&current_bet) {
+                    Ordering::Less => {
+                        // If AllIn, this is ok. Otherwise it isn't. AllIn is the same as any other
+                        // type of bet except in this case, hence this code organization.
+                        if ba.is_allin() {
+                            self.need_bets_from.pop();
+                            Ok((ba, current_bet))
+                        } else {
+                            Err(BetError::BetTooLow)
+                        }
+                    }
+                    Ordering::Equal => {
+                        self.need_bets_from.pop();
+                        Ok((ba, current_bet))
+                    }
+                    Ordering::Greater => {
+                        // yeah, the new bet is greater than old current bet, so need a bet from all
+                        // players after this one at the table
+                        self.need_bets_from.clear();
+                        let mut need: Vec<_> = self
+                            .betting_players_iter_after(player_seat)
+                            .map(|sp| sp.id)
+                            .take(self.betting_players_count() - 1)
+                            .collect();
+                        self.need_bets_from.append(&mut need);
+                        self.need_bets_from.reverse();
+                        Ok((ba, v))
+                    }
+                }
+            }
         }
-        p.bet(action)
     }
 
     /// Returns an iterator over all seated players, preserving seat index
@@ -216,12 +272,24 @@ impl SeatedPlayers {
             .skip_while(move |x| x.seat_index < si)
     }
 
-    /// Checks all seated players `BetStatus` and validates that the pot is ready to be finalized.
+    /// Verifies that the action has done a full orbit and that all players are in for the same
+    /// amount (or all in, or out), thus the pot is ready to be finalized.
     ///
     /// AllIn players aren't "betting", so when iterating over all betting players, they are
     /// skipped. The only expected BetStatuses are In and Waiting.
-    pub(crate) fn pot_is_ready<C: Into<Currency>>(&self, current_bet: C) -> bool {
-        let current_bet = current_bet.into();
+    pub(crate) fn pot_is_ready(&self, current_bet: Currency) -> bool {
+        // I believe this is the only check actually needed. If we're always given an acurate
+        // current_bet in bet(...), then we'll always update need_bets_from. Thus, if the caller
+        // calls bet(...) the right number of times, this should be enough.
+        //
+        // That said, in order to protect ourselves from a misbehaving caller (e.g. it ignored us
+        // returning an error), we'll be super sure that we're done and make sure all betting
+        // players meet the given current bet.
+        if !self.need_bets_from.is_empty() {
+            return false;
+        }
+        // The action has definitely orbited the table. Make sure everyone is in for the same
+        // amount (or all in, or out)
         for player in self.betting_players_iter() {
             match player.bet_status {
                 BetStatus::In(x) => {
@@ -248,12 +316,19 @@ impl SeatedPlayers {
     }
 
     ///
-    pub(crate) fn start_hand(&mut self) -> Result<Vec<PlayerId>, GameError> {
+    pub(crate) fn start_hand(&mut self) -> Result<(), GameError> {
         self.unfold_all();
         self.auto_fold_players();
         self.rotate_tokens()?;
         self.last_better = self.dealer_token;
-        Ok(self.betting_players_iter().map(|y| y.id).collect())
+        self.need_bets_from.clear();
+        self.need_bets_from = self
+            .betting_players_iter_after(self.dealer_token)
+            .map(|sp| sp.id)
+            .take(self.betting_players_count())
+            .collect();
+        self.need_bets_from.reverse();
+        Ok(())
     }
 
     fn auto_fold_players(&mut self) {
@@ -331,7 +406,6 @@ impl SeatedPlayer {
     /// This validates the user has enough money to make the given get
     /// It will concert bet() and call() into AllIn if required by user's stash
     pub(self) fn bet(&mut self, bet: BetAction) -> Result<BetAction, BetError> {
-        use std::cmp::Ordering;
         if !self.has_monies() {
             return Err(BetError::HasNoMoney);
         }
