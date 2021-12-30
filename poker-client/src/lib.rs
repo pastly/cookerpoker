@@ -116,5 +116,5 @@ pub fn render() {
         .document()
         .expect("No document?");
     let elm = doc.get_element_by_id("gamelog").unwrap();
-    actionlog::render_html_list(&ActionList(actions), &elm, 1001.into()).unwrap();
+    actionlog::render_html_list(&ActionList(actions), &elm, 1001).unwrap();
 }
