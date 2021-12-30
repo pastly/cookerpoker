@@ -244,7 +244,7 @@ impl SeatedPlayers {
     /// Returns an iterator over players still in the betting, preserving seat index
     ///
     /// Note: say the only not-betting player is seat idx 2. This will list 0 and 1 before going
-    /// on to 3 and the rest.
+    /// on to 3 and the rest. This behavior is depended upon by betting_players_iter_after(...).
     fn betting_players_iter(&self) -> impl Iterator<Item = &SeatedPlayer> + Clone + '_ {
         self.players_iter().filter(|x| x.is_betting())
     }
@@ -272,7 +272,8 @@ impl SeatedPlayers {
         &self,
         i: usize,
     ) -> impl Iterator<Item = &SeatedPlayer> + Clone + '_ {
-        let si = if i >= self.players.len() - 1 {
+        let last_betting_seat = self.betting_players_iter().last().unwrap().seat_index;
+        let si = if i >= last_betting_seat {
             0
         } else {
             i + 1
@@ -600,6 +601,27 @@ mod tests {
                 for player in sp.players_iter() {
                     assert!(player.pocket.is_some());
                 }
+            }
+        }
+    }
+
+    /// betting_players_iter_after still returns the right number of players, regardless of the seat
+    /// index given to it. They're also in the right order.
+    #[test]
+    fn betting_players_iter_after() {
+        for given in 0..=3usize {
+            let mut sp = SeatedPlayers::default();
+            for seat in 0..=3usize {
+                sp.sit_down(seat as PlayerId, 100, seat).unwrap();
+            }
+            sp.start_hand().unwrap();
+            let v: Vec<_> = sp.betting_players_iter_after(given).map(|sp| sp.id).take(4).collect();
+            match given {
+                0 => assert_eq!(v, vec![1, 2, 3, 0]),
+                1 => assert_eq!(v, vec![2, 3, 0, 1]),
+                2 => assert_eq!(v, vec![3, 0, 1, 2]),
+                3 => assert_eq!(v, vec![0, 1, 2, 3]),
+                _ => unreachable!(),
             }
         }
     }
