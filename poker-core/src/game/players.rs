@@ -1,5 +1,6 @@
 use super::{deck::Card, BetAction, BetError, Currency, GameError};
 use std::cmp::Ordering;
+use std::collections::HashMap;
 pub const MAX_PLAYERS: usize = 12;
 
 pub type PlayerId = i32;
@@ -56,7 +57,7 @@ impl Default for SeatedPlayers {
             players: [
                 None, None, None, None, None, None, None, None, None, None, None, None,
             ],
-            need_bets_from: Vec::with_capacity(MAX_PLAYERS),
+            need_bets_from: Vec::new(),
             last_better: usize::MAX,
             dealer_token: usize::MAX,
             small_blind_token: usize::MAX,
@@ -130,8 +131,28 @@ impl SeatedPlayers {
         Ok(((sbp, sba), (bbp, bba)))
     }
 
+    /// Informs us that a new round of betting is starting.
+    ///
+    /// We return an error if that shouldn't be the case, i.e. because we are missing bets from one
+    /// or more players.
+    pub(crate) fn next_betting_round(&mut self) -> Result<(), GameError> {
+        if !self.need_bets_from.is_empty() {
+            return Err(GameError::RoundNotOver);
+        }
+        for sp in self.betting_players_iter_mut() {
+            sp.bet_status = BetStatus::Waiting;
+        }
+        self.need_bets_from = self
+            .betting_players_iter_after(self.dealer_token)
+            .map(|sp| sp.id)
+            .take(self.betting_players_count())
+            .collect();
+        self.need_bets_from.reverse();
+        Ok(())
+    }
+
     /// The mutable version of `player_by_seat`
-    fn player_by_seat_mut(&mut self, n: usize) -> Option<&mut SeatedPlayer> {
+    fn _player_by_seat_mut(&mut self, n: usize) -> Option<&mut SeatedPlayer> {
         self.players_iter_mut().find(|x| x.seat_index == n)
     }
 
@@ -164,7 +185,6 @@ impl SeatedPlayers {
     ) -> Result<(BetAction, Currency), BetError> {
         // Check player is even in the betting and that they're up next.
         // Stupidness here (getting the player_seat) because we don't want to maintain a borrow
-        println!("{:?}", self.need_bets_from);
         let player_seat = {
             let p = self.player_by_id(player).ok_or(BetError::PlayerNotFound)?;
             if !p.is_betting() {
@@ -210,12 +230,21 @@ impl SeatedPlayers {
                         Ok((ba, current_bet))
                     }
                     Ordering::Greater => {
+                        // if this player just went all in, then there's one less betting player
+                        // left than if this was a raise.
+                        let n = if ba.is_allin() && self.betting_players_count() == 0 {
+                            0
+                        } else if ba.is_allin() {
+                            self.betting_players_count()
+                        } else {
+                            self.betting_players_count() - 1
+                        };
                         // yeah, the new bet is greater than old current bet, so need a bet from all
                         // players after this one at the table
                         self.need_bets_from = self
                             .betting_players_iter_after(player_seat)
                             .map(|sp| sp.id)
-                            .take(self.betting_players_count() - 1)
+                            .take(n)
                             .collect();
                         self.need_bets_from.reverse();
                         Ok((ba, v))
@@ -273,14 +302,15 @@ impl SeatedPlayers {
         i: usize,
     ) -> impl Iterator<Item = &SeatedPlayer> + Clone + '_ {
         let last_betting_seat = self.betting_players_iter().last().unwrap().seat_index;
-        let si = if i >= last_betting_seat {
-            0
-        } else {
-            i + 1
-        };
+        let si = if i >= last_betting_seat { 0 } else { i + 1 };
         self.betting_players_iter()
             .chain(self.betting_players_iter())
             .skip_while(move |x| x.seat_index < si)
+    }
+
+    /// All players that are still eligible to win some or all of the pot (i.e. not folded)
+    pub(crate) fn eligible_players_iter(&self) -> impl Iterator<Item = &SeatedPlayer> + Clone + '_ {
+        self.players_iter().filter(|x| !x.is_folded())
     }
 
     /// Verifies that the action has done a full orbit and that all players are in for the same
@@ -318,10 +348,17 @@ impl SeatedPlayers {
     fn unfold_all(&mut self) {
         for player in self.players_iter_mut() {
             player.bet_status = BetStatus::Waiting;
+            player.pocket = None;
         }
     }
 
-    pub(crate) fn end_hand(&mut self) -> Result<(), GameError> {
+    pub(crate) fn end_hand(&mut self, winnings: &HashMap<PlayerId, Currency>) -> Result<(), GameError> {
+        for (player_id, amount) in winnings.iter() {
+            if let Some(player) = self.player_by_id_mut(*player_id) {
+                player.monies += *amount;
+            }
+            // TODO what about player ids that, for some reason, aren't known?
+        }
         self.unfold_all();
         Ok(())
     }
@@ -385,32 +422,29 @@ impl SeatedPlayers {
         // Can't use a betting_players_iter_after_mut() becasue can't chain/cycle mutable iterator
         // May be able to fix this with custom iterator
         // Until then, iterate wtice
-        // println!("dealer seat {}", dt);
         for player in self
             .betting_players_iter_mut()
             .skip_while(|x| x.seat_index < dt)
         {
-            // println!("p{} seat {} getting pocket", player.id, player.seat_index);
             player.pocket = Some(pockets.pop().unwrap());
         }
         for player in self
             .betting_players_iter_mut()
             .take_while(|x| x.seat_index < dt)
         {
-            // println!("p{} seat {} getting pocket", player.id, player.seat_index);
             player.pocket = Some(pockets.pop().unwrap());
         }
     }
 }
 
 #[derive(Debug)]
-pub struct SeatedPlayer {
-    pub id: PlayerId,
-    pocket: Option<[Card; 2]>,
+pub(crate) struct SeatedPlayer {
+    pub(crate) id: PlayerId,
+    pub(crate) pocket: Option<[Card; 2]>,
     monies: Currency,
-    pub bet_status: BetStatus,
-    pub auto_fold: bool,
-    pub seat_index: usize,
+    bet_status: BetStatus,
+    auto_fold: bool,
+    seat_index: usize,
 }
 
 impl SeatedPlayer {
@@ -537,7 +571,7 @@ mod tests {
         assert_eq!(sp.dealer_token, 0);
         assert_eq!(sp.small_blind_token, 3);
         assert_eq!(sp.big_blind_token, 5);
-        sp.end_hand().unwrap();
+        sp.end_hand(&HashMap::new()).unwrap();
         sp.start_hand().unwrap();
         assert_eq!(sp.dealer_token, 3);
         assert_eq!(sp.small_blind_token, 5);
@@ -615,7 +649,11 @@ mod tests {
                 sp.sit_down(seat as PlayerId, 100, seat).unwrap();
             }
             sp.start_hand().unwrap();
-            let v: Vec<_> = sp.betting_players_iter_after(given).map(|sp| sp.id).take(4).collect();
+            let v: Vec<_> = sp
+                .betting_players_iter_after(given)
+                .map(|sp| sp.id)
+                .take(4)
+                .collect();
             match given {
                 0 => assert_eq!(v, vec![1, 2, 3, 0]),
                 1 => assert_eq!(v, vec![2, 3, 0, 1]),

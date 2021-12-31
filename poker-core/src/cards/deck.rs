@@ -283,6 +283,12 @@ impl Deck {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DeckSeed([u8; SEED_LEN]);
 
+impl DeckSeed {
+    pub fn new(b: [u8; SEED_LEN]) -> Self {
+        Self(b)
+    }
+}
+
 impl Default for DeckSeed {
     fn default() -> Self {
         let mut b = [0u8; SEED_LEN];

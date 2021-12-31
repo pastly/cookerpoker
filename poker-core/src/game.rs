@@ -2,6 +2,8 @@ pub mod players;
 pub mod pot;
 pub mod table;
 
+use self::hand::HandError;
+
 pub use super::{deck, hand};
 pub use players::PlayerId;
 pub use pot::Currency;
@@ -55,12 +57,14 @@ impl std::error::Error for BetError {}
 pub enum GameError {
     DeckError(deck::DeckError),
     BetError(BetError),
+    HandError(HandError),
     NotEnoughPlayers,
     SeatTaken,
     PlayerAlreadySeated,
     InvalidSeat,
     BettingPlayerCantStand,
     BetNotExpected,
+    RoundNotOver,
     InvalidBet(String),
 }
 
@@ -75,5 +79,11 @@ impl From<deck::DeckError> for GameError {
 impl From<BetError> for GameError {
     fn from(d: BetError) -> Self {
         GameError::BetError(d)
+    }
+}
+
+impl From<HandError> for GameError {
+    fn from(d: HandError) -> Self {
+        GameError::HandError(d)
     }
 }
