@@ -444,7 +444,7 @@ pub(crate) struct SeatedPlayer {
     monies: Currency,
     bet_status: BetStatus,
     auto_fold: bool,
-    seat_index: usize,
+    pub(crate) seat_index: usize,
 }
 
 impl SeatedPlayer {
@@ -518,6 +518,9 @@ impl SeatedPlayer {
             auto_fold: false,
             seat_index,
         }
+    }
+    pub(crate) const fn bet_status(&self) -> BetStatus{
+        self.bet_status
     }
     pub(crate) const fn monies(&self) -> Currency {
         self.monies

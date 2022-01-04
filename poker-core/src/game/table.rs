@@ -3,7 +3,7 @@ use crate::game::BetError;
 use crate::hand::best_hands;
 
 use super::deck::{Card, Deck};
-use super::players::{PlayerId, SeatedPlayer, SeatedPlayers};
+use super::players::{PlayerId, SeatedPlayers, BetStatus};
 use super::pot::Pot;
 
 use super::{BetAction, Currency, GameError};
@@ -49,6 +49,17 @@ impl From<TableType> for i16 {
             TableType::Invalid => i16::MAX,
         }
     }
+}
+
+/// Public type representing a player's state in the current game and hand.
+#[derive(Debug, Default)]
+pub struct PlayerInfo {
+    pub id: PlayerId,
+    pub monies: Currency,
+    pub bet_status: BetStatus,
+    pub is_dealer: bool,
+    pub is_small_blind: bool,
+    pub is_big_blind: bool,
 }
 
 #[derive(Debug)]
@@ -144,8 +155,19 @@ impl GameInProgress {
 
     /// Gets the seated player by id if they are seated at the current table.
     /// Front-end is responsible for making sure there isn't data leakage
-    fn get_player_info(&self, player_id: PlayerId) -> Option<&SeatedPlayer> {
-        self.seated_players.player_by_id(player_id).map(|x| &*x)
+    pub fn get_player_info(&self, player_id: PlayerId) -> Option<PlayerInfo> {
+        let sp = match self.seated_players.player_by_id(player_id) {
+            None => return None,
+            Some(sp) => sp
+        };
+        Some(PlayerInfo {
+            id: sp.id,
+            monies: sp.monies(),
+            bet_status: sp.bet_status(),
+            is_dealer: self.seated_players.dealer_token == sp.seat_index,
+            is_small_blind: self.seated_players.small_blind_token == sp.seat_index,
+            is_big_blind: self.seated_players.big_blind_token == sp.seat_index,
+        })
     }
 
     pub fn sit_down<C: Into<Currency>>(
@@ -330,9 +352,9 @@ mod tests {
         gt.start_round(&seed1()).unwrap();
         // Blinds are in
         assert!(matches!(gt.state, GameState::Betting(BetRound::PreFlop)));
-        assert_eq!(gt.get_player_info(0).unwrap().monies(), 100.into());
-        assert_eq!(gt.get_player_info(1).unwrap().monies(), 95.into());
-        assert_eq!(gt.get_player_info(2).unwrap().monies(), 90.into());
+        assert_eq!(gt.get_player_info(0).unwrap().monies, 100.into());
+        assert_eq!(gt.get_player_info(1).unwrap().monies, 95.into());
+        assert_eq!(gt.get_player_info(2).unwrap().monies, 90.into());
         assert_eq!(gt.pot.total_value(), 15.into());
         assert_eq!(gt.seated_players.dealer_token, 0);
         assert_eq!(gt.seated_players.small_blind_token, 1);
@@ -345,10 +367,10 @@ mod tests {
 
         // First betting round is over.
         // Table should recognize that all players are in and pot is right and forward the round
-        assert_eq!(gt.get_player_info(0).unwrap().monies(), 100.into());
-        assert_eq!(gt.get_player_info(1).unwrap().monies(), 90.into());
-        assert_eq!(gt.get_player_info(2).unwrap().monies(), 90.into());
-        assert_eq!(gt.get_player_info(3).unwrap().monies(), 90.into());
+        assert_eq!(gt.get_player_info(0).unwrap().monies, 100.into());
+        assert_eq!(gt.get_player_info(1).unwrap().monies, 90.into());
+        assert_eq!(gt.get_player_info(2).unwrap().monies, 90.into());
+        assert_eq!(gt.get_player_info(3).unwrap().monies, 90.into());
         assert_eq!(gt.pot.total_value(), 30.into());
         assert!(gt.table_cards[0].is_some());
         assert!(gt.table_cards[1].is_some());
@@ -364,10 +386,10 @@ mod tests {
         gt.bet(1, BetAction::Call(20.into())).unwrap();
 
         // Second betting round is over.
-        assert_eq!(gt.get_player_info(0).unwrap().monies(), 100.into());
-        assert_eq!(gt.get_player_info(1).unwrap().monies(), 70.into());
-        assert_eq!(gt.get_player_info(2).unwrap().monies(), 70.into());
-        assert_eq!(gt.get_player_info(3).unwrap().monies(), 70.into());
+        assert_eq!(gt.get_player_info(0).unwrap().monies, 100.into());
+        assert_eq!(gt.get_player_info(1).unwrap().monies, 70.into());
+        assert_eq!(gt.get_player_info(2).unwrap().monies, 70.into());
+        assert_eq!(gt.get_player_info(3).unwrap().monies, 70.into());
         assert_eq!(gt.pot.total_value(), (30 + 60).into());
         assert!(gt.table_cards[0].is_some());
         assert!(gt.table_cards[1].is_some());
@@ -383,10 +405,10 @@ mod tests {
         gt.bet(2, BetAction::Fold).unwrap();
 
         // Third betting round is over.
-        assert_eq!(gt.get_player_info(0).unwrap().monies(), 100.into());
-        assert_eq!(gt.get_player_info(1).unwrap().monies(), 10.into());
-        assert_eq!(gt.get_player_info(2).unwrap().monies(), 40.into());
-        assert_eq!(gt.get_player_info(3).unwrap().monies(), 10.into());
+        assert_eq!(gt.get_player_info(0).unwrap().monies, 100.into());
+        assert_eq!(gt.get_player_info(1).unwrap().monies, 10.into());
+        assert_eq!(gt.get_player_info(2).unwrap().monies, 40.into());
+        assert_eq!(gt.get_player_info(3).unwrap().monies, 10.into());
         assert_eq!(gt.pot.total_value(), (90 + 150).into());
         assert!(gt.table_cards[0].is_some());
         assert!(gt.table_cards[1].is_some());
@@ -401,10 +423,10 @@ mod tests {
         // This should be the end of the hand. Winner should be paid out. Etc.
         // We can rely on these payouts because we have the same deck seed every time.
         dbg!(&gt);
-        assert_eq!(gt.get_player_info(0).unwrap().monies(), 100.into());
-        assert_eq!(gt.get_player_info(1).unwrap().monies(), 0.into());
-        assert_eq!(gt.get_player_info(2).unwrap().monies(), 40.into());
-        assert_eq!(gt.get_player_info(3).unwrap().monies(), 260.into());
+        assert_eq!(gt.get_player_info(0).unwrap().monies, 100.into());
+        assert_eq!(gt.get_player_info(1).unwrap().monies, 0.into());
+        assert_eq!(gt.get_player_info(2).unwrap().monies, 40.into());
+        assert_eq!(gt.get_player_info(3).unwrap().monies, 260.into());
     }
 
     // TODO test where players who are folded try to bet again
