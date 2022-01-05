@@ -3,7 +3,7 @@ use crate::game::BetError;
 use crate::hand::best_hands;
 
 use super::deck::{Card, Deck};
-use super::players::{PlayerId, SeatedPlayers, BetStatus};
+use super::players::{BetStatus, PlayerId, SeatedPlayers};
 use super::pot::Pot;
 
 use super::{BetAction, Currency, GameError};
@@ -158,7 +158,7 @@ impl GameInProgress {
     pub fn get_player_info(&self, player_id: PlayerId) -> Option<PlayerInfo> {
         let sp = match self.seated_players.player_by_id(player_id) {
             None => return None,
-            Some(sp) => sp
+            Some(sp) => sp,
         };
         Some(PlayerInfo {
             id: sp.id,
@@ -335,8 +335,8 @@ impl GameInProgress {
 
 #[cfg(test)]
 mod tests {
-    use crate::deck::DeckSeed;
     use super::*;
+    use crate::deck::DeckSeed;
 
     fn seed1() -> DeckSeed {
         DeckSeed::new([1; 32])

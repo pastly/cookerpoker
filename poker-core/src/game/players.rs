@@ -352,7 +352,10 @@ impl SeatedPlayers {
         }
     }
 
-    pub(crate) fn end_hand(&mut self, winnings: &HashMap<PlayerId, Currency>) -> Result<(), GameError> {
+    pub(crate) fn end_hand(
+        &mut self,
+        winnings: &HashMap<PlayerId, Currency>,
+    ) -> Result<(), GameError> {
         for (player_id, amount) in winnings.iter() {
             if let Some(player) = self.player_by_id_mut(*player_id) {
                 player.monies += *amount;
@@ -519,7 +522,7 @@ impl SeatedPlayer {
             seat_index,
         }
     }
-    pub(crate) const fn bet_status(&self) -> BetStatus{
+    pub(crate) const fn bet_status(&self) -> BetStatus {
         self.bet_status
     }
     pub(crate) const fn monies(&self) -> Currency {
