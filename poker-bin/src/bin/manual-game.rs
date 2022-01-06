@@ -21,6 +21,16 @@ struct Opt {
     start_stack: Currency,
     #[structopt(long, default_value)]
     seed: DeckSeed,
+    #[structopt(
+        long,
+        help = "Provide if you want to silence game prompts (useful for tests with set input)"
+    )]
+    no_prompts: bool,
+    #[structopt(
+        long,
+        help = "Provide if iyou want to silence post-game info dump (useful when not doing tests)"
+    )]
+    no_summary: bool,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -102,11 +112,15 @@ fn try_parse_command(stream: &mut dyn BufRead) -> Result<Command, Box<dyn Error>
     Ok(c)
 }
 
-fn prompt(q: &str) -> Result<Command, Box<dyn Error>> {
-    println!("{}", q);
+fn prompt(q: &str, display_prompts: bool) -> Result<Command, Box<dyn Error>> {
+    if display_prompts {
+        println!("{}", q);
+    }
     let c = loop {
-        print!("> ");
-        stdout().flush()?;
+        if display_prompts {
+            print!("> ");
+            stdout().flush()?;
+        }
         match try_parse_command(&mut stdin().lock()) {
             Ok(c) => break c,
             Err(e) => println!("{}", e),
@@ -153,11 +167,14 @@ fn single_hand(
     gip: &mut GameInProgress,
     players: &[PlayerId],
     seed: &DeckSeed,
+    display_prompts: bool,
 ) -> Result<(), Box<dyn Error>> {
     gip.start_round(seed)?;
-    println!("--- Begin hand {:2} ---", gip.hand_num);
-    println!("DeckSeed: {}", seed);
-    print_player_info(gip, players, "  ");
+    if display_prompts {
+        println!("--- Begin hand {:2} ---", gip.hand_num);
+        println!("DeckSeed: {}", seed);
+        print_player_info(gip, players, "  ");
+    }
     loop {
         let p = gip.next_player().unwrap();
         // It feels hacky, but we can determine the end of the hand by not getting a pocket here
@@ -177,17 +194,70 @@ fn single_hand(
             pocket[0],
             pocket[1]
         );
-        match prompt(&q)? {
-            Command::Info => print_player_info(gip, players, "  "),
+        match prompt(&q, display_prompts)? {
+            Command::Info => {
+                if display_prompts {
+                    print_player_info(gip, players, "  ");
+                }
+            }
             Command::Quit => return Ok(()),
-            Command::Help => print_help(),
+            Command::Help => {
+                if display_prompts {
+                    print_help();
+                }
+            }
             Command::BetAction(ba) => match gip.bet(p, ba) {
                 Ok(_) => {}
                 Err(e) => println!("{}", e),
             },
         }
-        println!();
+        if display_prompts {
+            println!();
+        }
     }
+}
+
+fn print_test_info(gip: &GameInProgress, players: &[PlayerId]) -> Result<(), Box<dyn Error>> {
+    println!("state {:?}", gip.state);
+    println!("pot.total_value {}", gip.pot.total_value());
+    println!("community {} {} {} {} {}",
+        match gip.table_cards[0] {
+            None => "None".to_string(),
+            Some(c) => c.to_string(),
+        },
+        match gip.table_cards[1] {
+            None => "None".to_string(),
+            Some(c) => c.to_string(),
+        },
+        match gip.table_cards[2] {
+            None => "None".to_string(),
+            Some(c) => c.to_string(),
+        },
+        match gip.table_cards[3] {
+            None => "None".to_string(),
+            Some(c) => c.to_string(),
+        },
+        match gip.table_cards[4] {
+            None => "None".to_string(),
+            Some(c) => c.to_string(),
+        },
+    );
+    for player in players {
+        let p = gip.get_player_info(*player).expect("Must have player");
+        println!("player {} bank {}", p.id, p.monies);
+    }
+    for player in players {
+        let p = gip.get_player_info(*player).expect("Must have player");
+        println!("player {} bet_status {:?}", p.id, p.bet_status);
+    }
+    for player in players {
+        let p = gip.get_player_info(*player).expect("Must have player");
+        println!("player {} pocket {}", p.id, match p.pocket {
+            None => "None".to_string(),
+            Some(pocket) => format!("{}{}", pocket[0], pocket[1]),
+        });
+    }
+    Ok(())
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -197,10 +267,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     for n in 1..opt.n_players + 1 {
         gip.sit_down(n.into(), opt.start_stack, n.into())?;
     }
-    println!(
-        "{} players seated with {} each",
-        opt.n_players, opt.start_stack
-    );
-    single_hand(&mut gip, &players, &opt.seed)?;
+    if !opt.no_prompts {
+        println!(
+            "{} players seated with {} each",
+            opt.n_players, opt.start_stack
+        );
+    }
+    single_hand(&mut gip, &players, &opt.seed, !opt.no_prompts)?;
+    print_test_info(&gip, &players);
     Ok(())
 }

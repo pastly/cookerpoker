@@ -1,5 +1,7 @@
 /target
 
+tests/manual-game/*/output.actual.txt
+
 *.swp
 test.db
 
