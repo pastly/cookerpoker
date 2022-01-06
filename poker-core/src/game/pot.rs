@@ -363,7 +363,7 @@ impl Pot {
     /// Settled means funds that are in InnerPots that will not change because they are from
     /// previous betting rounds. Unsettled means they are still potentially going to change due to
     /// calling raises, etc.
-    pub(crate) fn total_value(&self) -> Currency {
+    pub fn total_value(&self) -> Currency {
         self.settled_value() + self.working.values().copied().map(|s| s.amount).sum()
     }
 

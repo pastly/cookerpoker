@@ -146,6 +146,7 @@ fn print_player_info(gip: &GameInProgress, players: &[PlayerId], prefix: &str) {
             }
         );
     }
+    println!("Pot total value: {}", gip.pot.total_value());
 }
 
 fn single_hand(
