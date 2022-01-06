@@ -2,12 +2,12 @@ use std::error::Error;
 use std::io::{stdin, stdout, BufRead, Write};
 use std::num::ParseIntError;
 
+use poker_core::game::table::{GameInProgress, GameState};
 use poker_core::{
     deck::DeckSeed,
     game::{players::BetStatus, BetAction, Currency},
     PlayerId,
 };
-use poker_core::game::table::{GameState, GameInProgress};
 use structopt::StructOpt;
 
 fn parse_currency(src: &str) -> Result<Currency, ParseIntError> {
@@ -22,20 +22,14 @@ struct Opt {
     start_stack: Currency,
     #[structopt(long, default_value)]
     seed: DeckSeed,
-    #[structopt(
-        long,
-        help = "Silence game prompts (useful for tests with set input)"
-    )]
+    #[structopt(long, help = "Silence game prompts (useful for tests with set input)")]
     no_prompts: bool,
     #[structopt(
         long,
         help = "Silence post-game info dump (useful when not doing tests)"
     )]
     no_summary: bool,
-    #[structopt(
-        long,
-        help = "Keep playing new hands until quit command is given"
-    )]
+    #[structopt(long, help = "Keep playing new hands until quit command is given")]
     multi_round: bool,
 }
 
@@ -233,7 +227,8 @@ fn single_hand(
 fn print_test_info(gip: &GameInProgress, players: &[PlayerId]) -> Result<(), Box<dyn Error>> {
     println!("state {:?}", gip.state);
     println!("pot.total_value {}", gip.pot.total_value());
-    println!("community {} {} {} {} {}",
+    println!(
+        "community {} {} {} {} {}",
         match gip.table_cards[0] {
             None => "None".to_string(),
             Some(c) => c.to_string(),
@@ -265,10 +260,14 @@ fn print_test_info(gip: &GameInProgress, players: &[PlayerId]) -> Result<(), Box
     }
     for player in players {
         let p = gip.get_player_info(*player).expect("Must have player");
-        println!("player {} pocket {}", p.id, match p.pocket {
-            None => "None".to_string(),
-            Some(pocket) => format!("{}{}", pocket[0], pocket[1]),
-        });
+        println!(
+            "player {} pocket {}",
+            p.id,
+            match p.pocket {
+                None => "None".to_string(),
+                Some(pocket) => format!("{}{}", pocket[0], pocket[1]),
+            }
+        );
     }
     Ok(())
 }
