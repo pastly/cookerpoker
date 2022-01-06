@@ -82,9 +82,11 @@ fn try_parse_bet_action(buf: &str) -> Result<BetAction, Box<dyn Error>> {
 
 fn try_parse_command(stream: &mut dyn BufRead) -> Result<Command, Box<dyn Error>> {
     let mut s = String::new();
-    stream.read_line(&mut s)?;
+    let n = stream.read_line(&mut s)?;
     let words: Vec<&str> = s.split_whitespace().collect();
-    if words.is_empty() {
+    if n == 0 {
+        return Ok(Command::Quit);
+    } else if words.is_empty() {
         return Err("Empty input".into());
     } else if let Ok(ba) = try_parse_bet_action(&s) {
         return Ok(Command::BetAction(ba));
