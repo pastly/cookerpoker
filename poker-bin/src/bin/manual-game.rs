@@ -153,18 +153,36 @@ fn single_hand(
     players: &[PlayerId],
     seed: &DeckSeed,
 ) -> Result<(), Box<dyn Error>> {
-    gip.start_round(&seed)?;
+    gip.start_round(seed)?;
     println!("--- Begin hand {:2} ---", gip.hand_num);
     println!("DeckSeed: {}", seed);
     print_player_info(gip, players, "  ");
     loop {
-        match prompt("Hello")? {
+        let p = gip.next_player().unwrap();
+        // It feels hacky, but we can determine the end of the hand by not getting a pocket here
+        let pocket = match gip.get_player_info(p).unwrap().pocket {
+            None => return Ok(()),
+            Some(p) => p,
+        };
+        let q = format!(
+            "Community: {}\nPlayer {}'s action? {} {}",
+            gip.table_cards
+                .iter()
+                .take_while(|c| c.is_some())
+                .map(|c| c.unwrap().to_string())
+                .collect::<Vec<_>>()
+                .join(""),
+            p,
+            pocket[0],
+            pocket[1]
+        );
+        match prompt(&q)? {
             Command::Info => print_player_info(gip, players, "  "),
             Command::Quit => return Ok(()),
             Command::Help => print_help(),
-            Command::BetAction(ba) => match gip.bet(1, ba) {
-                Ok(_) => todo!(),
-                Err(_) => todo!(),
+            Command::BetAction(ba) => match gip.bet(p, ba) {
+                Ok(_) => {}
+                Err(e) => println!("{}", e),
             },
         }
         println!();

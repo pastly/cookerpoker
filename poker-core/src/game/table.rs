@@ -238,6 +238,12 @@ impl GameInProgress {
         Ok(next)
     }
 
+    /// Returns the PlayerId of the next player we expect a bet from, or None if we don't expect a
+    /// bet from anyone at this time.
+    pub fn next_player(&self) -> Option<PlayerId> {
+        self.seated_players.next_player()
+    }
+
     pub fn bet(&mut self, player: PlayerId, ba: BetAction) -> Result<(), GameError> {
         // Make sure we're in a state where bets are expected
         match self.state {

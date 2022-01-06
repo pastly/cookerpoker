@@ -438,6 +438,15 @@ impl SeatedPlayers {
             player.pocket = Some(pockets.pop().unwrap());
         }
     }
+
+    /// Returns the PlayerId of the next player we expect a bet from, or None if we don't expect a
+    /// bet from anyone at this time.
+    pub(crate) fn next_player(&self) -> Option<PlayerId> {
+        match self.need_bets_from.is_empty() {
+            true => None,
+            false => Some(self.need_bets_from[self.need_bets_from.len()-1]),
+        }
+    }
 }
 
 #[derive(Debug)]
