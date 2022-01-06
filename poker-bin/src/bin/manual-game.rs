@@ -129,17 +129,21 @@ fn print_player_info(gip: &GameInProgress, players: &[PlayerId], prefix: &str) {
             tokens.push("BB");
         }
         println!(
-            "{}{:4} Player {} [{}] {}",
+            "{}{:>4} Player {:>2} [{:>8}] {:<9} {}",
             prefix,
             tokens.join("/"),
             info.id,
-            info.monies,
+            format!("{}", info.monies),
             match info.bet_status {
                 BetStatus::Folded => "Folded".to_string(),
                 BetStatus::Waiting => "Waiting".to_string(),
                 BetStatus::In(x) => x.to_string(),
                 BetStatus::AllIn(x) => format!("{} (all in)", x),
             },
+            match info.pocket {
+                None => String::new(),
+                Some(p) => p[0].to_string() + &p[1].to_string(),
+            }
         );
     }
 }
