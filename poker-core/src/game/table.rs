@@ -290,7 +290,12 @@ impl GameInProgress {
         self.pot.bet(player, new_ba);
 
         // Determine if this was the final bet and round is over
-        if self.seated_players.is_pot_ready(self.current_bet) {
+        if self.seated_players.eligible_players_iter().count() == 1 {
+            // If there's only 1 eligible player left, the round isn't just over, but the entire
+            // hand is over.
+            self.finalize_hand()?;
+        } else if self.seated_players.is_pot_ready(self.current_bet) {
+            // It was the final bet for this round.
             // Advance game state
             self.state = self.after_bet_advance_round()?;
             // If that was the end of all betting and we're in showdown, determine winner.
