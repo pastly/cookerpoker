@@ -444,7 +444,7 @@ impl SeatedPlayers {
     pub(crate) fn next_player(&self) -> Option<PlayerId> {
         match self.need_bets_from.is_empty() {
             true => None,
-            false => Some(self.need_bets_from[self.need_bets_from.len()-1]),
+            false => Some(self.need_bets_from[self.need_bets_from.len() - 1]),
         }
     }
 }
