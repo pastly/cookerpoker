@@ -151,6 +151,7 @@ fn single_hand(
 ) -> Result<(), Box<dyn Error>> {
     gip.start_round(&seed)?;
     println!("--- Begin hand {:2} ---", gip.hand_num);
+    println!("DeckSeed: {}", seed);
     print_player_info(gip, players, "  ");
     loop {
         match prompt("Hello")? {
