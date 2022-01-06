@@ -10,7 +10,7 @@ $(TESTS):
 	<input.txt \
 	cargo run --release --bin manual-game -- \
 		--no-prompts \
-		--seed $$(cat seed.txt) \
+		$$(cat args.txt) \
 	>output.actual.txt && \
 	echo $@ && \
 	./test.sh output.expected.txt output.actual.txt
