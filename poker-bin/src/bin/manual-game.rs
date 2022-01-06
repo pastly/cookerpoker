@@ -274,6 +274,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
     }
     single_hand(&mut gip, &players, &opt.seed, !opt.no_prompts)?;
-    print_test_info(&gip, &players);
+    if !opt.no_summary {
+        print_test_info(&gip, &players)?;
+    }
     Ok(())
 }
