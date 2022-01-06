@@ -1,14 +1,17 @@
 TESTS=$(shell find . -mindepth 1 -type d)
 
-.PHONY: all $(TESTS)
+.PHONY: all rebuild $(TESTS)
 
 all: $(TESTS)
 
-$(TESTS):
+rebuild:
+	cargo build --release --bin manual-game
+
+$(TESTS): rebuild
 	rm -vf output.actual.txt
 	cd $@ && \
 	<input.txt \
-	cargo run --release --bin manual-game -- \
+	../../../target/release/manual-game \
 		--no-prompts \
 		$$(cat args.txt) \
 	>output.actual.txt && \
