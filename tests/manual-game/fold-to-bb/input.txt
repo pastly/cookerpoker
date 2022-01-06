@@ -1,3 +1,4 @@
+# 6 players, 5 fold, leaving big blind to win
 fold
 fold
 fold

@@ -96,6 +96,8 @@ fn try_parse_command(stream: &mut dyn BufRead) -> Result<Command, Box<dyn Error>
     let words: Vec<&str> = s.split_whitespace().collect();
     if n == 0 {
         return Ok(Command::Quit);
+    } else if s.chars().next().unwrap() == '#' {
+        return Err("Comment line".into());
     } else if words.is_empty() {
         return Err("Empty input".into());
     } else if let Ok(ba) = try_parse_bet_action(&s) {
