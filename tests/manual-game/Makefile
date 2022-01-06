@@ -12,5 +12,5 @@ $(TESTS):
 		--no-prompts \
 		--seed $$(cat seed.txt) \
 	>output.actual.txt && \
+	echo $@ && \
 	./test.sh output.expected.txt output.actual.txt
-

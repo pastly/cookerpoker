@@ -3,5 +3,12 @@ set -eu
 EXPECTED_FNAME=$1
 ACTUAL_FNAME=$2
 
-#grep --quiet "player 3 bank 999.90" $ACTUAL_FNAME
-grep --quiet "player 3 bank 1000.05" $ACTUAL_FNAME
+declare -a NEEDED_STRINGS=(
+	"state EndOfHand"
+	"player 3 bank 1000.05"
+)
+
+for S in "${NEEDED_STRINGS[@]}"; do
+	grep --quiet "$S" $ACTUAL_FNAME
+	echo Found \"$S\" as expected.
+done
