@@ -35,4 +35,4 @@ jobs:
       run: cargo test --verbose
 
     - name: Run manual-game tests
-      run: cd tests/manual-game && make --keep-going -j 10
+      run: cd tests/manual-game && make --keep-going
