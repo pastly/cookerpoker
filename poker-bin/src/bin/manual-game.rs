@@ -4,9 +4,10 @@ use std::num::ParseIntError;
 
 use poker_core::{
     deck::DeckSeed,
-    game::{players::BetStatus, table::GameInProgress, BetAction, Currency},
+    game::{players::BetStatus, BetAction, Currency},
     PlayerId,
 };
+use poker_core::game::table::{GameState, GameInProgress};
 use structopt::StructOpt;
 
 fn parse_currency(src: &str) -> Result<Currency, ParseIntError> {
@@ -178,10 +179,12 @@ fn single_hand(
         print_player_info(gip, players, "  ");
     }
     loop {
+        if matches!(gip.state, GameState::EndOfHand) {
+            return Ok(());
+        }
         let p = gip.next_player().unwrap();
-        // It feels hacky, but we can determine the end of the hand by not getting a pocket here
         let pocket = match gip.get_player_info(p).unwrap().pocket {
-            None => return Ok(()),
+            None => unreachable!(),
             Some(p) => p,
         };
         let q = format!(

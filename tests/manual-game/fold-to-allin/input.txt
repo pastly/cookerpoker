@@ -1,0 +1,9 @@
+raise 100
+fold
+fold
+# raise 20
+# r 40   
+# c 40
+# a 100000
+# f
+# f
