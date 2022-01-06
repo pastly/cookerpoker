@@ -19,6 +19,8 @@ struct Opt {
     n_players: u8,
     #[structopt(long, default_value="100000", parse(try_from_str=parse_currency))]
     start_stack: Currency,
+    #[structopt(long, default_value)]
+    seed: DeckSeed,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -140,8 +142,12 @@ fn print_player_info(gip: &GameInProgress, players: &[PlayerId], prefix: &str) {
     }
 }
 
-fn single_hand(gip: &mut GameInProgress, players: &[PlayerId]) -> Result<(), Box<dyn Error>> {
-    gip.start_round(&DeckSeed::default())?;
+fn single_hand(
+    gip: &mut GameInProgress,
+    players: &[PlayerId],
+    seed: &DeckSeed,
+) -> Result<(), Box<dyn Error>> {
+    gip.start_round(&seed)?;
     println!("--- Begin hand {:2} ---", gip.hand_num);
     print_player_info(gip, players, "  ");
     loop {
@@ -169,6 +175,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         "{} players seated with {} each",
         opt.n_players, opt.start_stack
     );
-    single_hand(&mut gip, &players)?;
+    single_hand(&mut gip, &players, &opt.seed)?;
     Ok(())
 }
