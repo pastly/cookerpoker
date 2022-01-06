@@ -24,14 +24,19 @@ struct Opt {
     seed: DeckSeed,
     #[structopt(
         long,
-        help = "Provide if you want to silence game prompts (useful for tests with set input)"
+        help = "Silence game prompts (useful for tests with set input)"
     )]
     no_prompts: bool,
     #[structopt(
         long,
-        help = "Provide if iyou want to silence post-game info dump (useful when not doing tests)"
+        help = "Silence post-game info dump (useful when not doing tests)"
     )]
     no_summary: bool,
+    #[structopt(
+        long,
+        help = "Keep playing new hands until quit command is given"
+    )]
+    multi_round: bool,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -166,12 +171,15 @@ fn print_player_info(gip: &GameInProgress, players: &[PlayerId], prefix: &str) {
     println!("Pot total value: {}", gip.pot.total_value());
 }
 
+/// Run a single hand.
+///
+/// On clean exit, returns true if the player gave the quit command, otherwise false.
 fn single_hand(
     gip: &mut GameInProgress,
     players: &[PlayerId],
     seed: &DeckSeed,
     display_prompts: bool,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<bool, Box<dyn Error>> {
     gip.start_round(seed)?;
     if display_prompts {
         println!("--- Begin hand {:2} ---", gip.hand_num);
@@ -180,7 +188,7 @@ fn single_hand(
     }
     loop {
         if matches!(gip.state, GameState::EndOfHand) {
-            return Ok(());
+            return Ok(false);
         }
         let p = gip.next_player().unwrap();
         let pocket = match gip.get_player_info(p).unwrap().pocket {
@@ -205,7 +213,7 @@ fn single_hand(
                     print_player_info(gip, players, "  ");
                 }
             }
-            Command::Quit => return Ok(()),
+            Command::Quit => return Ok(true),
             Command::Help => {
                 if display_prompts {
                     print_help();
@@ -278,7 +286,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             opt.n_players, opt.start_stack
         );
     }
-    single_hand(&mut gip, &players, &opt.seed, !opt.no_prompts)?;
+    loop {
+        let wants_quit = single_hand(&mut gip, &players, &opt.seed, !opt.no_prompts)?;
+        if wants_quit || !opt.multi_round {
+            break;
+        }
+    }
     if !opt.no_summary {
         print_test_info(&gip, &players)?;
     }
