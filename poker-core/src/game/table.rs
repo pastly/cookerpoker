@@ -1,5 +1,5 @@
 use crate::deck::DeckSeed;
-use crate::game::BetError;
+use crate::game::{BetError, LogItem};
 use crate::hand::best_hands;
 
 use super::deck::{Card, Deck};
@@ -63,7 +63,7 @@ pub struct PlayerInfo {
     pub is_big_blind: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, derive_more::Display)]
 pub enum GameState {
     NotStarted,
     Dealing,
@@ -72,7 +72,7 @@ pub enum GameState {
     EndOfHand,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, derive_more::Display)]
 pub enum BetRound {
     PreFlop,
     Flop,
@@ -98,8 +98,8 @@ impl Default for GameInProgress {
             min_raise: 20.into(),
             last_raiser: None,
             hand_num: 0,
-            event_log: Vec::new(),
             deck: Deck::default(),
+            log: Vec::new(),
         }
     }
 }
@@ -127,14 +127,15 @@ pub struct GameInProgress {
     /// It's confusing. See <https://duckduckgo.com/?t=ffab&q=allin+raise+less+than+minraise>
     last_raiser: Option<PlayerId>,
     pub hand_num: i16,
-    pub event_log: Vec<GameEvent>,
     deck: Deck,
 }
 
 impl GameInProgress {
-    pub fn start_round(&mut self, seed: &DeckSeed) -> Result<(), GameError> {
-        self.state = GameState::Dealing;
+    pub fn start_round(&mut self, seed: &DeckSeed) -> Result<Vec<LogItem>, GameError> {
+        let mut logs = vec![];
+        self.set_state(GameState::Dealing);
         self.deck = Deck::new(seed);
+        logs.push(LogItem::NewDeck(*seed));
         self.table_cards = [None, None, None, None, None];
 
         // TODO save seed for DB, and perhaps the log
@@ -155,18 +156,21 @@ impl GameInProgress {
             .seated_players
             .blinds_bet(self.small_blind, self.big_blind())?;
 
-        self.pot.bet(small_blind.0, small_blind.1);
-        self.pot.bet(big_blind.0, big_blind.1);
-        // TODO Log Blinds, perhaps edit Pot::bet (and its other funcs?) to return pot LogItems
+        let mut pot_logs = vec![];
+        pot_logs.append(&mut self.pot.bet(small_blind.0, small_blind.1));
+        pot_logs.append(&mut self.pot.bet(big_blind.0, big_blind.1));
+        logs.extend(pot_logs.into_iter().map(|l| l.into()));
 
         self.state = GameState::Betting(BetRound::PreFlop);
+        logs.push(LogItem::StateChange(self.state));
 
         // Deal the pockets
         let nump = self.seated_players.betting_players_count() as u8;
         let pockets = self.deck.deal_pockets(nump)?;
-        self.seated_players.deal_pockets(pockets);
-
-        Ok(())
+        logs.push(LogItem::PocketsDealt(
+            self.seated_players.deal_pockets(pockets),
+        ));
+        Ok(logs)
     }
 
     /// Gets the seated player by id if they are seated at the current table.
@@ -336,7 +340,8 @@ impl GameInProgress {
             while self.seated_players.is_pot_ready(self.current_bet)
                 && !matches!(self.state, GameState::Showdown)
             {
-                self.state = self.after_bet_advance_round()?;
+                let new_state = self.after_bet_advance_round()?;
+                self.set_state(new_state);
             }
             // If that was the end of all betting and we're in showdown, determine winner.
             if matches!(self.state, GameState::Showdown) {
@@ -379,7 +384,7 @@ impl GameInProgress {
         };
         let winnings = pot.payout_without_log(&ranked_players);
         self.seated_players.end_hand(&winnings)?;
-        self.state = GameState::EndOfHand;
+        self.set_state(GameState::EndOfHand);
         // TODO 'stand_up' players who are trying to leave but couldn't because they were in the bet?
         // TODO Force rocket to update DB? Probably by returning State enum?
         Ok(())
@@ -537,6 +542,11 @@ mod tests {
         assert_eq!(gt.get_player_info(1).unwrap().monies, 0.into());
         assert_eq!(gt.get_player_info(2).unwrap().monies, 40.into());
         assert_eq!(gt.get_player_info(3).unwrap().monies, 260.into());
+
+        for (n, item) in gt.log.iter().enumerate() {
+            println!("{:2}: {}", n, item);
+        }
+        assert!(false);
     }
 
     // TODO test where players who are folded try to bet again
