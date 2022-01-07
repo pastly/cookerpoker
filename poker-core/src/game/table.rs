@@ -452,7 +452,12 @@ mod tests {
 
     #[test]
     fn basic_game() {
-        let mut gt = basic_table();
+        let mut gt = GameInProgress::default();
+        gt.sit_down(0, 100, 0).unwrap(); // dealer
+        gt.sit_down(1, 100, 1).unwrap(); // small blind
+        gt.sit_down(2, 100, 2).unwrap(); // big blind
+        gt.sit_down(3, 100, 3).unwrap();
+        gt.start_round(&seed1()).unwrap();
         // Blinds are in
         assert!(matches!(gt.state, GameState::Betting(BetRound::PreFlop)));
         assert_eq!(gt.get_player_info(0).unwrap().monies, 100.into());
