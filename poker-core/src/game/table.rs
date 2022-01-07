@@ -148,6 +148,8 @@ impl GameInProgress {
         // Reset the pot
         self.pot = Pot::default();
 
+        self.last_raiser = None;
+
         // Blinds bet
         let (small_blind, big_blind) = self
             .seated_players
