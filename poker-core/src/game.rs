@@ -5,9 +5,12 @@ pub mod table;
 use self::hand::HandError;
 
 pub use super::{deck, hand};
+use itertools::Itertools;
 pub use players::PlayerId;
 pub use pot::Currency;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use table::GameState;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BetAction {
@@ -86,5 +89,37 @@ impl From<BetError> for GameError {
 impl From<HandError> for GameError {
     fn from(d: HandError) -> Self {
         GameError::HandError(d)
+    }
+}
+
+#[derive(Debug)]
+pub enum LogItem {
+    Pot(pot::LogItem),
+    StateChange(GameState),
+    NewDeck(deck::DeckSeed),
+    PocketsDealt(HashMap<PlayerId, [deck::Card; 2]>),
+}
+
+impl From<pot::LogItem> for LogItem {
+    fn from(i: pot::LogItem) -> Self {
+        Self::Pot(i)
+    }
+}
+
+impl std::fmt::Display for LogItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogItem::Pot(pli) => write!(f, "{}", pli.to_string()),
+            LogItem::StateChange(to) => write!(f, "State changed to {}", to),
+            LogItem::NewDeck(ds) => write!(f, "Using deck with seed {}", ds),
+            LogItem::PocketsDealt(map) => {
+                let middle: String = map
+                    .iter()
+                    .map(|(player, p)| format!("p{}: {}{}", player, p[0], p[1]))
+                    .join(", ");
+                let s = "[".to_string() + &middle + "]";
+                write!(f, "Pockets dealt: {}", s)
+            }
+        }
     }
 }
