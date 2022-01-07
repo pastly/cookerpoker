@@ -1,4 +1,4 @@
-//! Pot management. A [`GameInProgress`] manages a [`Pot`] and uses it to calculate correct payouts.
+//! Pot management. A [`crate::game::table::GameInProgress`] manages a [`Pot`] and uses it to calculate correct payouts.
 //! See the documentation for [`Pot`] for more information.
 //!
 //! The public interface functions to Pot return [`LogItem`]s useful to verify Pot is behaving
