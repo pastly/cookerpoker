@@ -230,6 +230,8 @@ fn single_hand(
 
 fn print_test_info(gip: &GameInProgress, players: &[PlayerId]) -> Result<(), Box<dyn Error>> {
     println!("state {:?}", gip.state);
+    println!("current_bet {}", gip.current_bet);
+    println!("min_raise {}", gip.min_raise);
     println!("pot.total_value {}", gip.pot.total_value());
     println!(
         "community {} {} {} {} {}",
