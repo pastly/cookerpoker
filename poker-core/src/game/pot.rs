@@ -1,3 +1,8 @@
+//! Pot management. A [`GameInProgress`] manages a [`Pot`] and uses it to calculate correct payouts.
+//! See the documentation for [`Pot`] for more information.
+//!
+//! The public interface functions to Pot return [`LogItem`]s useful to verify Pot is behaving
+//! correctly.
 use super::players::PlayerId;
 use super::BetAction;
 use derive_more::{Add, AddAssign, Div, From, Mul, Rem, Sub, SubAssign, Sum};
@@ -39,7 +44,7 @@ impl std::fmt::Display for Currency {
 }
 
 #[derive(Debug)]
-pub(crate) enum LogItem {
+pub enum LogItem {
     Bet(PlayerId, BetAction),
     RoundEnd(usize),
     BetsSorted(Vec<(PlayerId, Stake)>),
@@ -186,6 +191,12 @@ fn split_x_by_y(x: i32, y: i32) -> Vec<i32> {
 /// Immediately after calling `finalize_round()` for the last time, call this to calculate and
 /// return the payouts for each winning player. This consumes the Pot. See the function
 /// documentation for more information.
+///
+/// # Logs
+///
+/// Each function returns a list of [`LogItem`]s. If the caller so chooses, they can record these
+/// and use them to verify Pot is acting correctly or determine how it calculated a complex side pot
+/// situation.
 #[derive(Debug)]
 pub struct Pot {
     /// Pots from previous betting rounds. These will not be changed, and when it comes time to pay

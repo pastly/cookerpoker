@@ -124,7 +124,7 @@ pub struct GameInProgress {
     /// raise again without someone raising after your first raise. Action can come back to you
     /// like this if someone goes all in for less than the minimum raise after your first raise.
     ///
-    /// It's confusing. See https://duckduckgo.com/?t=ffab&q=allin+raise+less+than+minraise
+    /// It's confusing. See <https://duckduckgo.com/?t=ffab&q=allin+raise+less+than+minraise>
     last_raiser: Option<PlayerId>,
     pub hand_num: i16,
     pub event_log: Vec<GameEvent>,
