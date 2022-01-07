@@ -1,0 +1,11 @@
+# First hand just to give players different amounts of money. Real test is
+# second hand
+raise 50000
+call 50000
+check
+fold
+
+# Second hand. Player 2 is second to act and covers player 1. They both
+# go all in, and player 2 should end up with all money.
+allin 50000
+allin 150000

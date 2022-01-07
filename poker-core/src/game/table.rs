@@ -296,8 +296,15 @@ impl GameInProgress {
             self.finalize_hand()?;
         } else if self.seated_players.is_pot_ready(self.current_bet) {
             // It was the final bet for this round.
-            // Advance game state
-            self.state = self.after_bet_advance_round()?;
+            //
+            // Advance game state. If 1+ players are NOT all in, then this loop will run once
+            // because is_pot_ready(...) will return false. Otherwise all players are all in and
+            // this will loop until showdown.
+            while self.seated_players.is_pot_ready(self.current_bet)
+                && !matches!(self.state, GameState::Showdown)
+            {
+                self.state = self.after_bet_advance_round()?;
+            }
             // If that was the end of all betting and we're in showdown, determine winner.
             if matches!(self.state, GameState::Showdown) {
                 self.finalize_hand()?;

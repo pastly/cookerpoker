@@ -301,11 +301,19 @@ impl SeatedPlayers {
         &self,
         i: usize,
     ) -> impl Iterator<Item = &SeatedPlayer> + Clone + '_ {
-        let last_betting_seat = self.betting_players_iter().last().unwrap().seat_index;
+        // Because rust will only let us return one type of iterator and we want to return early if
+        // there are no betting players, we collect players into a vec and return an iterator over
+        // that vec. Sucks.
+        let last_betting_seat = match self.betting_players_iter().last() {
+            None => return Vec::new().into_iter(),
+            Some(sp) => sp.seat_index,
+        };
         let si = if i >= last_betting_seat { 0 } else { i + 1 };
         self.betting_players_iter()
             .chain(self.betting_players_iter())
             .skip_while(move |x| x.seat_index < si)
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 
     /// All players that are still eligible to win some or all of the pot (i.e. not folded)

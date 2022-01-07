@@ -3,11 +3,8 @@ use std::io::{stdin, stdout, BufRead, Write};
 use std::num::ParseIntError;
 
 use poker_core::game::table::{GameInProgress, GameState};
-use poker_core::{
-    deck::DeckSeed,
-    game::{players::BetStatus, BetAction, Currency},
-    PlayerId,
-};
+use poker_core::game::{BetAction, Currency, GameError};
+use poker_core::{deck::DeckSeed, game::players::BetStatus, PlayerId};
 use structopt::StructOpt;
 
 fn parse_currency(src: &str) -> Result<Currency, ParseIntError> {
@@ -167,14 +164,21 @@ fn print_player_info(gip: &GameInProgress, players: &[PlayerId], prefix: &str) {
 
 /// Run a single hand.
 ///
-/// On clean exit, returns true if the player gave the quit command, otherwise false.
+/// On clean exit, returns true if the user gave the quit command or for any other reason we should
+/// not run another game even if the user gave the --multi-round flag. Otherwise false.
 fn single_hand(
     gip: &mut GameInProgress,
     players: &[PlayerId],
     seed: &DeckSeed,
     display_prompts: bool,
 ) -> Result<bool, Box<dyn Error>> {
-    gip.start_round(seed)?;
+    match gip.start_round(seed) {
+        Ok(_) => {}
+        Err(e) => match e {
+            GameError::NotEnoughPlayers => return Ok(true),
+            _ => return Err(e.into()),
+        },
+    };
     if display_prompts {
         println!("--- Begin hand {:2} ---", gip.hand_num);
         println!("DeckSeed: {}", seed);
