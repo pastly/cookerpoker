@@ -43,7 +43,7 @@ impl std::fmt::Display for Currency {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LogItem {
     Bet(PlayerId, BetAction),
     RoundEnd(usize),
@@ -105,7 +105,7 @@ impl std::fmt::Display for LogItem {
 /// Players put Stakes in Pots. Binds an is_allin flag to the bet amount, as an important part of
 /// pot logic is keeping track of AllIn-related limits on winnings.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct Stake {
+pub struct Stake {
     is_allin: bool,
     amount: Currency,
 }
@@ -206,9 +206,6 @@ pub struct Pot {
     /// bets. When a betting round is finalized, this is emptied, and InnerPot(s) are created and
     /// added to settled.
     working: HashMap<PlayerId, Stake>,
-    /// List of actions we are told about and actions we take, in order. The purpose is to aide in
-    /// debugging or explaining why payouts are what they are.
-    log: Vec<LogItem>,
 }
 
 /// An innner subpot that Pot uses to keep track of pools of money that players can win. New
@@ -266,7 +263,8 @@ impl Pot {
     /// The cache of players and their bets is turned into one or more InnerPots, which are then
     /// stored in our settled vec of InnerPots (at which point they won't be touched). Side pots are
     /// automatically created if 1+ players have gone all in.
-    pub(crate) fn finalize_round(&mut self) {
+    pub(crate) fn finalize_round(&mut self) -> Vec<LogItem> {
+        let mut logs = vec![];
         // The new pot(s) we will add to our vec of settled pots
         let mut pots: Vec<InnerPot> = vec![];
         // Sort the players that are in this betting round such that:
@@ -288,7 +286,7 @@ impl Pot {
                 }
             })
             .collect();
-        self.log.push(LogItem::BetsSorted(iter.clone()));
+        logs.push(LogItem::BetsSorted(iter.clone()));
         // Back to actual work. For each player, add their stake to the pots, possibly splitting it
         // up across pots if necessary due to other players going all in.
         for (player, mut stake) in iter {
@@ -299,8 +297,7 @@ impl Pot {
                     // be verifying that all players are in for the same amount, so "unlimted"
                     // really means "the same exact amount as everyone else").
                     None => {
-                        self.log
-                            .push(LogItem::EntireStakeInPot(pot_n, player, stake));
+                        logs.push(LogItem::EntireStakeInPot(pot_n, player, stake));
                         pot.players.insert(player, stake);
                         // Reduce the amount to 0, indicating to future code that the player's bet
                         // is fully accounted for.
@@ -316,8 +313,7 @@ impl Pot {
                         // simply add them to the pot and be done. (In practice, we expect them to
                         // be adding equal as they have called an all in).
                         Ordering::Less | Ordering::Equal => {
-                            self.log
-                                .push(LogItem::EntireStakeInPot(pot_n, player, stake));
+                            logs.push(LogItem::EntireStakeInPot(pot_n, player, stake));
                             pot.players.insert(player, stake);
                             // Indicate the bet is fully accounted for.
                             stake.amount = 0.into();
@@ -327,8 +323,7 @@ impl Pot {
                         // The player wants to add more than the limit, so add the limit for them
                         // and reduce their stake that shall be put into the next pot(s)
                         Ordering::Greater => {
-                            self.log
-                                .push(LogItem::PartialStakeInPot(pot_n, player, stake, max_in));
+                            logs.push(LogItem::PartialStakeInPot(pot_n, player, stake, max_in));
                             pot.players.insert(player, (stake.is_allin, max_in).into());
                             stake.amount -= max_in;
                         }
@@ -350,13 +345,13 @@ impl Pot {
                 };
                 new.players.insert(player, stake);
                 pots.push(new);
-                self.log
-                    .push(LogItem::NewPotCreated(pots.len() - 1, player, stake));
+                logs.push(LogItem::NewPotCreated(pots.len() - 1, player, stake));
             }
         }
         // Finally done creating all the new pots, so move them to settled.
         self.settled.append(&mut pots);
-        self.log.push(LogItem::RoundEnd(self.settled.len()));
+        logs.push(LogItem::RoundEnd(self.settled.len()));
+        logs
     }
 
     /// The value of all InnerPots that are settled and will not change. I.e. funds from previous
@@ -397,13 +392,16 @@ impl Pot {
     /// # Returns
     ///
     /// HashMap of players and the amount they should be awared from the pot(s).
-    pub(crate) fn payout(self, ranked_players: &[Vec<PlayerId>]) -> HashMap<PlayerId, Currency> {
-        let (hm, _) = self.payout_with_log(ranked_players);
+    pub(crate) fn payout_without_log(
+        self,
+        ranked_players: &[Vec<PlayerId>],
+    ) -> HashMap<PlayerId, Currency> {
+        let (hm, _) = self.payout(ranked_players);
         hm
     }
 
     /// Like payout function, but also provides the log of actions we saw and took.
-    pub(crate) fn payout_with_log(
+    pub(crate) fn payout(
         mut self,
         ranked_players: &[Vec<PlayerId>],
     ) -> (HashMap<PlayerId, Currency>, Vec<LogItem>) {
@@ -412,33 +410,34 @@ impl Pot {
             self.finalize_round();
         }
         assert!(self.working.is_empty());
-
+        let mut logs = vec![];
         let mut hm: HashMap<PlayerId, Currency> = HashMap::new();
         // Ha! Made you look. All the hard work is done in each inner pot, and the results simply
         // merged together here.
         for (pot_n, pot) in self.settled.into_iter().enumerate() {
             let hm_n = pot.payout(ranked_players);
-            self.log.push(LogItem::Payouts(Some(pot_n), hm_n.clone()));
+            logs.push(LogItem::Payouts(Some(pot_n), hm_n.clone()));
             crate::util::merge_hashmap(&mut hm, hm_n);
         }
-        self.log.push(LogItem::Payouts(None, hm.clone()));
-        (hm, self.log)
+        logs.push(LogItem::Payouts(None, hm.clone()));
+        (hm, logs)
     }
 
     /// Record that a player has made a bet. The player's **total** bet is to be provided. I.e. if
     /// in a single betting round a player Bet(10) and then Call(30) (due to another player
     /// raising), give this function Call(30), not Call(20).
-    pub(crate) fn bet(&mut self, player: PlayerId, action: BetAction) {
-        self.log.push(LogItem::Bet(player, action));
+    pub(crate) fn bet(&mut self, player: PlayerId, action: BetAction) -> Vec<LogItem> {
+        let logs = vec![LogItem::Bet(player, action)];
         let stake: Stake = match action {
             BetAction::Check | BetAction::Fold => {
-                return;
+                return logs;
             }
             BetAction::Call(v) | BetAction::Bet(v) | BetAction::Raise(v) => (false, v),
             BetAction::AllIn(v) => (true, v),
         }
         .into();
         self.working.insert(player, stake);
+        logs
     }
 }
 
@@ -450,7 +449,6 @@ impl Default for Pot {
             // avoid reallocation. It can/will be more if people go all in.
             settled: Vec::with_capacity(3),
             working: HashMap::default(),
-            log: Vec::new(),
         }
     }
 }
@@ -475,7 +473,7 @@ mod test_payout {
         p.bet(2, BetAction::Call(5.into()));
         p.bet(3, BetAction::Call(5.into()));
         p.finalize_round();
-        let payout = p.payout(&vec![vec![1]]);
+        let payout = p.payout_without_log(&vec![vec![1]]);
         assert_eq!(payout[&1], 15.into());
     }
 
@@ -486,7 +484,7 @@ mod test_payout {
         p.bet(2, BetAction::Call(5.into()));
         p.bet(3, BetAction::Call(5.into()));
         p.finalize_round();
-        let payout = p.payout(&vec![vec![1, 2]]);
+        let payout = p.payout_without_log(&vec![vec![1, 2]]);
         assert_eq!(payout[&1], 8.into());
         assert_eq!(payout[&2], 7.into());
 
@@ -498,7 +496,7 @@ mod test_payout {
         p.bet(2, BetAction::Bet(5.into()));
         p.bet(3, BetAction::Bet(6.into()));
         p.finalize_round();
-        let payout = p.payout(&vec![vec![1, 2]]);
+        let payout = p.payout_without_log(&vec![vec![1, 2]]);
         assert_eq!(payout[&1], 8.into());
         assert_eq!(payout[&2], 8.into());
     }
@@ -510,7 +508,7 @@ mod test_payout {
         p.bet(2, BetAction::Bet(5.into()));
         p.bet(3, BetAction::Bet(5.into()));
         p.finalize_round();
-        let payout = p.payout(&vec![vec![1, 2, 3]]);
+        let payout = p.payout_without_log(&vec![vec![1, 2, 3]]);
         dbg!(&payout);
         assert_eq!(payout[&1], 5.into());
         assert_eq!(payout[&2], 5.into());
@@ -533,7 +531,7 @@ mod tests {
         p.bet(3, BetAction::AllIn(8.into()));
         p.finalize_round();
         dbg!(&p);
-        let payout = p.payout(&vec![vec![1], vec![2, 3]]);
+        let payout = p.payout_without_log(&vec![vec![1], vec![2, 3]]);
         dbg!(&payout);
         // 5 from each player, 8 remains (5 from p2's call and 3 from p3's allin)
         assert_eq!(payout[&1], 15.into());
@@ -554,7 +552,7 @@ mod tests {
         p.bet(3, BetAction::Bet(10.into()));
         p.finalize_round();
         dbg!(&p);
-        let payout = p.payout(&vec![vec![2], vec![1, 3]]);
+        let payout = p.payout_without_log(&vec![vec![2], vec![1, 3]]);
         assert_eq!(payout[&2], 15.into());
         assert_eq!(payout[&1], 5.into());
         assert_eq!(payout[&3], 5.into());
@@ -568,7 +566,7 @@ mod tests {
         p.bet(3, BetAction::AllIn(3.into()));
         p.finalize_round();
         dbg!(&p);
-        let payout = p.payout(&vec![vec![3], vec![2], vec![1]]);
+        let payout = p.payout_without_log(&vec![vec![3], vec![2], vec![1]]);
         dbg!(&payout);
         assert_eq!(payout[&3], 9.into());
         assert_eq!(payout[&2], 4.into());
@@ -595,7 +593,7 @@ mod tests {
         p.finalize_round();
         // 43 + 6,6 + 4 = 59 in pot
         dbg!(&p);
-        let (payout, log) = p.payout_with_log(&vec![vec![3], vec![2], vec![1]]);
+        let (payout, log) = p.payout(&vec![vec![3], vec![2], vec![1]]);
         dbg!(&payout);
         for log_item in &log {
             println!("{}", log_item);
@@ -618,7 +616,7 @@ mod tests {
             }
             assert_eq!(ip.max_in, None);
             dbg!(&p);
-            let payout = p.payout(&vec![vec![1]]);
+            let payout = p.payout_without_log(&vec![vec![1]]);
             assert_eq!(payout[&1], 15.into());
             dbg!(&payout);
         }

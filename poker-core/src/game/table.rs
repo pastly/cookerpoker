@@ -377,7 +377,7 @@ impl GameInProgress {
                 .map(|inner| inner.iter().map(|item| item.0).collect())
                 .collect()
         };
-        let winnings = pot.payout(&ranked_players);
+        let winnings = pot.payout_without_log(&ranked_players);
         self.seated_players.end_hand(&winnings)?;
         self.state = GameState::EndOfHand;
         // TODO 'stand_up' players who are trying to leave but couldn't because they were in the bet?
