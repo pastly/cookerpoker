@@ -96,6 +96,7 @@ impl Default for GameInProgress {
             small_blind: 5.into(),
             current_bet: 10.into(),
             min_raise: 20.into(),
+            last_raiser: None,
             hand_num: 0,
             event_log: Vec::new(),
             deck: Deck::default(),
@@ -117,6 +118,14 @@ pub struct GameInProgress {
     /// If a player wishes to raise this betting round, they must raise to at least this amount.
     /// This is the total amount to raise to, i.e. it is larger than current_bet.
     pub min_raise: Currency,
+    /// The last person to raise this betting round.
+    ///
+    /// Needed because of the full bet rule. You can't raise, have action come back to you, then
+    /// raise again without someone raising after your first raise. Action can come back to you
+    /// like this if someone goes all in for less than the minimum raise after your first raise.
+    ///
+    /// It's confusing. See https://duckduckgo.com/?t=ffab&q=allin+raise+less+than+minraise
+    last_raiser: Option<PlayerId>,
     pub hand_num: i16,
     pub event_log: Vec<GameEvent>,
     deck: Deck,
@@ -219,6 +228,7 @@ impl GameInProgress {
         self.pot.finalize_round();
         self.current_bet = 0.into();
         self.min_raise = self.big_blind();
+        self.last_raiser = None;
         // deal community cards, if needed
         if let GameState::Betting(round) = next {
             match round {
@@ -254,7 +264,7 @@ impl GameInProgress {
             GameState::Betting(_) => {}
             _ => return Err(GameError::BetNotExpected),
         }
-        // Make sure bet is for an appropriate amount
+        // Make sure bet is for an appropriate amount and no other errors are present
         match &ba {
             BetAction::Bet(x) | BetAction::Call(x) => {
                 match x.cmp(&self.current_bet) {
@@ -275,11 +285,19 @@ impl GameInProgress {
             // AllIn can be for any amount, so no errors to catch
             BetAction::AllIn(_) => {}
             BetAction::Raise(x) => {
-                // A raise is only in error if it doesn't meet the min raise
+                // A raise must meet the min raise
                 if x < &self.min_raise {
                     return Err(BetError::BetTooLow.into());
                 }
+                // A player cannot raise if they were the most recent person to raise.
+                if self.last_raiser.is_some() && self.last_raiser.unwrap() == player {
+                    return Err(BetError::CantRaiseSelf.into());
+                }
             }
+        }
+
+        if matches!(ba, BetAction::Raise(_)) {
+            self.last_raiser = Some(player);
         }
 
         // Call seated players bet, which will convert to AllIn as neccesary
@@ -287,8 +305,17 @@ impl GameInProgress {
         let new_ba = new_ba_and_current_bet.0;
         let old_current_bet = self.current_bet;
         self.current_bet = new_ba_and_current_bet.1;
-        if old_current_bet != self.current_bet {
-            self.min_raise = self.current_bet + (self.current_bet - old_current_bet);
+        if self.current_bet > old_current_bet {
+            // The player has bet more than the current bet.
+            //
+            // The only reason they can be allowed to not match/exceed the min_raise is if they're
+            // allin, and if this is the case, then the min_raise shouldn't be increased. If they
+            // met or exceeded the min_raise, it is to be increased.
+            if self.current_bet < self.min_raise {
+                assert!(matches!(new_ba, BetAction::AllIn(_)));
+            } else {
+                self.min_raise = self.current_bet + (self.current_bet - old_current_bet);
+            }
         }
         // Update Pot
         self.pot.bet(player, new_ba);
@@ -366,7 +393,7 @@ mod tests {
         DeckSeed::new([1; 32])
     }
 
-    fn minraise_table() -> GameInProgress {
+    fn basic_table() -> GameInProgress {
         let mut gt = GameInProgress::default();
         gt.sit_down(0, 1000, 0).unwrap(); // dealer
         gt.sit_down(1, 1000, 1).unwrap(); // small blind
@@ -378,7 +405,7 @@ mod tests {
 
     #[test]
     fn minraise() {
-        let mut gt = minraise_table();
+        let mut gt = basic_table();
         gt.bet(3, BetAction::Raise(30.into())).unwrap();
         assert_eq!(gt.min_raise, 50.into());
         gt.bet(0, BetAction::Raise(60.into())).unwrap();
@@ -387,14 +414,45 @@ mod tests {
         assert_eq!(gt.min_raise, 340.into());
     }
 
+    /// A player going all in for less than the minimum raise does not change the minimum raise.
+    /// Furthermore, the original raiser does not get the chance to raise again after them
+    /// (because they'd be raising themselves).
+    #[test]
+    fn minraise_fullbet_rule() {
+        let mut gt = GameInProgress::default();
+        gt.sit_down(0, 600, 0).unwrap(); // dealer
+        gt.sit_down(1, 1000, 1).unwrap(); // small blind
+        gt.sit_down(2, 1000, 2).unwrap(); // big blind
+        gt.sit_down(3, 1000, 3).unwrap();
+        gt.start_round(&seed1()).unwrap();
+        // First raise. Not the critical moment
+        gt.bet(3, BetAction::Raise(500.into())).unwrap();
+        assert_eq!(gt.min_raise, 990.into());
+        assert_eq!(gt.current_bet, 500.into());
+        // Second "raise" that's an all in. This is the first critical moment. The min raise
+        // shouldn't change, but current_bet should.
+        gt.bet(0, BetAction::AllIn(600.into())).unwrap();
+        assert_eq!(gt.min_raise, 990.into());
+        assert_eq!(gt.current_bet, 600.into());
+
+        // player 1 gets out of the way and nothing changes
+        gt.bet(1, BetAction::Fold).unwrap();
+        assert_eq!(gt.min_raise, 990.into());
+        assert_eq!(gt.current_bet, 600.into());
+        // player 2 calls and again nothing changes
+        gt.bet(2, BetAction::Call(600.into())).unwrap();
+        assert_eq!(gt.min_raise, 990.into());
+        assert_eq!(gt.current_bet, 600.into());
+
+        // player 3 can't raise because that'd be raising themself. This is the second critial
+        // moment.
+        let e = gt.bet(3, BetAction::Raise(990.into())).unwrap_err();
+        assert!(matches!(e, GameError::BetError(BetError::CantRaiseSelf)));
+    }
+
     #[test]
     fn basic_game() {
-        let mut gt = GameInProgress::default();
-        gt.sit_down(0, 100, 0).unwrap(); // dealer
-        gt.sit_down(1, 100, 1).unwrap(); // small blind
-        gt.sit_down(2, 100, 2).unwrap(); // big blind
-        gt.sit_down(3, 100, 3).unwrap();
-        gt.start_round(&seed1()).unwrap();
+        let mut gt = basic_table();
         // Blinds are in
         assert!(matches!(gt.state, GameState::Betting(BetRound::PreFlop)));
         assert_eq!(gt.get_player_info(0).unwrap().monies, 100.into());

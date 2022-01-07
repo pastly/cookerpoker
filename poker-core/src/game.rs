@@ -46,6 +46,7 @@ pub enum BetError {
     BetTooHigh,
     PlayerIsNotBetting,
     PlayerNotFound,
+    CantRaiseSelf,
     BadAction,
     OutOfTurn,
     NoBetExpected,
