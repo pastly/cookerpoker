@@ -111,7 +111,11 @@ pub struct GameInProgress {
     pub pot: Pot,
     pub state: GameState,
     pub small_blind: Currency,
+    /// The amount that each player is expected to match in order to make it to the end of the
+    /// current betting round.
     pub current_bet: Currency,
+    /// If a player wishes to raise this betting round, they must raise to at least this amount.
+    /// This is the total amount to raise to, i.e. it is larger than current_bet.
     pub min_raise: Currency,
     pub hand_num: i16,
     pub event_log: Vec<GameEvent>,
@@ -284,7 +288,7 @@ impl GameInProgress {
         let old_current_bet = self.current_bet;
         self.current_bet = new_ba_and_current_bet.1;
         if old_current_bet != self.current_bet {
-            self.min_raise = old_current_bet + (self.current_bet - old_current_bet);
+            self.min_raise = self.current_bet + (self.current_bet - old_current_bet);
         }
         // Update Pot
         self.pot.bet(player, new_ba);
@@ -360,6 +364,27 @@ mod tests {
 
     fn seed1() -> DeckSeed {
         DeckSeed::new([1; 32])
+    }
+
+    fn minraise_table() -> GameInProgress {
+        let mut gt = GameInProgress::default();
+        gt.sit_down(0, 1000, 0).unwrap(); // dealer
+        gt.sit_down(1, 1000, 1).unwrap(); // small blind
+        gt.sit_down(2, 1000, 2).unwrap(); // big blind
+        gt.sit_down(3, 1000, 3).unwrap();
+        gt.start_round(&seed1()).unwrap();
+        gt
+    }
+
+    #[test]
+    fn minraise() {
+        let mut gt = minraise_table();
+        gt.bet(3, BetAction::Raise(30.into())).unwrap();
+        assert_eq!(gt.min_raise, 50.into());
+        gt.bet(0, BetAction::Raise(60.into())).unwrap();
+        assert_eq!(gt.min_raise, 90.into());
+        gt.bet(1, BetAction::Raise(200.into())).unwrap();
+        assert_eq!(gt.min_raise, 340.into());
     }
 
     #[test]
