@@ -65,6 +65,7 @@ pub enum GameError {
     NotEnoughPlayers,
     SeatTaken,
     PlayerAlreadySeated,
+    UnknownPlayer,
     InvalidSeat,
     BettingPlayerCantStand,
     BetNotExpected,
@@ -98,6 +99,13 @@ pub enum LogItem {
     StateChange(GameState),
     NewDeck(deck::DeckSeed),
     PocketsDealt(HashMap<PlayerId, [deck::Card; 2]>),
+    SitDown(PlayerId, usize, Currency),
+    StandUp(PlayerId, Currency),
+    CurrentBetSet(Currency),
+    MinRaiseSet(Currency),
+    Flop([deck::Card; 3]),
+    Turn(deck::Card),
+    River(deck::Card),
 }
 
 impl From<pot::LogItem> for LogItem {
@@ -120,6 +128,15 @@ impl std::fmt::Display for LogItem {
                 let s = "[".to_string() + &middle + "]";
                 write!(f, "Pockets dealt: {}", s)
             }
+            LogItem::SitDown(p, seat, monies) => {
+                write!(f, "p{} sits in seat {} with {}", p, seat, monies)
+            }
+            LogItem::StandUp(p, monies) => write!(f, "p{} leaves the table with {}", p, monies),
+            LogItem::CurrentBetSet(x) => write!(f, "Current bet to match is now {}", x),
+            LogItem::MinRaiseSet(x) => write!(f, "Minimum raise is now {}", x),
+            LogItem::Flop(c) => write!(f, "Flop: {} {} {}", c[0], c[1], c[2]),
+            LogItem::Turn(c) => write!(f, "Turn: {}", c),
+            LogItem::River(c) => write!(f, "River: {}", c),
         }
     }
 }
