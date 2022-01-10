@@ -392,6 +392,7 @@ impl Pot {
     /// # Returns
     ///
     /// HashMap of players and the amount they should be awared from the pot(s).
+    #[cfg(test)]
     pub(crate) fn payout_without_log(
         self,
         ranked_players: &[Vec<PlayerId>],
