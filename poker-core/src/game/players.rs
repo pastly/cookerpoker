@@ -21,7 +21,7 @@ impl From<BetAction> for BetStatus {
             BetAction::AllIn(x) => BetStatus::AllIn(x),
             BetAction::Fold => BetStatus::Folded,
             BetAction::Bet(x) | BetAction::Call(x) | BetAction::Raise(x) => BetStatus::In(x),
-            BetAction::Check => unreachable!(),
+            BetAction::Check => BetStatus::In(0.into()),
         }
     }
 }
@@ -527,11 +527,9 @@ impl SeatedPlayer {
                 bet
             }
             BetAction::Check => match self.bet_status {
-                // check with no current bet from us means we're in for 0 (e.g. post flop first to
-                // act)
-                BetStatus::Waiting => BetAction::Bet(0.into()),
                 // check with a current bet means we're the big blind preflop (hopefully, else bug)
                 BetStatus::In(x) => BetAction::Bet(x),
+                BetStatus::Waiting => BetAction::Check,
                 BetStatus::Folded | BetStatus::AllIn(_) => unreachable!(),
             },
             BetAction::Fold => bet,
