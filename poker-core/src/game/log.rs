@@ -77,45 +77,40 @@ pub struct PlayerFilter(pub PlayerId);
 
 impl LogFilter for PlayerFilter {
     fn filter(&self, logs: Vec<LogItem>) -> Vec<LogItem> {
-        PlayerVerboseFilter(self.0)
-            .filter(logs)
-            .into_iter()
-            .filter_map(|log| match log {
-                LogItem::Pot(ref pli) => match pli {
-                    // Keep these, as these are how players find out about betting.
-                    pot::LogItem::Bet(_, _) => Some(log),
-                    // Pot will log sub-pot payouts. These are denoated by Some(pot_n). None here
-                    // means it's total payout, which we should keep.
-                    pot::LogItem::Payouts(pot_n, _) => match pot_n {
-                        None => Some(log),
-                        Some(_) => None,
-                    },
-                    pot::LogItem::RoundEnd(_)
-                    | pot::LogItem::BetsSorted(_)
-                    | pot::LogItem::EntireStakeInPot(_, _, _)
-                    | pot::LogItem::PartialStakeInPot(_, _, _, _)
-                    | pot::LogItem::NewPotCreated(_, _, _) => None,
-                },
-                // These are how players find out about new round (?) and what table cards came
-                LogItem::Flop(_) | LogItem::Turn(_) | LogItem::River(_) => Some(log),
-                // PlayerVerboseFilter should have filtered down to 1 (or 0, I guess) pocket here,
-                // which should match our player id. Assert that this is the case. If it isn't the
-                // case, there's something wrong in PlayerVerboseFilter, and the fix should be made
-                // there.
-                LogItem::PocketsDealt(ref map) => {
-                    assert!(map.len() <= 1);
-                    Some(log)
-                }
-                // We may determine some of these are needed in the future. I'm thinking
-                // SitDown/StandUp namely. For now, filter out.
-                LogItem::StateChange(_)
-                | LogItem::NewDeck(_)
-                | LogItem::SitDown(_, _, _)
-                | LogItem::StandUp(_, _)
-                | LogItem::CurrentBetSet(_)
-                | LogItem::MinRaiseSet(_) => None,
-            })
-            .collect()
+        let mut logs = PlayerVerboseFilter(self.0).filter(logs);
+        logs.retain(|log| match log {
+            LogItem::Pot(ref pli) => match pli {
+                // Keep these, as these are how players find out about betting.
+                pot::LogItem::Bet(_, _) => true,
+                // Pot will log sub-pot payouts. These are denoated by Some(pot_n). None here
+                // means it's total payout, which we should keep.
+                pot::LogItem::Payouts(pot_n, _) => pot_n.is_none(),
+                pot::LogItem::RoundEnd(_)
+                | pot::LogItem::BetsSorted(_)
+                | pot::LogItem::EntireStakeInPot(_, _, _)
+                | pot::LogItem::PartialStakeInPot(_, _, _, _)
+                | pot::LogItem::NewPotCreated(_, _, _) => false,
+            },
+            // These are how players find out about new round (?) and what table cards came
+            LogItem::Flop(_) | LogItem::Turn(_) | LogItem::River(_) => true,
+            // PlayerVerboseFilter should have filtered down to 1 (or 0, I guess) pocket here,
+            // which should match our player id. Assert that this is the case. If it isn't the
+            // case, there's something wrong in PlayerVerboseFilter, and the fix should be made
+            // there.
+            LogItem::PocketsDealt(ref map) => {
+                assert!(map.len() <= 1);
+                true
+            }
+            // We may determine some of these are needed in the future. I'm thinking
+            // SitDown/StandUp namely. For now, filter out.
+            LogItem::StateChange(_)
+            | LogItem::NewDeck(_)
+            | LogItem::SitDown(_, _, _)
+            | LogItem::StandUp(_, _)
+            | LogItem::CurrentBetSet(_)
+            | LogItem::MinRaiseSet(_) => false,
+        });
+        logs
     }
 }
 
@@ -128,16 +123,13 @@ pub struct PlayerVerboseFilter(pub PlayerId);
 impl LogFilter for PlayerVerboseFilter {
     /// Rather straight forward filtering. Keep everything, but edit the pockets hashmap to only
     /// include the given player's pocket.
-    fn filter(&self, logs: Vec<LogItem>) -> Vec<LogItem> {
-        logs.into_iter()
-            .filter_map(|log| match log {
-                LogItem::PocketsDealt(mut map) => {
-                    map.retain(|&k, _| k == self.0);
-                    Some(LogItem::PocketsDealt(map))
-                }
-                _ => Some(log),
-            })
-            .collect()
+    fn filter(&self, mut logs: Vec<LogItem>) -> Vec<LogItem> {
+        for log in &mut logs {
+            if let LogItem::PocketsDealt(map) = log {
+                map.retain(|&k, _| k == self.0);
+            }
+        }
+        logs
     }
 }
 
@@ -151,14 +143,13 @@ impl LogFilter for SpectatorFilter {
     fn filter(&self, logs: Vec<LogItem>) -> Vec<LogItem> {
         // An arbitrary player id so we can construct a PlayerFilter. We'll filter out
         // per-player sensitive info that somehow might exist for this id momentarily.
-        PlayerFilter(42069)
-            .filter(logs)
-            .into_iter()
-            .filter_map(|log| match log {
-                LogItem::PocketsDealt(_) => Some(LogItem::PocketsDealt(HashMap::new())),
-                _ => Some(log),
-            })
-            .collect()
+        let mut logs = PlayerFilter(42069).filter(logs);
+        for log in &mut logs {
+            if let LogItem::PocketsDealt(map) = log {
+                map.clear();
+            }
+        }
+        logs
     }
 }
 
@@ -172,13 +163,12 @@ impl LogFilter for SpectatorVerboseFilter {
     fn filter(&self, logs: Vec<LogItem>) -> Vec<LogItem> {
         // An arbitrary player id so we can construct a PlayerVerboseFilter. We'll filter out
         // per-player sensitive info that somehow might exist for this id momentarily.
-        PlayerVerboseFilter(42069)
-            .filter(logs)
-            .into_iter()
-            .filter_map(|log| match log {
-                LogItem::PocketsDealt(_) => Some(LogItem::PocketsDealt(HashMap::new())),
-                _ => Some(log),
-            })
-            .collect()
+        let mut logs = PlayerVerboseFilter(42069).filter(logs);
+        for log in &mut logs {
+            if let LogItem::PocketsDealt(map) = log {
+                map.clear();
+            }
+        }
+        logs
     }
 }
