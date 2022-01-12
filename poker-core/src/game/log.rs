@@ -10,7 +10,7 @@ pub enum LogItem {
     Pot(pot::LogItem),
     StateChange(GameState),
     NewDeck(DeckSeed),
-    PocketsDealt(HashMap<PlayerId, [Card; 2]>),
+    PocketsDealt(HashMap<PlayerId, Option<[Card; 2]>>),
     SitDown(PlayerId, usize, Currency),
     StandUp(PlayerId, Currency),
     CurrentBetSet(Currency),
@@ -35,7 +35,16 @@ impl std::fmt::Display for LogItem {
             LogItem::PocketsDealt(map) => {
                 let middle: String = map
                     .iter()
-                    .map(|(player, p)| format!("p{}: {}{}", player, p[0], p[1]))
+                    .map(|(player, p)| {
+                        format!(
+                            "p{}: {}",
+                            player,
+                            match p {
+                                None => "????".to_string(),
+                                Some(p) => format!("{}{}", p[0], p[1]),
+                            }
+                        )
+                    })
                     .join(", ");
                 let s = "[".to_string() + &middle + "]";
                 write!(f, "Pockets dealt: {}", s)
@@ -98,7 +107,8 @@ impl LogFilter for PlayerFilter {
             // case, there's something wrong in PlayerVerboseFilter, and the fix should be made
             // there.
             LogItem::PocketsDealt(ref map) => {
-                assert!(map.len() <= 1);
+                let n_some = map.values().filter(|v| v.is_some()).count();
+                assert!(n_some <= 1);
                 true
             }
             // We may determine some of these are needed in the future. I'm thinking
@@ -126,7 +136,11 @@ impl LogFilter for PlayerVerboseFilter {
     fn filter(&self, mut logs: Vec<LogItem>) -> Vec<LogItem> {
         for log in &mut logs {
             if let LogItem::PocketsDealt(map) = log {
-                map.retain(|&k, _| k == self.0);
+                for (&k, v) in map.iter_mut() {
+                    if k != self.0 {
+                        *v = None;
+                    }
+                }
             }
         }
         logs
@@ -146,7 +160,9 @@ impl LogFilter for SpectatorFilter {
         let mut logs = PlayerFilter(42069).filter(logs);
         for log in &mut logs {
             if let LogItem::PocketsDealt(map) = log {
-                map.clear();
+                for v in map.values_mut() {
+                    *v = None;
+                }
             }
         }
         logs
@@ -166,7 +182,9 @@ impl LogFilter for SpectatorVerboseFilter {
         let mut logs = PlayerVerboseFilter(42069).filter(logs);
         for log in &mut logs {
             if let LogItem::PocketsDealt(map) = log {
-                map.clear();
+                for v in map.values_mut() {
+                    *v = None;
+                }
             }
         }
         logs
