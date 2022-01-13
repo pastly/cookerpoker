@@ -36,3 +36,6 @@ jobs:
 
     - name: Run manual-game tests
       run: cd tests/manual-game && make --keep-going
+
+    - name: Run web-integration tests
+      run: cd tests/web-integration && make --keep-going

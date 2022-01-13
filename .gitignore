@@ -2,6 +2,12 @@
 
 tests/manual-game/*/output.actual.txt
 
+tests/web-integration/*/*.db
+tests/web-integration/*/*.log
+tests/web-integration/*/*.pid
+tests/web-integration/*/templates
+tests/web-integration/*/static
+
 *.swp
 test.db
 
