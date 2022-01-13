@@ -1,6 +1,6 @@
 mod actionlog;
 mod elements;
-mod http;
+pub mod http;
 mod utils;
 
 use elements::{Community, Elementable, Pocket, Pot};

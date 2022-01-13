@@ -1426,6 +1426,7 @@ dependencies = [
  "poker-messages",
  "reqwest",
  "serde",
+ "tokio",
  "wasm-bindgen",
  "wasm-bindgen-test",
  "web-sys",
