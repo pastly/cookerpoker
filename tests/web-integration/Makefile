@@ -1,11 +1,14 @@
 TESTS:=$(shell find . -mindepth 1 -type d)
 
-.PHONY: all rebuild $(TESTS)
+.PHONY: all diesel rebuild $(TESTS)
 
 all: $(TESTS)
 
 rebuild:
 	cargo build --bin poker-server
+
+diesel:
+	which diesel || cargo install diesel_cli --no-default-features --features sqlite
 
 ADDRESS:=127.0.0.1
 # Incremented by every test so that they each use a unique port and this won't
@@ -22,7 +25,7 @@ DATABASE_URL:=test.db
 # be executed on the database before the test is run.
 INPUT_SQL:=input.sql
 
-$(TESTS): rebuild
+$(TESTS): rebuild diesel
 	$(eval PORT=$(shell echo $$(($(PORT)+1))))
 	@echo ---------- $@ ----------
 	@cd $@ && \
