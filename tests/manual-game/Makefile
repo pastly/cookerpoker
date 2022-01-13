@@ -8,8 +8,8 @@ rebuild:
 	cargo build --release --bin manual-game
 
 $(TESTS): rebuild
-	@rm -vf output.actual.txt
 	@cd $@ && \
+	rm -vf output.actual.txt; \
 	<input.txt \
 	../../../target/release/manual-game \
 		--no-prompts \
