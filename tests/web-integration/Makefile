@@ -64,7 +64,7 @@ $(TESTS): clean rebuild deps
 	@cd $(POKER_CLIENT_CRATE) && \
 	ROCKET_ADDRESS=$(ADDRESS) \
 	ROCKET_PORT=$(PORT) \
-	cargo test --test $@
+	cargo test --features web-integration-tests --test $@
 
 	@cd $@ && \
 	../stop-server.sh

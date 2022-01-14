@@ -1,3 +1,4 @@
+#![cfg(feature = "web-integration-tests")]
 use std::env;
 use reqwest::Client;
 use poker_client::http;

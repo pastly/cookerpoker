@@ -8,6 +8,7 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["console_error_panic_hook"]
+web-integration-tests = []
 
 [dependencies]
 poker-core = { path = "../poker-core" }
