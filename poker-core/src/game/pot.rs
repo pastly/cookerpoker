@@ -210,7 +210,7 @@ pub struct Pot {
 
 /// An innner subpot that Pot uses to keep track of pools of money that players can win. New
 /// InnerPots are created every betting round and extra ones are created when players go all in.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct InnerPot {
     /// The players that are eligible to win this pot and the stake they put into this pot
     /// (is_allin, amount).
@@ -392,6 +392,7 @@ impl Pot {
     /// # Returns
     ///
     /// HashMap of players and the amount they should be awared from the pot(s).
+    #[cfg(test)]
     pub(crate) fn payout_without_log(
         self,
         ranked_players: &[Vec<PlayerId>],
@@ -449,15 +450,6 @@ impl Default for Pot {
             // avoid reallocation. It can/will be more if people go all in.
             settled: Vec::with_capacity(3),
             working: HashMap::default(),
-        }
-    }
-}
-
-impl Default for InnerPot {
-    fn default() -> Self {
-        Self {
-            players: HashMap::new(),
-            max_in: None,
         }
     }
 }

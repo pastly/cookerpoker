@@ -1,5 +1,5 @@
 use crate::deck::DeckSeed;
-use crate::game::BetError;
+use crate::game::{BetError, LogItem};
 use crate::hand::best_hands;
 
 use super::deck::{Card, Deck};
@@ -63,7 +63,7 @@ pub struct PlayerInfo {
     pub is_big_blind: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, derive_more::Display)]
 pub enum GameState {
     NotStarted,
     Dealing,
@@ -72,7 +72,7 @@ pub enum GameState {
     EndOfHand,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, derive_more::Display)]
 pub enum BetRound {
     PreFlop,
     Flop,
@@ -98,7 +98,6 @@ impl Default for GameInProgress {
             min_raise: 20.into(),
             last_raiser: None,
             hand_num: 0,
-            event_log: Vec::new(),
             deck: Deck::default(),
         }
     }
@@ -106,7 +105,7 @@ impl Default for GameInProgress {
 
 #[derive(Debug)]
 pub struct GameInProgress {
-    table_type: TableType,
+    pub table_type: TableType,
     pub table_cards: [Option<Card>; 5],
     seated_players: SeatedPlayers,
     pub pot: Pot,
@@ -127,14 +126,16 @@ pub struct GameInProgress {
     /// It's confusing. See <https://duckduckgo.com/?t=ffab&q=allin+raise+less+than+minraise>
     last_raiser: Option<PlayerId>,
     pub hand_num: i16,
-    pub event_log: Vec<GameEvent>,
     deck: Deck,
 }
 
 impl GameInProgress {
-    pub fn start_round(&mut self, seed: &DeckSeed) -> Result<(), GameError> {
+    pub fn start_round(&mut self, seed: &DeckSeed) -> Result<Vec<LogItem>, GameError> {
+        let mut logs = vec![];
         self.state = GameState::Dealing;
+        logs.push(LogItem::StateChange(self.state));
         self.deck = Deck::new(seed);
+        logs.push(LogItem::NewDeck(*seed));
         self.table_cards = [None, None, None, None, None];
 
         // TODO save seed for DB, and perhaps the log
@@ -155,18 +156,28 @@ impl GameInProgress {
             .seated_players
             .blinds_bet(self.small_blind, self.big_blind())?;
 
-        self.pot.bet(small_blind.0, small_blind.1);
-        self.pot.bet(big_blind.0, big_blind.1);
-        // TODO Log Blinds, perhaps edit Pot::bet (and its other funcs?) to return pot LogItems
+        let mut pot_logs = vec![];
+        pot_logs.append(&mut self.pot.bet(small_blind.0, small_blind.1));
+        pot_logs.append(&mut self.pot.bet(big_blind.0, big_blind.1));
+        logs.extend(pot_logs.into_iter().map(|l| l.into()));
 
         self.state = GameState::Betting(BetRound::PreFlop);
+        logs.push(LogItem::StateChange(self.state));
 
         // Deal the pockets
         let nump = self.seated_players.betting_players_count() as u8;
         let pockets = self.deck.deal_pockets(nump)?;
-        self.seated_players.deal_pockets(pockets);
+        logs.push(LogItem::PocketsDealt(
+            self.seated_players
+                .deal_pockets(pockets)
+                .into_iter()
+                .map(|(k, v)| (k, Some(v)))
+                .collect(),
+        ));
 
-        Ok(())
+        logs.push(LogItem::CurrentBetSet(self.current_bet));
+        logs.push(LogItem::MinRaiseSet(self.min_raise));
+        Ok(logs)
     }
 
     /// Gets the seated player by id if they are seated at the current table.
@@ -187,34 +198,43 @@ impl GameInProgress {
         })
     }
 
-    pub fn sit_down<C: Into<Currency>>(
+    pub fn sit_down<C: Into<Currency> + Copy>(
         &mut self,
         player_id: PlayerId,
         monies: C,
         seat: usize,
-    ) -> Result<(), GameError> {
-        self.seated_players.sit_down(player_id, monies, seat)
+    ) -> Result<Vec<LogItem>, GameError> {
+        self.seated_players.sit_down(player_id, monies, seat)?;
+        Ok(vec![LogItem::SitDown(player_id, seat, monies.into())])
     }
 
-    pub fn stand_up(&mut self, player_id: PlayerId) -> Option<Result<Currency, GameError>> {
-        match self.state {
-            GameState::EndOfHand | GameState::NotStarted => {
-                self.seated_players.stand_up(player_id).map(Ok)
-            }
+    pub fn stand_up(&mut self, player_id: PlayerId) -> Result<Vec<LogItem>, GameError> {
+        let monies = match self.state {
+            GameState::EndOfHand | GameState::NotStarted => self
+                .seated_players
+                .stand_up(player_id)
+                .ok_or(GameError::UnknownPlayer)?,
             _ => {
-                let p = self.seated_players.player_by_id(player_id)?;
+                let p = self
+                    .seated_players
+                    .player_by_id(player_id)
+                    .ok_or(GameError::UnknownPlayer)?;
                 if p.is_betting() {
-                    Some(Err(GameError::BettingPlayerCantStand))
+                    return Err(GameError::BettingPlayerCantStand);
                 } else {
-                    self.seated_players.stand_up(player_id).map(Ok)
+                    self.seated_players
+                        .stand_up(player_id)
+                        .ok_or(GameError::UnknownPlayer)?
                 }
             }
-        }
+        };
+        Ok(vec![LogItem::StandUp(player_id, monies)])
     }
 
     /// The betting round has just ended. Advance to the next game state, and do intra-round
     /// bookkeeping, e.g. finialize the pot so far and reset the current bet amount.
-    fn after_bet_advance_round(&mut self) -> Result<GameState, GameError> {
+    fn after_bet_advance_round(&mut self) -> Result<(GameState, Vec<LogItem>), GameError> {
+        let mut logs = vec![];
         // determine next game state
         let next = match self.state {
             GameState::Betting(round) => match round {
@@ -227,31 +247,42 @@ impl GameInProgress {
         };
         // bookkeeping
         self.seated_players.next_betting_round()?;
-        self.pot.finalize_round();
+        let pot_logs = self.pot.finalize_round();
         self.current_bet = 0.into();
         self.min_raise = self.big_blind();
         self.last_raiser = None;
+        logs.extend(pot_logs.into_iter().map(|pot_logitem| pot_logitem.into()));
+        logs.push(LogItem::CurrentBetSet(self.current_bet));
+        logs.push(LogItem::MinRaiseSet(self.min_raise));
         // deal community cards, if needed
         if let GameState::Betting(round) = next {
             match round {
                 BetRound::PreFlop => unreachable!(),
                 BetRound::Flop => {
                     self.deck.burn();
-                    self.table_cards[0] = Some(self.deck.draw()?);
-                    self.table_cards[1] = Some(self.deck.draw()?);
-                    self.table_cards[2] = Some(self.deck.draw()?);
+                    let c1 = self.deck.draw()?;
+                    let c2 = self.deck.draw()?;
+                    let c3 = self.deck.draw()?;
+                    self.table_cards[0] = Some(c1);
+                    self.table_cards[1] = Some(c2);
+                    self.table_cards[2] = Some(c3);
+                    logs.push(LogItem::Flop([c1, c2, c3]));
                 }
                 BetRound::Turn => {
                     self.deck.burn();
-                    self.table_cards[3] = Some(self.deck.draw()?);
+                    let c1 = self.deck.draw()?;
+                    self.table_cards[3] = Some(c1);
+                    logs.push(LogItem::Turn(c1));
                 }
                 BetRound::River => {
                     self.deck.burn();
-                    self.table_cards[4] = Some(self.deck.draw()?);
+                    let c1 = self.deck.draw()?;
+                    self.table_cards[4] = Some(c1);
+                    logs.push(LogItem::River(c1));
                 }
             }
         };
-        Ok(next)
+        Ok((next, logs))
     }
 
     /// Returns the PlayerId of the next player we expect a bet from, or None if we don't expect a
@@ -260,7 +291,8 @@ impl GameInProgress {
         self.seated_players.next_player()
     }
 
-    pub fn bet(&mut self, player: PlayerId, ba: BetAction) -> Result<(), GameError> {
+    pub fn bet(&mut self, player: PlayerId, ba: BetAction) -> Result<Vec<LogItem>, GameError> {
+        let mut logs = vec![];
         // Make sure we're in a state where bets are expected
         match self.state {
             GameState::Betting(_) => {}
@@ -308,6 +340,7 @@ impl GameInProgress {
         let old_current_bet = self.current_bet;
         self.current_bet = new_ba_and_current_bet.1;
         if self.current_bet > old_current_bet {
+            logs.push(LogItem::CurrentBetSet(self.current_bet));
             // The player has bet more than the current bet.
             //
             // The only reason they can be allowed to not match/exceed the min_raise is if they're
@@ -317,16 +350,18 @@ impl GameInProgress {
                 assert!(matches!(new_ba, BetAction::AllIn(_)));
             } else {
                 self.min_raise = self.current_bet + (self.current_bet - old_current_bet);
+                logs.push(LogItem::MinRaiseSet(self.min_raise));
             }
         }
         // Update Pot
-        self.pot.bet(player, new_ba);
+        let pot_logs = self.pot.bet(player, new_ba);
+        logs.extend(pot_logs.into_iter().map(|pot_logitem| pot_logitem.into()));
 
         // Determine if this was the final bet and round is over
         if self.seated_players.eligible_players_iter().count() == 1 {
             // If there's only 1 eligible player left, the round isn't just over, but the entire
             // hand is over.
-            self.finalize_hand()?;
+            logs.append(&mut self.finalize_hand()?);
         } else if self.seated_players.is_pot_ready(self.current_bet) {
             // It was the final bet for this round.
             //
@@ -336,14 +371,17 @@ impl GameInProgress {
             while self.seated_players.is_pot_ready(self.current_bet)
                 && !matches!(self.state, GameState::Showdown)
             {
-                self.state = self.after_bet_advance_round()?;
+                let (new_state, mut new_logs) = self.after_bet_advance_round()?;
+                self.state = new_state;
+                logs.append(&mut new_logs);
+                logs.push(LogItem::StateChange(self.state));
             }
             // If that was the end of all betting and we're in showdown, determine winner.
             if matches!(self.state, GameState::Showdown) {
-                self.finalize_hand()?;
+                logs.append(&mut self.finalize_hand()?);
             }
         }
-        Ok(())
+        Ok(logs)
     }
 
     /// Simple abstraction so can make big blinds that are not x2 later
@@ -351,7 +389,8 @@ impl GameInProgress {
         self.small_blind * 2
     }
 
-    fn finalize_hand(&mut self) -> Result<(), GameError> {
+    fn finalize_hand(&mut self) -> Result<Vec<LogItem>, GameError> {
+        let mut logs = vec![];
         let pot = std::mem::take(&mut self.pot);
         // players and their pockets, as a vec
         let players: Vec<(PlayerId, [Card; 2])> = self
@@ -377,12 +416,14 @@ impl GameInProgress {
                 .map(|inner| inner.iter().map(|item| item.0).collect())
                 .collect()
         };
-        let winnings = pot.payout_without_log(&ranked_players);
+        let (winnings, pot_logs) = pot.payout(&ranked_players);
         self.seated_players.end_hand(&winnings)?;
         self.state = GameState::EndOfHand;
+        logs.extend(pot_logs.into_iter().map(|pli| pli.into()));
+        logs.push(LogItem::StateChange(self.state));
         // TODO 'stand_up' players who are trying to leave but couldn't because they were in the bet?
         // TODO Force rocket to update DB? Probably by returning State enum?
-        Ok(())
+        Ok(logs)
     }
 }
 
@@ -454,12 +495,13 @@ mod tests {
 
     #[test]
     fn basic_game() {
+        let mut logs = vec![];
         let mut gt = GameInProgress::default();
-        gt.sit_down(0, 100, 0).unwrap(); // dealer
-        gt.sit_down(1, 100, 1).unwrap(); // small blind
-        gt.sit_down(2, 100, 2).unwrap(); // big blind
-        gt.sit_down(3, 100, 3).unwrap();
-        gt.start_round(&seed1()).unwrap();
+        logs.append(&mut gt.sit_down(0, 100, 0).unwrap()); // dealer
+        logs.append(&mut gt.sit_down(1, 100, 1).unwrap()); // small blind
+        logs.append(&mut gt.sit_down(2, 100, 2).unwrap()); // big blind
+        logs.append(&mut gt.sit_down(3, 100, 3).unwrap());
+        logs.append(&mut gt.start_round(&seed1()).unwrap());
         // Blinds are in
         assert!(matches!(gt.state, GameState::Betting(BetRound::PreFlop)));
         assert_eq!(gt.get_player_info(0).unwrap().monies, 100.into());
@@ -470,10 +512,10 @@ mod tests {
         assert_eq!(gt.seated_players.small_blind_token, 1);
         assert_eq!(gt.seated_players.big_blind_token, 2);
 
-        gt.bet(3, BetAction::Call(10.into())).unwrap();
-        gt.bet(0, BetAction::Fold).unwrap();
-        gt.bet(1, BetAction::Call(10.into())).unwrap();
-        gt.bet(2, BetAction::Check).unwrap();
+        logs.append(&mut gt.bet(3, BetAction::Call(10.into())).unwrap());
+        logs.append(&mut gt.bet(0, BetAction::Fold).unwrap());
+        logs.append(&mut gt.bet(1, BetAction::Call(10.into())).unwrap());
+        logs.append(&mut gt.bet(2, BetAction::Check).unwrap());
 
         // First betting round is over.
         // Table should recognize that all players are in and pot is right and forward the round
@@ -489,11 +531,11 @@ mod tests {
         assert!(gt.table_cards[4].is_none());
         assert!(matches!(gt.state, GameState::Betting(BetRound::Flop)));
 
-        gt.bet(1, BetAction::Check).unwrap();
-        gt.bet(2, BetAction::Bet(20.into())).unwrap();
-        gt.bet(3, BetAction::Call(20.into())).unwrap();
+        logs.append(&mut gt.bet(1, BetAction::Check).unwrap());
+        logs.append(&mut gt.bet(2, BetAction::Bet(20.into())).unwrap());
+        logs.append(&mut gt.bet(3, BetAction::Call(20.into())).unwrap());
         // 0 folded
-        gt.bet(1, BetAction::Call(20.into())).unwrap();
+        logs.append(&mut gt.bet(1, BetAction::Call(20.into())).unwrap());
 
         // Second betting round is over.
         assert_eq!(gt.get_player_info(0).unwrap().monies, 100.into());
@@ -508,11 +550,11 @@ mod tests {
         assert!(gt.table_cards[4].is_none());
         assert!(matches!(gt.state, GameState::Betting(BetRound::Turn)));
 
-        gt.bet(1, BetAction::Bet(30.into())).unwrap();
-        gt.bet(2, BetAction::Call(30.into())).unwrap();
-        gt.bet(3, BetAction::Raise(60.into())).unwrap();
-        gt.bet(1, BetAction::Call(60.into())).unwrap();
-        gt.bet(2, BetAction::Fold).unwrap();
+        logs.append(&mut gt.bet(1, BetAction::Bet(30.into())).unwrap());
+        logs.append(&mut gt.bet(2, BetAction::Call(30.into())).unwrap());
+        logs.append(&mut gt.bet(3, BetAction::Raise(60.into())).unwrap());
+        logs.append(&mut gt.bet(1, BetAction::Call(60.into())).unwrap());
+        logs.append(&mut gt.bet(2, BetAction::Fold).unwrap());
 
         // Third betting round is over.
         assert_eq!(gt.get_player_info(0).unwrap().monies, 100.into());
@@ -527,8 +569,8 @@ mod tests {
         assert!(gt.table_cards[4].is_some());
         assert!(matches!(gt.state, GameState::Betting(BetRound::River)));
 
-        gt.bet(1, BetAction::AllIn(10.into())).unwrap();
-        gt.bet(3, BetAction::Call(10.into())).unwrap(); // AllIn should also work
+        logs.append(&mut gt.bet(1, BetAction::AllIn(10.into())).unwrap());
+        logs.append(&mut gt.bet(3, BetAction::Call(10.into())).unwrap()); // AllIn should also work
 
         // This should be the end of the hand. Winner should be paid out. Etc.
         // We can rely on these payouts because we have the same deck seed every time.
@@ -537,6 +579,10 @@ mod tests {
         assert_eq!(gt.get_player_info(1).unwrap().monies, 0.into());
         assert_eq!(gt.get_player_info(2).unwrap().monies, 40.into());
         assert_eq!(gt.get_player_info(3).unwrap().monies, 260.into());
+
+        for (n, item) in logs.into_iter().enumerate() {
+            println!("{:2}: {}", n, item);
+        }
     }
 
     // TODO test where players who are folded try to bet again

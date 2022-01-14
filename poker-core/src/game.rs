@@ -1,3 +1,4 @@
+pub mod log;
 pub mod players;
 pub mod pot;
 pub mod table;
@@ -5,6 +6,7 @@ pub mod table;
 use self::hand::HandError;
 
 pub use super::{deck, hand};
+pub use log::LogItem;
 pub use players::PlayerId;
 pub use pot::Currency;
 use serde::{Deserialize, Serialize};
@@ -62,6 +64,7 @@ pub enum GameError {
     NotEnoughPlayers,
     SeatTaken,
     PlayerAlreadySeated,
+    UnknownPlayer,
     InvalidSeat,
     BettingPlayerCantStand,
     BetNotExpected,

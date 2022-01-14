@@ -21,7 +21,7 @@ impl From<BetAction> for BetStatus {
             BetAction::AllIn(x) => BetStatus::AllIn(x),
             BetAction::Fold => BetStatus::Folded,
             BetAction::Bet(x) | BetAction::Call(x) | BetAction::Raise(x) => BetStatus::In(x),
-            BetAction::Check => unreachable!(),
+            BetAction::Check => BetStatus::In(0.into()),
         }
     }
 }
@@ -427,9 +427,17 @@ impl SeatedPlayers {
     /// # Panics
     ///
     /// Panics if asked to deal a different number of pockets than players that are seated.
-    pub(crate) fn deal_pockets(&mut self, mut pockets: Vec<[Card; 2]>) {
+    ///
+    /// # Returns
+    ///
+    /// HashMap with PlayerId keys and the cards they were dealt as values.
+    pub(crate) fn deal_pockets(
+        &mut self,
+        mut pockets: Vec<[Card; 2]>,
+    ) -> HashMap<PlayerId, [Card; 2]> {
         assert_eq!(pockets.len(), self.betting_players_iter().count());
         let dt = self.dealer_token;
+        let mut ret = HashMap::new();
         // Can't use a betting_players_iter_after_mut() becasue can't chain/cycle mutable iterator
         // May be able to fix this with custom iterator
         // Until then, iterate wtice
@@ -438,13 +446,16 @@ impl SeatedPlayers {
             .skip_while(|x| x.seat_index < dt)
         {
             player.pocket = Some(pockets.pop().unwrap());
+            ret.insert(player.id, player.pocket.unwrap());
         }
         for player in self
             .betting_players_iter_mut()
             .take_while(|x| x.seat_index < dt)
         {
             player.pocket = Some(pockets.pop().unwrap());
+            ret.insert(player.id, player.pocket.unwrap());
         }
+        ret
     }
 
     /// Returns the PlayerId of the next player we expect a bet from, or None if we don't expect a
@@ -516,11 +527,9 @@ impl SeatedPlayer {
                 bet
             }
             BetAction::Check => match self.bet_status {
-                // check with no current bet from us means we're in for 0 (e.g. post flop first to
-                // act)
-                BetStatus::Waiting => BetAction::Bet(0.into()),
                 // check with a current bet means we're the big blind preflop (hopefully, else bug)
                 BetStatus::In(x) => BetAction::Bet(x),
+                BetStatus::Waiting => BetAction::Check,
                 BetStatus::Folded | BetStatus::AllIn(_) => unreachable!(),
             },
             BetAction::Fold => bet,
