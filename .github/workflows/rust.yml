@@ -44,7 +44,7 @@ jobs:
       run: cd tests/web-integration && make --keep-going
 
     - name: Fail on lacking fmt.
-      run: rustfmt --check 
+      run: cargo fmt --all -- --check
     
     - name: Cargo Clippy
       run: cargo clippy -- -D warnings
