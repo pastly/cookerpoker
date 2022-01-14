@@ -2,24 +2,54 @@ use super::*;
 pub use crate::models::accounts::{Account, NewMoneyLogEntry};
 use crate::AppError;
 use rocket::http::{CookieJar, Status};
+use rocket::form;
 
 ///TODO I think there is a better way to do this. Return the dsl directly
 pub async fn cookie_to_account(
     db: &DbConn,
     cookies: &'_ CookieJar<'_>,
 ) -> Result<Account, AppError> {
-    use crate::database::schema::accounts::dsl::{accounts, api_key};
-    let key = match cookies.get("api-key") {
-        Some(key) => key.value().to_string(),
-        None => return Err(ApiKeyError::Missing("API key is missing").into()),
+    use crate::database::schema::accounts::dsl::{accounts, id};
+    let i: i32 = match cookies.get("session") {
+        Some(key) => key.value().parse().unwrap(),
+        None => return Err(ApiKeyError::Missing("session cookie is missing").into()),
     };
-    let account = db.run(|conn| {
+    let account = db.run(move |conn| {
         accounts
-            .filter(api_key.eq(key))
+            .filter(id.eq(i))
             .first(conn)
             .map_err(AppError::from)
     });
     account.await
+}
+
+pub async fn api_key_to_account(
+    db: &DbConn,
+    key: &ApiKey
+) -> Result<Account, AppError> {
+    use crate::database::schema::accounts::dsl::{accounts, api_key};
+    let k = key.0.clone();
+    let account = db.run(|conn| {
+        accounts
+        .filter(api_key.eq(k))
+        .first(conn)
+        .map_err(AppError::from)
+    });
+    account.await
+}
+
+#[derive(Debug)]
+pub struct ApiKey(String);
+
+#[rocket::async_trait]
+impl<'r> form::FromFormField<'r> for ApiKey {
+    fn from_value(field: form::ValueField<'r>) -> form::Result<'r, Self> {
+        if field.value.chars().count() != 42 {
+            Err(form::Error::validation("incorrect length"))
+?        } else {
+            Ok(Self(field.value.to_string()))
+        }
+    }
 }
 
 #[derive(Debug, Responder, derive_more::Display)]
@@ -44,7 +74,15 @@ impl<'r> FromRequest<'r> for User {
 
         let account = match cookie_to_account(&db, req.cookies()).await {
             Ok(a) => a,
-            Err(e) => return Outcome::Failure((Status::Forbidden, e)),
+            Err(e) => match e {
+                AppError::DbError(_) => todo!(),
+                AppError::ApiKeyError(_) => Outcome::Forward()
+    ApiKeyError::Missing(_) => todo!(),
+    ApiKeyError::Invalid(_) => todo!(),
+}
+                AppError::TableError(_) => todo!(),
+}
+                //return Outcome::Failure((Status::Forbidden, e)),
         };
 
         Outcome::Success(User(account))
