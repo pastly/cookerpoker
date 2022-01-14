@@ -1,15 +1,16 @@
 #![cfg(feature = "web-integration-tests")]
-use std::env;
-use reqwest::Client;
 use poker_client::http;
 use poker_messages::*;
+use reqwest::Client;
+use std::env;
 
 #[tokio::test]
 async fn available_and_accurate() {
     let url = format!(
         "http://{}:{}/api/foo",
         env::var("ROCKET_ADDRESS").unwrap(),
-        env::var("ROCKET_PORT").unwrap());
+        env::var("ROCKET_PORT").unwrap()
+    );
     println!("{}", url);
     let c = Client::new();
     let action: Action = http::get_json(&c, url).await.unwrap();
