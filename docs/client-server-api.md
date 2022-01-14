@@ -17,8 +17,8 @@ be used.
 All actions for a game are indexed with a sequence number starting at one
 (TODO: start at a random number? Worth the complexity? Probably not.). The
 client records the sequence number of the latest (largest) action it last
-received. Sequence numbers monotonically increase; no sequence numbers are
-skipped. As part of the client's request for any new actions, it sends the
+received. Sequence numbers only increase and can be skipped.
+As part of the client's request for any new actions, it sends the
 latest sequence number it knows about. The server is recording the game in its
 entirety and will send all actions the client has not yet seen.
 
