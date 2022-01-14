@@ -105,7 +105,7 @@ impl Default for GameInProgress {
 
 #[derive(Debug)]
 pub struct GameInProgress {
-    table_type: TableType,
+    pub table_type: TableType,
     pub table_cards: [Option<Card>; 5],
     seated_players: SeatedPlayers,
     pub pot: Pot,
