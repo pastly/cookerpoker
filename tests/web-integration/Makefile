@@ -19,7 +19,7 @@ clean:
 
 deps:
 	@which diesel || cargo install diesel_cli --no-default-features --features sqlite
-	@which wasm-pack || cargo install wasm-pack
+	#@which wasm-pack || cargo install wasm-pack
 
 ADDRESS:=127.0.0.1
 # Incremented by every test so that they each use a unique port and this won't
