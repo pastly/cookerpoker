@@ -53,7 +53,7 @@ impl PlayerInfo {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SitDown {
-    player_info: PlayerInfo,
+    pub player_info: PlayerInfo,
 }
 
 impl SitDown {
@@ -64,7 +64,7 @@ impl SitDown {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StandUp {
-    seat: usize,
+    pub seat: usize,
 }
 
 impl StandUp {
