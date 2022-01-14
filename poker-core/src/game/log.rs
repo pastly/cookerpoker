@@ -29,7 +29,7 @@ impl From<pot::LogItem> for LogItem {
 impl std::fmt::Display for LogItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LogItem::Pot(pli) => write!(f, "{}", pli.to_string()),
+            LogItem::Pot(pli) => write!(f, "{pli}"),
             LogItem::StateChange(to) => write!(f, "State changed to {to}"),
             LogItem::NewDeck(ds) => write!(f, "Using deck with seed {ds}"),
             LogItem::PocketsDealt(map) => {
