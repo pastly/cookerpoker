@@ -1,8 +1,14 @@
 use super::*;
+use super::logic::account::api_key_to_account;
 use models::accounts::{Account, NewAccount};
+use models::forms::LoginForm;
+use rocket::http::{Cookie, CookieJar};
+use rocket::response::Redirect;
 
 pub fn get_endpoints() -> Vec<rocket::route::Route> {
     routes![
+        get_login,
+        post_login,
         get_id_monies,
         post_id_monies,
         monies_admin,
@@ -10,6 +16,18 @@ pub fn get_endpoints() -> Vec<rocket::route::Route> {
         get_accounts,
         new_account
     ]
+}
+
+#[get("/login")]
+async fn get_login() -> Template {
+    Template::render("login", Context::new().into_json())
+}
+
+#[post("/login", data = "<form>")]
+async fn post_login(jar: &CookieJar<'_>, db: DbConn, form: Form<LoginForm>) -> Result<Redirect, AppError> {
+    let a = api_key_to_account(&db, &form.api_key).await?;
+    jar.add_private(Cookie::new("session", a.id.to_string()));
+    Ok(Redirect::to(format!("/")))
 }
 
 #[get("/monies/<id>")]
