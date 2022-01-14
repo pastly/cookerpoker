@@ -1,0 +1,6 @@
+{% extends "base" %}
+{% block content %}
+<h1>A new index</h1>
+{{ account.id }}
+<p><a href=/login>Login</a></p>
+{% endblock %}
