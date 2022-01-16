@@ -1,6 +1,22 @@
 {% extends "base" %}
 {% block content %}
 <h1>A new index</h1>
-{{ account.id }}
-<p><a href=/login>Login</a></p>
+
+<p>
+{% if account %}
+  Hello {{ account.account_name }}.
+  You are {% if not account.is_admin %}not {% endif %}an admin.
+  You have {{ account.monies }} monies.
+{% else %}
+  Not logged in.
+{% endif %}
+</p>
+
+<p>
+{% if account %}
+<a href=/logout>Logout</a>
+{% else %}
+<a href=/login>Login</a>
+{% endif %}
+</p>
 {% endblock %}

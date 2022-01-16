@@ -1,8 +1,7 @@
 use super::*;
 
 pub fn get_endpoints() -> Vec<rocket::route::Route> {
-    //routes![index_logged_in, index,]
-    routes![index]
+    routes![index, index_anon,]
 }
 
 #[get("/")]
@@ -13,7 +12,7 @@ fn index(u: User) -> Template {
 }
 #[get("/", rank = 2)]
 fn index_anon() -> Template {
-    let mut c = Context::new();
+    let c = Context::new();
     Template::render("index", &c.into_json())
 }
 //#[get("/", rank = 2)]

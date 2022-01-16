@@ -1,7 +1,7 @@
 use super::*;
 use schema::{accounts, money_log};
 
-#[derive(Identifiable, Queryable, Insertable, Serialize, Debug)]
+#[derive(Identifiable, Queryable, Insertable, Serialize, Deserialize, Debug)]
 pub struct Account {
     pub id: i32,
     pub account_name: String,

@@ -1,39 +1,28 @@
 use super::*;
 pub use crate::models::accounts::{Account, NewMoneyLogEntry};
 use crate::AppError;
-use rocket::http::{CookieJar, Status};
 use rocket::form;
+use rocket::http::{CookieJar, Status};
 
 ///TODO I think there is a better way to do this. Return the dsl directly
-pub async fn cookie_to_account(
-    db: &DbConn,
-    cookies: &'_ CookieJar<'_>,
-) -> Result<Account, AppError> {
-    use crate::database::schema::accounts::dsl::{accounts, id};
-    let i: i32 = match cookies.get("session") {
-        Some(key) => key.value().parse().unwrap(),
-        None => return Err(ApiKeyError::Missing("session cookie is missing").into()),
-    };
-    let account = db.run(move |conn| {
-        accounts
-            .filter(id.eq(i))
-            .first(conn)
-            .map_err(AppError::from)
-    });
-    account.await
+pub async fn cookie_to_account(cookies: &'_ CookieJar<'_>) -> Result<Account, AppError> {
+    match cookies.get_private("account") {
+        Some(key) => match serde_json::from_str(key.value()) {
+            Ok(a) => Ok(a),
+            Err(_) => Err(ApiKeyError::Invalid("Unable to parse account cookie").into()),
+        },
+        None => Err(ApiKeyError::Missing("account cookie is missing").into()),
+    }
 }
 
-pub async fn api_key_to_account(
-    db: &DbConn,
-    key: &ApiKey
-) -> Result<Account, AppError> {
+pub async fn api_key_to_account(db: &DbConn, key: &ApiKey) -> Result<Account, AppError> {
     use crate::database::schema::accounts::dsl::{accounts, api_key};
     let k = key.0.clone();
     let account = db.run(|conn| {
         accounts
-        .filter(api_key.eq(k))
-        .first(conn)
-        .map_err(AppError::from)
+            .filter(api_key.eq(k))
+            .first(conn)
+            .map_err(AppError::from)
     });
     account.await
 }
@@ -45,10 +34,9 @@ pub struct ApiKey(String);
 impl<'r> form::FromFormField<'r> for ApiKey {
     fn from_value(field: form::ValueField<'r>) -> form::Result<'r, Self> {
         if field.value.chars().count() != 42 {
-            Err(form::Error::validation("incorrect length"))
-?        } else {
-            Ok(Self(field.value.to_string()))
+            return Err(form::Error::validation("incorrect length").into());
         }
+        Ok(Self(field.value.to_string()))
     }
 }
 
@@ -70,19 +58,15 @@ impl<'r> FromRequest<'r> for User {
     type Error = AppError;
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let db = req.guard::<DbConn>().await.unwrap();
-
-        let account = match cookie_to_account(&db, req.cookies()).await {
+        let account = match cookie_to_account(req.cookies()).await {
             Ok(a) => a,
-            Err(e) => match e {
-                AppError::DbError(_) => todo!(),
-                AppError::ApiKeyError(_) => Outcome::Forward()
-    ApiKeyError::Missing(_) => todo!(),
-    ApiKeyError::Invalid(_) => todo!(),
-}
-                AppError::TableError(_) => todo!(),
-}
-                //return Outcome::Failure((Status::Forbidden, e)),
+            Err(e) => {
+                return match e {
+                    AppError::DbError(_) => Outcome::Failure((Status::InternalServerError, e)),
+                    AppError::ApiKeyError(_) => Outcome::Forward(()),
+                    AppError::TableError(_) => Outcome::Failure((Status::InternalServerError, e)),
+                }
+            }
         };
 
         Outcome::Success(User(account))
@@ -97,9 +81,7 @@ impl<'r> FromRequest<'r> for Admin {
     type Error = AppError;
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let db = req.guard::<DbConn>().await.unwrap();
-
-        let account = match cookie_to_account(&db, req.cookies()).await {
+        let account = match cookie_to_account(req.cookies()).await {
             Ok(a) => a,
             Err(e) => return Outcome::Failure((Status::Forbidden, e)),
         };
