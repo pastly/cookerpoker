@@ -136,7 +136,7 @@ impl<'r> FromRequest<'r> for AdminOrTableOwner {
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let db = req.guard::<DbConn>().await.unwrap();
 
-        let account = match cookie_to_account(&db, req.cookies()).await {
+        let account = match cookie_to_account(req.cookies()).await {
             Ok(a) => a,
             Err(e) => return Outcome::Failure((Status::Forbidden, e)),
         };

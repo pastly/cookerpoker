@@ -1,5 +1,5 @@
-use super::*;
 use super::logic::account::api_key_to_account;
+use super::*;
 use models::accounts::{Account, NewAccount};
 use models::forms::LoginForm;
 use rocket::http::{Cookie, CookieJar};
@@ -9,6 +9,7 @@ pub fn get_endpoints() -> Vec<rocket::route::Route> {
     routes![
         get_login,
         post_login,
+        logout,
         get_id_monies,
         post_id_monies,
         monies_admin,
@@ -24,10 +25,20 @@ async fn get_login() -> Template {
 }
 
 #[post("/login", data = "<form>")]
-async fn post_login(jar: &CookieJar<'_>, db: DbConn, form: Form<LoginForm>) -> Result<Redirect, AppError> {
+async fn post_login(
+    jar: &CookieJar<'_>,
+    db: DbConn,
+    form: Form<LoginForm>,
+) -> Result<Redirect, AppError> {
     let a = api_key_to_account(&db, &form.api_key).await?;
-    jar.add_private(Cookie::new("session", a.id.to_string()));
-    Ok(Redirect::to(format!("/")))
+    jar.add_private(Cookie::new("account", serde_json::to_string(&a).unwrap()));
+    Ok(Redirect::to("/".to_string()))
+}
+
+#[get("/logout")]
+async fn logout(jar: &CookieJar<'_>) -> Redirect {
+    jar.remove_private(Cookie::named("account"));
+    Redirect::to("/".to_string())
 }
 
 #[get("/monies/<id>")]
