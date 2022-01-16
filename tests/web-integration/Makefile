@@ -6,15 +6,10 @@ all: $(TESTS)
 
 rebuild:
 	cargo build --bin poker-server
+	cd ../../poker-client && cargo build --features web-integration-tests --tests
 
 clean:
 	@pkill poker-server || /bin/true
-	@rm -vf \
-		*/$(DATABASE_URL) \
-		*/static \
-		*/templates \
-		*/*.log \
-		*/*.pid \
 
 
 deps:
@@ -42,6 +37,13 @@ INPUT_SQL:=input.sql
 $(TESTS): clean rebuild deps
 	$(eval PORT=$(shell echo $$(($(PORT)+1))))
 	@echo ---------- $@ ----------
+	@rm -vf \
+		$@/$(DATABASE_URL) \
+		$@/static \
+		$@/templates \
+		$@/*.log \
+		$@/*.pid
+
 	@cd $@ && \
 	ln -s $(STATIC_DIR) static && \
 	ln -s $(TEMPLATE_DIR) templates
