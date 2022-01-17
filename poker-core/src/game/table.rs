@@ -130,7 +130,6 @@ impl GameInProgress {
         self.state = GameState::Dealing;
         logs.push(LogItem::StateChange(self.state));
         self.deck = Deck::new(seed);
-        logs.push(LogItem::NewDeck(*seed));
         self.table_cards = [None, None, None, None, None];
 
         // TODO save seed for DB, and perhaps the log

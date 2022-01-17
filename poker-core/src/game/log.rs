@@ -1,4 +1,4 @@
-use super::deck::{Card, DeckSeed};
+use super::deck::Card;
 use super::pot;
 use super::table::GameState;
 use super::{Currency, PlayerId};
@@ -9,7 +9,6 @@ use std::collections::HashMap;
 pub enum LogItem {
     Pot(pot::LogItem),
     StateChange(GameState),
-    NewDeck(DeckSeed),
     PocketsDealt(HashMap<PlayerId, Option<[Card; 2]>>),
     SitDown(PlayerId, usize, Currency),
     StandUp(PlayerId, Currency),
@@ -31,7 +30,6 @@ impl std::fmt::Display for LogItem {
         match self {
             LogItem::Pot(pli) => write!(f, "{pli}"),
             LogItem::StateChange(to) => write!(f, "State changed to {to}"),
-            LogItem::NewDeck(ds) => write!(f, "Using deck with seed {ds}"),
             LogItem::PocketsDealt(map) => {
                 let middle: String = map
                     .iter()
@@ -114,7 +112,6 @@ impl LogFilter for PlayerFilter {
             // We may determine some of these are needed in the future. I'm thinking
             // SitDown/StandUp namely. For now, filter out.
             LogItem::StateChange(_)
-            | LogItem::NewDeck(_)
             | LogItem::SitDown(_, _, _)
             | LogItem::StandUp(_, _)
             | LogItem::CurrentBetSet(_)
