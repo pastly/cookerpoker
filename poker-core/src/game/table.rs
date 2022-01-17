@@ -80,11 +80,6 @@ pub enum BetRound {
     River,
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum GameEvent {
-    NewDeckSeed(String),
-}
-
 impl Default for GameInProgress {
     fn default() -> Self {
         GameInProgress {
