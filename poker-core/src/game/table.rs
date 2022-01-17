@@ -161,13 +161,12 @@ impl GameInProgress {
         // Deal the pockets
         let nump = self.seated_players.betting_players_count() as u8;
         let pockets = self.deck.deal_pockets(nump)?;
-        logs.push(LogItem::PocketsDealt(
+        logs.extend(
             self.seated_players
                 .deal_pockets(pockets)
                 .into_iter()
-                .map(|(k, v)| (k, Some(v)))
-                .collect(),
-        ));
+                .map(|(k, v)| LogItem::PocketDealt(k, v)),
+        );
 
         logs.push(LogItem::CurrentBetSet(self.current_bet, self.min_raise));
         Ok(logs)
