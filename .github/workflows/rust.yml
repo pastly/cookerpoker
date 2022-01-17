@@ -27,6 +27,12 @@ jobs:
     - name: Update
       run: rustup update; rustup component add rustfmt; rustup component add clippy
 
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+    - name: Check clippy
+      run: cargo clippy -- -D warnings
+
     - name: Build
       run: cargo build --verbose
 
@@ -38,9 +44,3 @@ jobs:
 
     - name: Run web-integration tests
       run: cd tests/web-integration && make --keep-going
-
-    - name: Fail on lacking fmt.
-      run: cargo fmt --all -- --check
-    
-    - name: Cargo Clippy
-      run: cargo clippy -- -D warnings
