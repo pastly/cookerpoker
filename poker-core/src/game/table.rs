@@ -169,8 +169,7 @@ impl GameInProgress {
                 .collect(),
         ));
 
-        logs.push(LogItem::CurrentBetSet(self.current_bet));
-        logs.push(LogItem::MinRaiseSet(self.min_raise));
+        logs.push(LogItem::CurrentBetSet(self.current_bet, self.min_raise));
         Ok(logs)
     }
 
@@ -246,8 +245,7 @@ impl GameInProgress {
         self.min_raise = self.big_blind();
         self.last_raiser = None;
         logs.extend(pot_logs.into_iter().map(|pot_logitem| pot_logitem.into()));
-        logs.push(LogItem::CurrentBetSet(self.current_bet));
-        logs.push(LogItem::MinRaiseSet(self.min_raise));
+        logs.push(LogItem::CurrentBetSet(self.current_bet, self.min_raise));
         // deal community cards, if needed
         if let GameState::Betting(round) = next {
             match round {
@@ -334,7 +332,7 @@ impl GameInProgress {
         let old_current_bet = self.current_bet;
         self.current_bet = new_ba_and_current_bet.1;
         if self.current_bet > old_current_bet {
-            logs.push(LogItem::CurrentBetSet(self.current_bet));
+            logs.push(LogItem::CurrentBetSet(self.current_bet, self.min_raise));
             // The player has bet more than the current bet.
             //
             // The only reason they can be allowed to not match/exceed the min_raise is if they're
@@ -344,7 +342,7 @@ impl GameInProgress {
                 assert!(matches!(new_ba, BetAction::AllIn(_)));
             } else {
                 self.min_raise = self.current_bet + (self.current_bet - old_current_bet);
-                logs.push(LogItem::MinRaiseSet(self.min_raise));
+                logs.push(LogItem::CurrentBetSet(self.current_bet, self.min_raise));
             }
         }
         // Update Pot

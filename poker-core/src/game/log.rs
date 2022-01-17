@@ -12,8 +12,7 @@ pub enum LogItem {
     PocketsDealt(HashMap<PlayerId, Option<[Card; 2]>>),
     SitDown(PlayerId, usize, Currency),
     StandUp(PlayerId, Currency),
-    CurrentBetSet(Currency),
-    MinRaiseSet(Currency),
+    CurrentBetSet(Currency, Currency),
     Flop([Card; 3]),
     Turn(Card),
     River(Card),
@@ -51,8 +50,7 @@ impl std::fmt::Display for LogItem {
                 write!(f, "p{} sits in seat {} with {}", p, seat, monies)
             }
             LogItem::StandUp(p, monies) => write!(f, "p{} leaves the table with {}", p, monies),
-            LogItem::CurrentBetSet(x) => write!(f, "Current bet to match is now {}", x),
-            LogItem::MinRaiseSet(x) => write!(f, "Minimum raise is now {}", x),
+            LogItem::CurrentBetSet(x, y) => write!(f, "Current bet to match is now {}; minimum raise is now {}", x, y),
             LogItem::Flop(c) => write!(f, "Flop: {} {} {}", c[0], c[1], c[2]),
             LogItem::Turn(c) => write!(f, "Turn: {}", c),
             LogItem::River(c) => write!(f, "River: {}", c),
@@ -114,8 +112,7 @@ impl LogFilter for PlayerFilter {
             LogItem::StateChange(_)
             | LogItem::SitDown(_, _, _)
             | LogItem::StandUp(_, _)
-            | LogItem::CurrentBetSet(_)
-            | LogItem::MinRaiseSet(_) => false,
+            | LogItem::CurrentBetSet(_, _) => false,
         });
         logs
     }
