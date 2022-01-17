@@ -96,3 +96,14 @@ to reveal their hand, though this may not be implemented at first). In response
 to this function call GameInProgress will append a new type of log item to its
 log `Reveal(PlayerId, [Card; 2])`.  The cards will come from GameInProgress's
 pocket map in memory in order to not have to trust the caller.
+
+### How `PocketsDealt` is addressed
+
+It no longer exists.  `PocketDealt(_)` replaces it. The database or textual log
+files never have this event written to them. Players only receive their own
+PocketDealt log items.
+
+### How not recording logs is addressed
+
+GameInProgress is modified to record logs instead of returning the latest log
+items.
