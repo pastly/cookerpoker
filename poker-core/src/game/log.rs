@@ -2,14 +2,12 @@ use super::deck::Card;
 use super::pot;
 use super::table::GameState;
 use super::{Currency, PlayerId};
-use itertools::Itertools;
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum LogItem {
     Pot(pot::LogItem),
     StateChange(GameState),
-    PocketsDealt(HashMap<PlayerId, Option<[Card; 2]>>),
+    PocketDealt(PlayerId, [Card; 2]),
     SitDown(PlayerId, usize, Currency),
     StandUp(PlayerId, Currency),
     CurrentBetSet(Currency, Currency),
@@ -29,22 +27,8 @@ impl std::fmt::Display for LogItem {
         match self {
             LogItem::Pot(pli) => write!(f, "{pli}"),
             LogItem::StateChange(to) => write!(f, "State changed to {to}"),
-            LogItem::PocketsDealt(map) => {
-                let middle: String = map
-                    .iter()
-                    .map(|(player, p)| {
-                        format!(
-                            "p{}: {}",
-                            player,
-                            match p {
-                                None => "????".to_string(),
-                                Some(p) => format!("{}{}", p[0], p[1]),
-                            }
-                        )
-                    })
-                    .join(", ");
-                let s = "[".to_string() + &middle + "]";
-                write!(f, "Pockets dealt: {}", s)
+            LogItem::PocketDealt(player, pocket) => {
+                write!(f, "p{player} dealt {}{}", pocket[0], pocket[1])
             }
             LogItem::SitDown(p, seat, monies) => {
                 write!(f, "p{} sits in seat {} with {}", p, seat, monies)
