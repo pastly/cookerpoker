@@ -5,7 +5,7 @@ TESTS=$(shell find . -mindepth 1 -type d)
 all: $(TESTS)
 
 rebuild:
-	cargo build --release --bin manual-game
+	cargo build --bin manual-game
 
 $(TESTS): rebuild
 	@cd $@ && \
