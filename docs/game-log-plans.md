@@ -85,9 +85,12 @@ GameInProgress will keep the pocket map in memory for the duration of the
 current hand.
 
 GameInProgress will gain a `pub fn logs_since(usize, PlayerId) ->
-Vec<LogItem>`. The usize is the sequence number of the most recent log the
-caller knows about. The PlayerId is the player that the logs should be tailored
-for, i.e. all `PocketsDealt(_)` for other players will not be returned.
+(Vec<LogItem>, usize)`. The usize argument is the index of the most recent log
+the caller knows about. The PlayerId argument is the player that the logs
+should be tailored for, i.e. all `PocketsDealt(_)` for other players will not
+be returned.  The vec return value is the logs, and the usize return value is
+the index of the last live log item (last live log item known about, whether or
+not it is part of the returned vec. AKA it's `live_logs.len()-1`).
 
 An optional feature as part of implementing this document: GameInProgress will
 gain a `pub fn reveal(PlayerId)` to be called when a player voluntarily reveals
