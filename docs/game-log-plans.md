@@ -62,7 +62,7 @@ be leaked outside of poker-core willy-nilly.
 GameInProgress shall be changed (back) to storing logs as they are generated.
 For simplicity's sake, its `pub fn`s such as `bet()` will *not* return logs
 that are generated as a result of the call; instead it is the caller's
-responsibility to call the `logs_since()` function (discussed momentarily)
+responsibility to call the `latest_logs()` function (discussed momentarily)
 immediately after the call if they want any fresh logs.
 
 In support of [issue 42][], GameInProgress will store a small number of full
@@ -81,13 +81,10 @@ The `PocketsDealt(_)` log item with the pocket map will be replaced with a
 one of these will be logged for each player that receives cards. These are the
 log items that never touch the database.
 
-GameInProgress will gain a `pub fn logs_since(usize, PlayerId) ->
-(Vec<LogItem>, usize)`. The usize argument is the index of the most recent log
-the caller knows about. The PlayerId argument is the player that the logs
-should be tailored for, i.e. all `PocketsDealt(_)` for other players will not
-be returned.  The vec return value is the logs, and the usize return value is
-the index of the last live log item (last live log item known about, whether or
-not it is part of the returned vec. AKA it's `live_logs.len()-1`).
+GameInProgress will gain a `pub fn latest_logs() -> Iterator<LogItem>`.  This
+function returns the latest "live" logs since the last time it was called. This
+includes all sensitive per-player logs. The caller must handle these
+responsibly.
 
 An optional feature as part of implementing this document: GameInProgress will
 gain a `pub fn reveal(PlayerId)` to be called when a player voluntarily reveals
