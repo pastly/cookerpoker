@@ -3,7 +3,7 @@ use super::pot;
 use super::table::GameState;
 use super::{Currency, PlayerId};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LogItem {
     Pot(pot::LogItem),
     StateChange(GameState),

@@ -102,6 +102,7 @@ impl Default for GameInProgress {
             archive_logs: Vec::new(),
             max_live_hands: DEF_MAX_LIVE_HANDS,
             max_archive_hands: DEF_MAX_ARCHIVE_HANDS,
+            next_live_log: 0,
         }
     }
 }
@@ -138,6 +139,8 @@ pub struct GameInProgress {
     max_live_hands: u16,
     /// Maximum number of *hands* that archive_logs should store.
     max_archive_hands: u16,
+    /// The index of the next live_log we should return when asked for the latest live logs.
+    next_live_log: usize,
 }
 
 impl GameInProgress {
@@ -453,7 +456,13 @@ impl GameInProgress {
             // So yeah that's why we swap the vecs live_logs and newest here. What was in live_logs
             // is now in oldest.
             let mut oldest = mem::replace(&mut self.live_logs, newest);
-            // Finally got the oldest ones out, now put them in the archvie where they belong!
+            // Brief interlude to make sure we keep track of what live logs are yet unseen by our caller
+            self.next_live_log = if oldest.len() <= self.next_live_log {
+                self.next_live_log - oldest.len()
+            } else {
+                0
+            };
+            // We got the oldest ones out, now put them in the archvie where they belong!
             self.archive_logs.append(&mut oldest);
         }
         if archive_hand_starts.len() as u16 > self.max_archive_hands - 1 {
@@ -462,6 +471,14 @@ impl GameInProgress {
             let newest = self.archive_logs.split_off(archive_hand_starts[1]);
             self.archive_logs = newest;
         }
+    }
+
+    /// Return an iterator over the latest log items that we have not already returned. This is the
+    /// way our caller learns about game progression.
+    pub fn latest_logs(&mut self) -> impl Iterator<Item = LogItem> + '_ {
+        let n = self.next_live_log;
+        self.next_live_log = self.live_logs.len();
+        self.live_logs.iter().skip(n).cloned()
     }
 
     #[cfg(test)]
@@ -655,7 +672,7 @@ mod tests {
 }
 
 #[cfg(test)]
-mod test_log_rotate {
+mod test_logs {
     use super::*;
 
     fn play_one_hand(gt: &mut GameInProgress) {
@@ -738,5 +755,32 @@ mod test_log_rotate {
             hand_starts(gt.archive_logs()).len(),
             DEF_MAX_ARCHIVE_HANDS as usize
         );
+    }
+
+    #[test]
+    fn latest_logs_back_to_back() {
+        let mut gt = GameInProgress::default();
+        gt.sit_down(0, 10000, 0).unwrap();
+        gt.sit_down(1, 10000, 1).unwrap();
+        play_one_hand(&mut gt);
+        assert!(gt.latest_logs().count() > 0);
+        assert_eq!(gt.latest_logs().count(), 0);
+    }
+
+    #[test]
+    fn latest_logs_through_rotate() {
+        // read all live logs, play another hand s.t. live_logs has to overflow into archive, and
+        // try reading new live logs. There should be some returned.
+        let mut gt = GameInProgress::default();
+        gt.sit_down(0, 10000, 0).unwrap();
+        gt.sit_down(1, 10000, 1).unwrap();
+        for _ in 0..DEF_MAX_LIVE_HANDS {
+            play_one_hand(&mut gt);
+        }
+        // consume latest logs, plus sanity check that there are some
+        assert!(gt.latest_logs().count() > 0);
+        // play another hand and make sure we get some logs back.
+        play_one_hand(&mut gt);
+        assert!(gt.latest_logs().count() > 0);
     }
 }
