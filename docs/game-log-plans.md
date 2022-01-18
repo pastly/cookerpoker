@@ -81,9 +81,6 @@ The `PocketsDealt(_)` log item with the pocket map will be replaced with a
 one of these will be logged for each player that receives cards. These are the
 log items that never touch the database.
 
-GameInProgress will keep the pocket map in memory for the duration of the
-current hand.
-
 GameInProgress will gain a `pub fn logs_since(usize, PlayerId) ->
 (Vec<LogItem>, usize)`. The usize argument is the index of the most recent log
 the caller knows about. The PlayerId argument is the player that the logs
