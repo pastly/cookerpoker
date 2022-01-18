@@ -9,6 +9,10 @@ use super::pot::Pot;
 use super::{BetAction, Currency, GameError};
 use derive_more::Display;
 use std::cmp::Ordering;
+use std::mem;
+
+const DEF_MAX_LIVE_HANDS: u16 = 2;
+const DEF_MAX_ARCHIVE_HANDS: u16 = 100;
 
 impl TableType {
     /// Helper function because dumb
@@ -94,6 +98,10 @@ impl Default for GameInProgress {
             last_raiser: None,
             hand_num: 0,
             deck: Deck::default(),
+            live_logs: Vec::new(),
+            archive_logs: Vec::new(),
+            max_live_hands: DEF_MAX_LIVE_HANDS,
+            max_archive_hands: DEF_MAX_ARCHIVE_HANDS,
         }
     }
 }
@@ -122,10 +130,19 @@ pub struct GameInProgress {
     last_raiser: Option<PlayerId>,
     pub hand_num: i16,
     deck: Deck,
+    /// [`LogItem`]s for the current hand and the last couple game(s).
+    live_logs: Vec<LogItem>,
+    /// [`LogItem`]s for older games
+    archive_logs: Vec<LogItem>,
+    /// Maximum number of *hands* that live_logs should store.
+    max_live_hands: u16,
+    /// Maximum number of *hands* that archive_logs should store.
+    max_archive_hands: u16,
 }
 
 impl GameInProgress {
-    pub fn start_round(&mut self, seed: &DeckSeed) -> Result<Vec<LogItem>, GameError> {
+    pub fn start_round(&mut self, seed: &DeckSeed) -> Result<(), GameError> {
+        self.rotate_logs();
         let mut logs = vec![];
         self.state = GameState::Dealing;
         logs.push(LogItem::StateChange(self.state));
@@ -169,7 +186,8 @@ impl GameInProgress {
         );
 
         logs.push(LogItem::CurrentBetSet(self.current_bet, self.min_raise));
-        Ok(logs)
+        self.live_logs.append(&mut logs);
+        Ok(())
     }
 
     /// Gets the seated player by id if they are seated at the current table.
@@ -195,12 +213,14 @@ impl GameInProgress {
         player_id: PlayerId,
         monies: C,
         seat: usize,
-    ) -> Result<Vec<LogItem>, GameError> {
+    ) -> Result<(), GameError> {
         self.seated_players.sit_down(player_id, monies, seat)?;
-        Ok(vec![LogItem::SitDown(player_id, seat, monies.into())])
+        self.live_logs
+            .push(LogItem::SitDown(player_id, seat, monies.into()));
+        Ok(())
     }
 
-    pub fn stand_up(&mut self, player_id: PlayerId) -> Result<Vec<LogItem>, GameError> {
+    pub fn stand_up(&mut self, player_id: PlayerId) -> Result<(), GameError> {
         let monies = match self.state {
             GameState::EndOfHand | GameState::NotStarted => self
                 .seated_players
@@ -220,7 +240,8 @@ impl GameInProgress {
                 }
             }
         };
-        Ok(vec![LogItem::StandUp(player_id, monies)])
+        self.live_logs.push(LogItem::StandUp(player_id, monies));
+        Ok(())
     }
 
     /// The betting round has just ended. Advance to the next game state, and do intra-round
@@ -282,7 +303,7 @@ impl GameInProgress {
         self.seated_players.next_player()
     }
 
-    pub fn bet(&mut self, player: PlayerId, ba: BetAction) -> Result<Vec<LogItem>, GameError> {
+    pub fn bet(&mut self, player: PlayerId, ba: BetAction) -> Result<(), GameError> {
         let mut logs = vec![];
         // Make sure we're in a state where bets are expected
         match self.state {
@@ -372,7 +393,8 @@ impl GameInProgress {
                 logs.append(&mut self.finalize_hand()?);
             }
         }
-        Ok(logs)
+        self.live_logs.append(&mut logs);
+        Ok(())
     }
 
     /// Simple abstraction so can make big blinds that are not x2 later
@@ -416,6 +438,56 @@ impl GameInProgress {
         // TODO Force rocket to update DB? Probably by returning State enum?
         Ok(logs)
     }
+
+    /// Move the oldest live [`LogItem`]s to archive logs, and send the oldest archive logs to hell.
+    fn rotate_logs(&mut self) {
+        assert!(self.max_live_hands >= 1);
+        assert!(self.max_archive_hands >= 1);
+        let live_hand_starts = hand_starts(&self.live_logs);
+        let archive_hand_starts = hand_starts(&self.archive_logs);
+        if live_hand_starts.len() as u16 > self.max_live_hands - 1 {
+            assert!(live_hand_starts.len() >= 2);
+            // split_off splits the vec at the given index, and returns the right-most items.
+            // Right-most for us means newest log items, which we really want to keep in live_logs.
+            let newest = self.live_logs.split_off(live_hand_starts[1]);
+            // So yeah that's why we swap the vecs live_logs and newest here. What was in live_logs
+            // is now in oldest.
+            let mut oldest = mem::replace(&mut self.live_logs, newest);
+            // Finally got the oldest ones out, now put them in the archvie where they belong!
+            self.archive_logs.append(&mut oldest);
+        }
+        if archive_hand_starts.len() as u16 > self.max_archive_hands - 1 {
+            // Same thing as with live hands, but we just drop the oldest archived hands if needed.
+            assert!(archive_hand_starts.len() >= 2);
+            let newest = self.archive_logs.split_off(archive_hand_starts[1]);
+            self.archive_logs = newest;
+        }
+    }
+
+    #[cfg(test)]
+    fn live_logs(&self) -> &Vec<LogItem> {
+        &self.live_logs
+    }
+
+    #[cfg(test)]
+    fn archive_logs(&self) -> &Vec<LogItem> {
+        &self.archive_logs
+    }
+}
+
+/// Helper function for [`GameInProgress::rotate_logs`] that pulls out only the events that signify
+/// the start of a hand.
+fn hand_starts(logs: &[LogItem]) -> Vec<usize> {
+    logs.iter()
+        .enumerate()
+        .filter_map(|(idx, li)| {
+            if matches!(li, LogItem::StateChange(GameState::Dealing)) {
+                Some(idx)
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -486,13 +558,12 @@ mod tests {
 
     #[test]
     fn basic_game() {
-        let mut logs = vec![];
         let mut gt = GameInProgress::default();
-        logs.append(&mut gt.sit_down(0, 100, 0).unwrap()); // dealer
-        logs.append(&mut gt.sit_down(1, 100, 1).unwrap()); // small blind
-        logs.append(&mut gt.sit_down(2, 100, 2).unwrap()); // big blind
-        logs.append(&mut gt.sit_down(3, 100, 3).unwrap());
-        logs.append(&mut gt.start_round(&seed1()).unwrap());
+        gt.sit_down(0, 100, 0).unwrap(); // dealer
+        gt.sit_down(1, 100, 1).unwrap(); // small blind
+        gt.sit_down(2, 100, 2).unwrap(); // big blind
+        gt.sit_down(3, 100, 3).unwrap();
+        gt.start_round(&seed1()).unwrap();
         // Blinds are in
         assert!(matches!(gt.state, GameState::Betting(BetRound::PreFlop)));
         assert_eq!(gt.get_player_info(0).unwrap().monies, 100.into());
@@ -503,10 +574,10 @@ mod tests {
         assert_eq!(gt.seated_players.small_blind_token, 1);
         assert_eq!(gt.seated_players.big_blind_token, 2);
 
-        logs.append(&mut gt.bet(3, BetAction::Call(10.into())).unwrap());
-        logs.append(&mut gt.bet(0, BetAction::Fold).unwrap());
-        logs.append(&mut gt.bet(1, BetAction::Call(10.into())).unwrap());
-        logs.append(&mut gt.bet(2, BetAction::Check).unwrap());
+        gt.bet(3, BetAction::Call(10.into())).unwrap();
+        gt.bet(0, BetAction::Fold).unwrap();
+        gt.bet(1, BetAction::Call(10.into())).unwrap();
+        gt.bet(2, BetAction::Check).unwrap();
 
         // First betting round is over.
         // Table should recognize that all players are in and pot is right and forward the round
@@ -522,11 +593,11 @@ mod tests {
         assert!(gt.table_cards[4].is_none());
         assert!(matches!(gt.state, GameState::Betting(BetRound::Flop)));
 
-        logs.append(&mut gt.bet(1, BetAction::Check).unwrap());
-        logs.append(&mut gt.bet(2, BetAction::Bet(20.into())).unwrap());
-        logs.append(&mut gt.bet(3, BetAction::Call(20.into())).unwrap());
+        gt.bet(1, BetAction::Check).unwrap();
+        gt.bet(2, BetAction::Bet(20.into())).unwrap();
+        gt.bet(3, BetAction::Call(20.into())).unwrap();
         // 0 folded
-        logs.append(&mut gt.bet(1, BetAction::Call(20.into())).unwrap());
+        gt.bet(1, BetAction::Call(20.into())).unwrap();
 
         // Second betting round is over.
         assert_eq!(gt.get_player_info(0).unwrap().monies, 100.into());
@@ -541,11 +612,11 @@ mod tests {
         assert!(gt.table_cards[4].is_none());
         assert!(matches!(gt.state, GameState::Betting(BetRound::Turn)));
 
-        logs.append(&mut gt.bet(1, BetAction::Bet(30.into())).unwrap());
-        logs.append(&mut gt.bet(2, BetAction::Call(30.into())).unwrap());
-        logs.append(&mut gt.bet(3, BetAction::Raise(60.into())).unwrap());
-        logs.append(&mut gt.bet(1, BetAction::Call(60.into())).unwrap());
-        logs.append(&mut gt.bet(2, BetAction::Fold).unwrap());
+        gt.bet(1, BetAction::Bet(30.into())).unwrap();
+        gt.bet(2, BetAction::Call(30.into())).unwrap();
+        gt.bet(3, BetAction::Raise(60.into())).unwrap();
+        gt.bet(1, BetAction::Call(60.into())).unwrap();
+        gt.bet(2, BetAction::Fold).unwrap();
 
         // Third betting round is over.
         assert_eq!(gt.get_player_info(0).unwrap().monies, 100.into());
@@ -560,8 +631,8 @@ mod tests {
         assert!(gt.table_cards[4].is_some());
         assert!(matches!(gt.state, GameState::Betting(BetRound::River)));
 
-        logs.append(&mut gt.bet(1, BetAction::AllIn(10.into())).unwrap());
-        logs.append(&mut gt.bet(3, BetAction::Call(10.into())).unwrap()); // AllIn should also work
+        gt.bet(1, BetAction::AllIn(10.into())).unwrap();
+        gt.bet(3, BetAction::Call(10.into())).unwrap(); // AllIn should also work
 
         // This should be the end of the hand. Winner should be paid out. Etc.
         // We can rely on these payouts because we have the same deck seed every time.
@@ -571,7 +642,7 @@ mod tests {
         assert_eq!(gt.get_player_info(2).unwrap().monies, 40.into());
         assert_eq!(gt.get_player_info(3).unwrap().monies, 260.into());
 
-        for (n, item) in logs.into_iter().enumerate() {
+        for (n, item) in gt.live_logs().into_iter().enumerate() {
             println!("{:2}: {}", n, item);
         }
     }
@@ -581,4 +652,91 @@ mod tests {
     // TODO test where players that are currently bet eligible try to stand up
 
     // TODO moar
+}
+
+#[cfg(test)]
+mod test_log_rotate {
+    use super::*;
+
+    fn play_one_hand(gt: &mut GameInProgress) {
+        gt.start_round(&DeckSeed::default()).unwrap();
+        let player = gt.next_player().unwrap();
+        gt.bet(player, BetAction::Fold).unwrap();
+    }
+
+    #[test]
+    fn live_logs_len() {
+        let mut gt = GameInProgress::default();
+        gt.sit_down(0, 10000, 0).unwrap();
+        gt.sit_down(1, 10000, 1).unwrap();
+        assert_eq!(hand_starts(gt.live_logs()).len(), 0);
+        // hands accumulate in live_logs
+        for n in 0..=DEF_MAX_LIVE_HANDS {
+            assert_eq!(hand_starts(gt.live_logs()).len(), n as usize);
+            play_one_hand(&mut gt);
+        }
+        assert_eq!(
+            hand_starts(gt.live_logs()).len(),
+            DEF_MAX_LIVE_HANDS as usize
+        );
+        // as more hands are played, live_logs still doesn't get bigger than one more than
+        // DEF_MAX_LIVE_HANDS
+        play_one_hand(&mut gt);
+        assert_eq!(
+            hand_starts(gt.live_logs()).len(),
+            DEF_MAX_LIVE_HANDS as usize
+        );
+        play_one_hand(&mut gt);
+        assert_eq!(
+            hand_starts(gt.live_logs()).len(),
+            DEF_MAX_LIVE_HANDS as usize
+        );
+        play_one_hand(&mut gt);
+        play_one_hand(&mut gt);
+        assert_eq!(
+            hand_starts(gt.live_logs()).len(),
+            DEF_MAX_LIVE_HANDS as usize
+        );
+    }
+
+    #[test]
+    fn archive_logs_len() {
+        let mut gt = GameInProgress::default();
+        gt.sit_down(0, 10000, 0).unwrap();
+        gt.sit_down(1, 10000, 1).unwrap();
+        assert_eq!(hand_starts(gt.archive_logs()).len(), 0);
+        // first few hands don't touch archive_logs right away
+        for _ in 0..DEF_MAX_LIVE_HANDS {
+            assert_eq!(hand_starts(gt.archive_logs()).len(), 0);
+            play_one_hand(&mut gt);
+        }
+        // still haven't rotated
+        assert_eq!(hand_starts(gt.archive_logs()).len(), 0);
+        // but now they start, since live_logs is starting to overflow into archive
+        for n in 0..DEF_MAX_ARCHIVE_HANDS {
+            assert_eq!(hand_starts(gt.archive_logs()).len(), n as usize);
+            play_one_hand(&mut gt);
+        }
+        // archive is full, and additional games don't overfill it
+        assert_eq!(
+            hand_starts(gt.archive_logs()).len(),
+            DEF_MAX_ARCHIVE_HANDS as usize
+        );
+        play_one_hand(&mut gt);
+        assert_eq!(
+            hand_starts(gt.archive_logs()).len(),
+            DEF_MAX_ARCHIVE_HANDS as usize
+        );
+        play_one_hand(&mut gt);
+        assert_eq!(
+            hand_starts(gt.archive_logs()).len(),
+            DEF_MAX_ARCHIVE_HANDS as usize
+        );
+        play_one_hand(&mut gt);
+        play_one_hand(&mut gt);
+        assert_eq!(
+            hand_starts(gt.archive_logs()).len(),
+            DEF_MAX_ARCHIVE_HANDS as usize
+        );
+    }
 }
