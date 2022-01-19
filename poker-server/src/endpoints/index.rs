@@ -1,3 +1,5 @@
+use rocket::request::FlashMessage;
+
 use super::*;
 
 pub fn get_endpoints() -> Vec<rocket::route::Route> {
@@ -5,9 +7,12 @@ pub fn get_endpoints() -> Vec<rocket::route::Route> {
 }
 
 #[get("/")]
-fn index(u: User) -> Template {
+fn index(u: User, flash: Option<FlashMessage<'_>>) -> Template {
     let mut c = Context::new();
     c.insert("account", &(*u));
+    if let Some(flash) = flash {
+        c.insert(flash.kind(), flash.message());
+    }
     Template::render("index", &c.into_json())
 }
 #[get("/", rank = 2)]
