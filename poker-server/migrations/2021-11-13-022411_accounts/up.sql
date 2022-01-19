@@ -8,7 +8,7 @@ CREATE TABLE accounts (
 );
 
 INSERT INTO accounts (account_name, api_key, is_admin)
-VALUES ("test_account", "not_a_real_api_key", 1);
+VALUES ("test_account", "not_a_real_api_key______________________42", 1);
 
 CREATE TABLE money_log (
     id INTEGER PRIMARY KEY,
