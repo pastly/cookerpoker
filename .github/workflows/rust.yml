@@ -27,20 +27,5 @@ jobs:
     - name: Update
       run: rustup update; rustup component add rustfmt; rustup component add clippy
 
-    - name: Check formatting
-      run: cargo fmt --all -- --check
-
-    - name: Check clippy
-      run: cargo clippy -- -D warnings
-
-    - name: Build
-      run: cargo build --verbose
-
-    - name: Run tests
-      run: cargo test --verbose
-
-    - name: Run manual-game tests
-      run: cd tests/manual-game && make --keep-going
-
-    - name: Run web-integration tests
-      run: cd tests/web-integration && make --keep-going
+    - name: Run test script
+      run: ./test.sh
