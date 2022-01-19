@@ -102,7 +102,6 @@ impl Default for GameInProgress {
             archive_logs: Vec::new(),
             max_live_hands: DEF_MAX_LIVE_HANDS,
             max_archive_hands: DEF_MAX_ARCHIVE_HANDS,
-            next_live_log: 0,
         }
     }
 }
@@ -132,15 +131,13 @@ pub struct GameInProgress {
     pub hand_num: i16,
     deck: Deck,
     /// [`LogItem`]s for the current hand and the last couple game(s).
-    live_logs: Vec<LogItem>,
+    live_logs: Vec<(usize, LogItem)>,
     /// [`LogItem`]s for older games
-    archive_logs: Vec<LogItem>,
+    archive_logs: Vec<(usize, LogItem)>,
     /// Maximum number of *hands* that live_logs should store.
     max_live_hands: u16,
     /// Maximum number of *hands* that archive_logs should store.
     max_archive_hands: u16,
-    /// The index of the next live_log we should return when asked for the latest live logs.
-    next_live_log: usize,
 }
 
 impl GameInProgress {
@@ -189,7 +186,7 @@ impl GameInProgress {
         );
 
         logs.push(LogItem::CurrentBetSet(self.current_bet, self.min_raise));
-        self.live_logs.append(&mut logs);
+        self.logs_append(logs);
         Ok(())
     }
 
@@ -218,8 +215,7 @@ impl GameInProgress {
         seat: usize,
     ) -> Result<(), GameError> {
         self.seated_players.sit_down(player_id, monies, seat)?;
-        self.live_logs
-            .push(LogItem::SitDown(player_id, seat, monies.into()));
+        self.logs_push(LogItem::SitDown(player_id, seat, monies.into()));
         Ok(())
     }
 
@@ -243,7 +239,7 @@ impl GameInProgress {
                 }
             }
         };
-        self.live_logs.push(LogItem::StandUp(player_id, monies));
+        self.logs_push(LogItem::StandUp(player_id, monies));
         Ok(())
     }
 
@@ -396,7 +392,7 @@ impl GameInProgress {
                 logs.append(&mut self.finalize_hand()?);
             }
         }
-        self.live_logs.append(&mut logs);
+        self.logs_append(logs);
         Ok(())
     }
 
@@ -456,12 +452,6 @@ impl GameInProgress {
             // So yeah that's why we swap the vecs live_logs and newest here. What was in live_logs
             // is now in oldest.
             let mut oldest = mem::replace(&mut self.live_logs, newest);
-            // Brief interlude to make sure we keep track of what live logs are yet unseen by our caller
-            self.next_live_log = if oldest.len() <= self.next_live_log {
-                self.next_live_log - oldest.len()
-            } else {
-                0
-            };
             // We got the oldest ones out, now put them in the archvie where they belong!
             self.archive_logs.append(&mut oldest);
         }
@@ -473,31 +463,61 @@ impl GameInProgress {
         }
     }
 
-    /// Return an iterator over the latest log items that we have not already returned. This is the
-    /// way our caller learns about game progression.
-    pub fn latest_logs(&mut self) -> impl Iterator<Item = LogItem> + '_ {
-        let n = self.next_live_log;
-        self.next_live_log = self.live_logs.len();
-        self.live_logs.iter().skip(n).cloned()
+    /// Returns an iterator that returns live [`LogItem`]s that have sequence numbers greater than
+    /// the given one.
+    ///
+    /// This function returns **live** logs, not archive logs.
+    ///
+    /// The very first log item ever recorded in a GameInProgress will have sequence number 1.
+    /// Thus in all cases, passing 0 to this function will return all live logs. If the sequence
+    /// number provided is greated than that of all live logs, the reteurned iterator is empty.
+    pub fn logs_since(&mut self, seq_num: usize) -> impl Iterator<Item = (usize, LogItem)> + '_ {
+        self.live_logs
+            .iter()
+            .skip_while(move |item| item.0 < seq_num)
+            .cloned()
+    }
+
+    /// Determine our most recent log item's sequence number and return one more than that, else 1.
+    fn next_log_seq_num(&self) -> usize {
+        let live_logs_len = self.live_logs.len();
+        let archive_logs_len = self.archive_logs.len();
+        if live_logs_len > 0 {
+            self.live_logs[live_logs_len - 1].0 + 1
+        } else if archive_logs_len > 0 {
+            self.archive_logs[archive_logs_len - 1].0 + 1
+        } else {
+            1
+        }
+    }
+
+    fn logs_push(&mut self, log: LogItem) {
+        self.live_logs.push((self.next_log_seq_num(), log));
+    }
+
+    fn logs_append(&mut self, logs: Vec<LogItem>) {
+        for log in logs {
+            self.live_logs.push((self.next_log_seq_num(), log));
+        }
     }
 
     #[cfg(test)]
-    fn live_logs(&self) -> &Vec<LogItem> {
+    fn live_logs(&self) -> &Vec<(usize, LogItem)> {
         &self.live_logs
     }
 
     #[cfg(test)]
-    fn archive_logs(&self) -> &Vec<LogItem> {
+    fn archive_logs(&self) -> &Vec<(usize, LogItem)> {
         &self.archive_logs
     }
 }
 
 /// Helper function for [`GameInProgress::rotate_logs`] that pulls out only the events that signify
 /// the start of a hand.
-fn hand_starts(logs: &[LogItem]) -> Vec<usize> {
+fn hand_starts(logs: &[(usize, LogItem)]) -> Vec<usize> {
     logs.iter()
         .enumerate()
-        .filter_map(|(idx, li)| {
+        .filter_map(|(idx, (_, li))| {
             if matches!(li, LogItem::StateChange(GameState::Dealing)) {
                 Some(idx)
             } else {
@@ -659,7 +679,7 @@ mod tests {
         assert_eq!(gt.get_player_info(2).unwrap().monies, 40.into());
         assert_eq!(gt.get_player_info(3).unwrap().monies, 260.into());
 
-        for (n, item) in gt.live_logs().into_iter().enumerate() {
+        for (n, item) in gt.live_logs().into_iter() {
             println!("{:2}: {}", n, item);
         }
     }
@@ -755,20 +775,39 @@ mod test_logs {
             hand_starts(gt.archive_logs()).len(),
             DEF_MAX_ARCHIVE_HANDS as usize
         );
+
+        for (n, log) in gt.logs_since(0) {
+            println!("{n} {log}");
+        }
+        //assert!(false);
     }
 
     #[test]
-    fn latest_logs_back_to_back() {
+    fn logs_start_at_one() {
         let mut gt = GameInProgress::default();
         gt.sit_down(0, 10000, 0).unwrap();
         gt.sit_down(1, 10000, 1).unwrap();
         play_one_hand(&mut gt);
-        assert!(gt.latest_logs().count() > 0);
-        assert_eq!(gt.latest_logs().count(), 0);
+        let first = gt.logs_since(0).nth(0).unwrap().0;
+        assert_eq!(first, 1);
     }
 
     #[test]
-    fn latest_logs_through_rotate() {
+    fn logs_are_sequential() {
+        let mut gt = GameInProgress::default();
+        gt.sit_down(0, 10000, 0).unwrap();
+        gt.sit_down(1, 10000, 1).unwrap();
+        play_one_hand(&mut gt);
+        let mut iter = gt.logs_since(0).map(|(i, _)| i);
+        let mut prev = iter.nth(0).unwrap();
+        for n in iter {
+            assert_eq!(n, prev + 1);
+            prev = n;
+        }
+    }
+
+    #[test]
+    fn logs_since_through_rotate() {
         // read all live logs, play another hand s.t. live_logs has to overflow into archive, and
         // try reading new live logs. There should be some returned.
         let mut gt = GameInProgress::default();
@@ -777,10 +816,19 @@ mod test_logs {
         for _ in 0..DEF_MAX_LIVE_HANDS {
             play_one_hand(&mut gt);
         }
-        // consume latest logs, plus sanity check that there are some
-        assert!(gt.latest_logs().count() > 0);
+        // get seq num of last log
+        let last = gt.logs_since(0).last().unwrap().0;
         // play another hand and make sure we get some logs back.
         play_one_hand(&mut gt);
-        assert!(gt.latest_logs().count() > 0);
+        assert!(gt.logs_since(last).count() > 0);
+    }
+
+    #[test]
+    fn logs_since_too_big() {
+        let mut gt = GameInProgress::default();
+        gt.sit_down(0, 10000, 0).unwrap();
+        gt.sit_down(1, 10000, 1).unwrap();
+        play_one_hand(&mut gt);
+        assert_eq!(gt.logs_since(1_000_000).count(), 0);
     }
 }
