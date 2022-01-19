@@ -8,7 +8,7 @@ echo Check clippy
 cargo clippy -- -D warnings
 
 echo Build
-cargo build --verbose
+cargo build
 
 echo Run tests
 cargo test --verbose
