@@ -2,8 +2,10 @@ use super::logic::account::api_key_to_account;
 use super::*;
 use models::accounts::{Account, NewAccount};
 use models::forms::LoginForm;
+use rocket::form::Errors;
 use rocket::http::{Cookie, CookieJar};
-use rocket::response::Redirect;
+use rocket::request::FlashMessage;
+use rocket::response::{Flash, Redirect};
 
 pub fn get_endpoints() -> Vec<rocket::route::Route> {
     routes![
@@ -20,19 +22,50 @@ pub fn get_endpoints() -> Vec<rocket::route::Route> {
 }
 
 #[get("/login")]
-async fn get_login() -> Template {
-    Template::render("login", Context::new().into_json())
+async fn get_login(flash: Option<FlashMessage<'_>>) -> Template {
+    let mut c = Context::new();
+    if let Some(flash) = flash {
+        let key = match flash.kind() {
+            "success" | "error" => flash.kind(),
+            _ => "message",
+        };
+        c.insert(key, flash.message());
+    }
+    Template::render("login", &c.into_json())
 }
 
 #[post("/login", data = "<form>")]
 async fn post_login(
     jar: &CookieJar<'_>,
     db: DbConn,
-    form: Form<LoginForm>,
-) -> Result<Redirect, AppError> {
-    let a = api_key_to_account(&db, &form.api_key).await?;
-    jar.add_private(Cookie::new("account", serde_json::to_string(&a).unwrap()));
-    Ok(Redirect::to("/".to_string()))
+    form: Result<Form<LoginForm>, Errors<'_>>,
+) -> Result<Flash<Redirect>, Flash<Redirect>> {
+    //let a = api_key_to_account(&db, &form.api_key).await?;
+    let err_dest = Redirect::to("/login".to_string());
+    let res = match form {
+        Ok(form) => api_key_to_account(&db, &form.api_key).await,
+        Err(e) => return Err(Flash::error(err_dest, e.to_string())),
+    };
+    match res {
+        Ok(a) => {
+            jar.add_private(Cookie::new("account", serde_json::to_string(&a).unwrap()));
+            Ok(Flash::success(
+                Redirect::to("/".to_string()),
+                format!("Successfully logged in as {}.", a.account_name),
+            ))
+        }
+        Err(e) => {
+            let msg = match e {
+                AppError::DbError(e) => match e.as_str() {
+                    "NotFound" => "An account with that API key was not found.".to_string(),
+                    _ => format!("Database error: {}", e),
+                },
+                AppError::ApiKeyError(e) => format!("API key error: {}", e),
+                AppError::TableError(e) => format!("Table error: {}", e),
+            };
+            Err(Flash::error(err_dest, msg))
+        }
+    }
 }
 
 #[get("/logout")]

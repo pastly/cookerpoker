@@ -18,6 +18,9 @@
 </header>
 <body>
 <main>
+{% if error %}<p class="flash error">{{ error }}</p>{% endif %}
+{% if success %}<p class="flash success">{{ success }}</p>{% endif %}
+{% if message %}<p class="flash message">{{ message }}</p>{% endif %}
 {% block content %}{% endblock content %}
 </main>
 <footer>

@@ -1,3 +1,23 @@
+.flash {
+    border: 1px solid black;
+    display: inline;
+    font-style: bold;
+    padding: 1em;
+    border-radius: 1em;
+}
+.error {
+    border: 2px solid #ff0000;
+    background-color: #990000;
+}
+.success {
+    border: 2px solid #00ff00;
+    background-color: #009900;
+}
+.message {
+    border: 2px solid #0000ff;
+    background-color: #000099;
+}
+
 #table {
     display: grid;
     grid-template-columns: 3fr 1fr 3fr 1fr 3fr;
