@@ -12,12 +12,12 @@
             <tr>
                 <td>{{ table.state }}</td>
                 <td>{{ table.name }}</td>
-                <td><a href="/table/{{ table.id }}"">View Table Settings</td>
-                <td><a href="/table/{{ table.id }}/join">Join not implemented</a></td>
+                <td><a href="/tables/{{ table.id }}"">View Table Settings</td>
+                <td><a href="/tables/{{ table.id }}/join">Join not implemented</a></td>
             </tr>
         {% endfor %}
     </table>
-    <form action="/table" method=POST>
+    <form action="/tables" method=POST>
         <label for="name">Table Name</label>
         <input type="Text" id="table_name" name="table_name">
         <input type="submit" value="submit">

@@ -29,7 +29,7 @@ pub async fn get_tables(db: DbConn, u: User) -> Result<Template, AppError> {
     Ok(Template::render("list_tables", &c.into_json()))
 }
 
-#[post("/table", data = "<nt>")]
+#[post("/tables", data = "<nt>")]
 pub async fn new_table(
     db: DbConn,
     u: User,
@@ -47,7 +47,7 @@ pub async fn new_table(
     Ok(Redirect::to("/tables"))
 }
 
-#[get("/table/<id>", rank = 2)]
+#[get("/tables/<id>", rank = 2)]
 pub async fn get_table_settings(db: DbConn, _u: User, id: i32) -> Result<Template, AppError> {
     let t: GameTable = db
         .run(move |conn| game_tables::table.find(id).first(conn))
@@ -61,7 +61,7 @@ pub async fn get_table_settings(db: DbConn, _u: User, id: i32) -> Result<Templat
 }
 
 //TODO Only show editable fields for tables in "NotReady" state.
-#[get("/table/<id>")]
+#[get("/tables/<id>")]
 pub async fn editable_table_settings(
     db: DbConn,
     _u: AdminOrTableOwner,
@@ -78,7 +78,7 @@ pub async fn editable_table_settings(
     Ok(Template::render("table_settings", &c.into_json()))
 }
 
-#[post("/table/<id>", data = "<settings>")]
+#[post("/tables/<id>", data = "<settings>")]
 pub async fn update_table_settings(
     db: DbConn,
     _a: AdminOrTableOwner,
@@ -96,5 +96,5 @@ pub async fn update_table_settings(
             .map_err(TableError::from)
     })
     .await?;
-    Ok(Redirect::to(format!("/table/{}", id)))
+    Ok(Redirect::to(format!("/tables/{}", id)))
 }
