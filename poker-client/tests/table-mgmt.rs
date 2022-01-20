@@ -33,7 +33,9 @@ async fn admin_client(redir_policy: Policy) -> Client {
     let c = anon_client(redir_policy).await;
     let mut data = HashMap::new();
     data.insert("api_key", ADMIN_API_KEY);
-    http::post_form(&c, url_prefix() + "/login", &data).await.unwrap();
+    http::post_form(&c, url_prefix() + "/login", &data)
+        .await
+        .unwrap();
     c
 }
 
@@ -41,7 +43,9 @@ async fn user_client(redir_policy: Policy) -> Client {
     let c = anon_client(redir_policy).await;
     let mut data = HashMap::new();
     data.insert("api_key", USER_API_KEY);
-    http::post_form(&c, url_prefix() + "/login", &data).await.unwrap();
+    http::post_form(&c, url_prefix() + "/login", &data)
+        .await
+        .unwrap();
     c
 }
 
@@ -70,7 +74,9 @@ async fn create_table(c: Client) {
     let name = random_string(10);
     let mut data = HashMap::new();
     data.insert("table_name", &name);
-    let resp = http::post_form(&c, table_url_prefix(), &data).await.unwrap();
+    let resp = http::post_form(&c, table_url_prefix(), &data)
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 200);
     assert_eq!(resp.url().path(), "/tables");
     let text = resp.text().await.unwrap();
@@ -95,7 +101,9 @@ async fn create_table_anon() {
     let name = random_string(10);
     let mut data = HashMap::new();
     data.insert("table_name", &name);
-    let resp = http::post_form(&c, table_url_prefix(), &data).await.unwrap();
+    let resp = http::post_form(&c, table_url_prefix(), &data)
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 404);
 }
 
