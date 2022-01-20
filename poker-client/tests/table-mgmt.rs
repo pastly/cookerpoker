@@ -7,6 +7,8 @@ use std::env;
 
 const ADMIN_API_KEY: &str = "KcMj5tZOssjajWhGeUeVByvckEjucthPVOmjygiBhX";
 const USER_API_KEY: &str = "Og7Ixf1bRkPtXfKR4tgHyurSwwA0lkkQ4uYJIPuVNs";
+const ADMIN_TABLE_ID: i32 = 1;
+const USER_TABLE_ID: i32 = 2;
 
 fn url_prefix() -> String {
     format!(
@@ -137,4 +139,46 @@ async fn view_tables_admin() {
     let text = resp.text().await.unwrap();
     assert!(text.contains("table-notmatt"));
     assert!(text.contains("table-matt"));
+}
+
+// Anonymous people should not be able to view table details
+#[tokio::test]
+async fn table_settings_anon() {
+    let c = anon_client(Default::default()).await;
+
+    let url = table_url_prefix() + &format!("/{ADMIN_TABLE_ID}");
+    let resp = http::get(&c, url).await.unwrap();
+    assert_eq!(resp.status(), 403);
+
+    let url = table_url_prefix() + &format!("/{USER_TABLE_ID}");
+    let resp = http::get(&c, url).await.unwrap();
+    assert_eq!(resp.status(), 403);
+}
+
+// Regular users should should be able to see the details page for their own tables, but not others
+#[tokio::test]
+async fn table_settings_nonadmin() {
+    let c = user_client(Default::default()).await;
+
+    let url = table_url_prefix() + &format!("/{USER_TABLE_ID}");
+    let resp = http::get(&c, url).await.unwrap();
+    assert_eq!(resp.status(), 200);
+
+    let url = table_url_prefix() + &format!("/{ADMIN_TABLE_ID}");
+    let resp = http::get(&c, url).await.unwrap();
+    assert_eq!(resp.status(), 403);
+}
+
+// Admins should should be able to see the details page for all tables
+#[tokio::test]
+async fn table_settings_admin() {
+    let c = admin_client(Default::default()).await;
+
+    let url = table_url_prefix() + &format!("/{USER_TABLE_ID}");
+    let resp = http::get(&c, url).await.unwrap();
+    assert_eq!(resp.status(), 200);
+
+    let url = table_url_prefix() + &format!("/{ADMIN_TABLE_ID}");
+    let resp = http::get(&c, url).await.unwrap();
+    assert_eq!(resp.status(), 200);
 }
