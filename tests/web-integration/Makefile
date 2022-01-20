@@ -33,6 +33,11 @@ DATABASE_URL:=test.db
 # Relative path to the (optional) file that contains SQL statements that should
 # be executed on the database before the test is run.
 INPUT_SQL:=input.sql
+# Arguments to pass to `cargo test` command. A use case: set this as an environment variable to
+# only run a specific subtest. For example, for test foo that has many tests in foo.rs, once of
+# which is bar, the command line "make foo CARGO_TEST_ARGS=bar" would run the foo test and only the
+# bar test within it.
+CARGO_TEST_ARGS:=
 
 $(TESTS): clean rebuild deps
 	$(eval PORT=$(shell echo $$(($(PORT)+1))))
@@ -66,7 +71,7 @@ $(TESTS): clean rebuild deps
 	@cd $(POKER_CLIENT_CRATE) && \
 	ROCKET_ADDRESS=$(ADDRESS) \
 	ROCKET_PORT=$(PORT) \
-	cargo test --features web-integration-tests --test $@
+	cargo test --features web-integration-tests --test $@ $(CARGO_TEST_ARGS)
 
 	@cd $@ && \
 	../stop-server.sh
