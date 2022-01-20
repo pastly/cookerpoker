@@ -1,0 +1,81 @@
+#![cfg(feature = "web-integration-tests")]
+use poker_client::http;
+use poker_core::util::random_string;
+use reqwest::{redirect::Policy, Client};
+use std::collections::HashMap;
+use std::env;
+
+const ADMIN_API_KEY: &str = "KcMj5tZOssjajWhGeUeVByvckEjucthPVOmjygiBhX";
+
+fn url_prefix() -> String {
+    format!(
+        "http://{}:{}",
+        env::var("ROCKET_ADDRESS").unwrap(),
+        env::var("ROCKET_PORT").unwrap(),
+    )
+}
+
+fn table_url_prefix() -> String {
+    url_prefix() + "/tables"
+}
+
+async fn anon_client(redir_policy: Policy) -> Client {
+    let c = Client::builder()
+        .cookie_store(true)
+        .redirect(redir_policy)
+        .build()
+        .unwrap();
+    c
+}
+
+async fn admin_client(redir_policy: Policy) -> Client {
+    let c = anon_client(redir_policy).await;
+    let mut data = HashMap::new();
+    data.insert("api_key", ADMIN_API_KEY);
+    http::post_form(&c, url_prefix() + "/login", &data).await.unwrap();
+    c
+}
+
+#[tokio::test]
+async fn get_table_page() {
+    let c = admin_client(Default::default()).await;
+    let resp = http::get(&c, table_url_prefix()).await.unwrap();
+    // make a bunch of spot tests to assure ourselves that this is the page that lists existing
+    // tables and the form for adding a new one.
+    assert_eq!(resp.status(), 200);
+    let text = resp.text().await.unwrap();
+    assert!(text.contains("<table"));
+    assert!(text.contains("Table Settings"));
+    assert!(text.contains("<form"));
+    assert!(text.contains("Table Name"));
+}
+
+#[tokio::test]
+async fn get_table_page_anon() {
+    let c = anon_client(Default::default()).await;
+    let resp = http::get(&c, table_url_prefix()).await.unwrap();
+    assert_eq!(resp.status(), 404);
+}
+
+#[tokio::test]
+async fn create_table() {
+    let c = admin_client(Default::default()).await;
+    let name = random_string(10);
+    let mut data = HashMap::new();
+    data.insert("table_name", &name);
+    let resp = http::post_form(&c, table_url_prefix(), &data).await.unwrap();
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.url().path(), "/tables");
+    let text = resp.text().await.unwrap();
+    assert!(text.contains(&name));
+}
+
+#[tokio::test]
+async fn create_table_anon() {
+    let c = anon_client(Default::default()).await;
+    let name = random_string(10);
+    let mut data = HashMap::new();
+    data.insert("table_name", &name);
+    let resp = http::post_form(&c, table_url_prefix(), &data).await.unwrap();
+    assert_eq!(resp.status(), 404);
+}
