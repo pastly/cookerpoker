@@ -21,6 +21,9 @@ To run all tests, execute `make`.
 
 To execute a specific test, say loginout, run `make loginout`.
 
+If `foo()` is one of the tests in `loginout.rs` and you want to run just it,
+run `make loginout CARGO_TEST_ARGS=foo`.
+
 ## Creating a new test
 
 Follow the lead of an existing test. Loginout is simple and expected to stay
