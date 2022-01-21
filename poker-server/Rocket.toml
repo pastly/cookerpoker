@@ -5,6 +5,7 @@ cli_colors = true
 
 [debug]
 port = 8000
+secret_key = "EYt6qfoZBYqG8r7o2qMq04GibGmRfJZ1jOI7yPUkQ3o="
 
 [debug.databases]
 sqlite = { url = "test.db" }
@@ -12,4 +13,3 @@ sqlite = { url = "test.db" }
 [release]
 #TODO SSL
 port = 80
-secret_key = "TODOPROPERSECRETKEYGENERATION"
