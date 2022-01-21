@@ -19,4 +19,54 @@
 <a href=/login>Login</a>
 {% endif %}
 </p>
+
+<ul>
+    <li><a href="/monies">Check my balance</a></li>
+    <li><a href="/tables">List open tables</a></li>
+    {% if account.is_admin %}
+    <li><a href="/accounts">View accounts (Admin only)</a></li>
+    {% endif %}
+</ul>
+<div id=gamelog></div>
+<div id=table>
+  <div class=pocket id="pocket-1"></div>
+  <div class=pocket id="pocket-2"></div>
+  <div class=pocket id="pocket-3"></div>
+  <div class=pocket id="pocket-4"></div>
+  <div class=pocket id="pocket-5"></div>
+  <div class=pocket id="pocket-6"></div>
+  <div id="community"></div>
+  <div id="pot"></div>
+</div>
+
+<script type="module">
+import init, {
+  // import aditional funcs here
+  greet,
+  show_community,
+  show_pocket,
+  show_pot,
+  render,
+} from './poker_client.js';
+
+async function run() {
+  await init();
+  // if you want to call any wasm funcs right away as soon as init'ed, do
+  // so here.
+  show_pocket(1);
+  show_pocket(2);
+  show_pocket(3);
+  show_pocket(4);
+  show_pocket(5);
+  show_pocket(6);
+  show_community(4);
+  show_pot();
+  render();
+}
+run();
+// calling wasm funcs here may not work if run() (an async func) hasn't finished yet
+
+// not sure when this is needed. I did it in a previous project
+// window.greet = greet;
+</script>
 {% endblock %}
