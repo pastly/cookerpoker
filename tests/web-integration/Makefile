@@ -13,6 +13,7 @@ clean:
 
 
 deps:
+	@which sqlite3
 	@which diesel || cargo install diesel_cli --no-default-features --features sqlite
 	#@which wasm-pack || cargo install wasm-pack
 
@@ -71,6 +72,7 @@ $(TESTS): clean rebuild deps
 	@cd $(POKER_CLIENT_CRATE) && \
 	ROCKET_ADDRESS=$(ADDRESS) \
 	ROCKET_PORT=$(PORT) \
+	DB_PATH=../tests/web-integration/$@/$(DATABASE_URL) \
 	cargo test --features web-integration-tests --test $@ $(CARGO_TEST_ARGS)
 
 	@cd $@ && \
