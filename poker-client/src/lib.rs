@@ -21,13 +21,13 @@ extern "C" {
     fn alert(s: &str);
 }
 
-#[wasm_bindgen]
+//#[wasm_bindgen]
 pub fn greet() {
     utils::set_panic_hook();
     alert("Hello, poker-client!");
 }
 
-#[wasm_bindgen]
+//#[wasm_bindgen]
 pub fn show_community(n: u8) {
     let doc = web_sys::window()
         .expect("No window?")
@@ -40,7 +40,7 @@ pub fn show_community(n: u8) {
     comm.fill_element(&elm);
 }
 
-#[wasm_bindgen]
+//#[wasm_bindgen]
 pub fn show_pocket(seat: u8) {
     let doc = web_sys::window()
         .expect("No window?")
@@ -56,7 +56,7 @@ pub fn show_pocket(seat: u8) {
     pocket.fill_element(&elm);
 }
 
-#[wasm_bindgen]
+//#[wasm_bindgen]
 pub fn show_pot() {
     let pot = Pot(Some(vec![100, 450, 420]));
     let doc = web_sys::window()
@@ -82,7 +82,7 @@ fn a(ae: ActionEnum) -> Action {
     }
 }
 
-#[wasm_bindgen]
+//#[wasm_bindgen]
 pub fn render() {
     let mut d = Deck::default();
     let p1 = PlayerInfo::new(1001, "Alice".to_string(), 5000, 1);
