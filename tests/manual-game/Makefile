@@ -11,7 +11,7 @@ $(TESTS): rebuild
 	@cd $@ && \
 	rm -vf output.actual.txt; \
 	<input.txt \
-	../../../target/release/manual-game \
+	../../../target/debug/manual-game \
 		--no-prompts \
 		$$(cat args.txt) \
 	>output.actual.txt && \
