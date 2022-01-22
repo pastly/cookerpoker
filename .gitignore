@@ -9,6 +9,6 @@ tests/web-integration/*/templates
 tests/web-integration/*/static
 
 *.swp
-test.db
+test.db*
 
 /.vscode
