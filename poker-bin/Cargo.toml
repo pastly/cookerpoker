@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 poker-core = { path = "../poker-core" }
 itertools = "0.10.3"
-structopt = "0.3.25"
+structopt = "0.3.26"
