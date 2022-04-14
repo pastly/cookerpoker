@@ -12,3 +12,7 @@ tests/web-integration/*/static
 test.db*
 
 /.vscode
+
+venv/
+__pycache__/
+poker-server/db.sqlite3

@@ -1,0 +1,10 @@
+#
+# pip freeze, then commented out non-top-level dependencies
+#
+Django==4.0.4
+
+# From Django
+#asgiref==3.5.0
+#pkg_resources==0.0.0
+#sqlparse==0.4.2
+
