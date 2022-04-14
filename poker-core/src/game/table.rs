@@ -8,6 +8,7 @@ use super::pot::Pot;
 
 use super::{BetAction, Currency, GameError};
 use derive_more::Display;
+use serde::Serialize;
 use std::cmp::Ordering;
 use std::mem;
 
@@ -15,10 +16,11 @@ const DEF_MAX_LIVE_HANDS: u16 = 2;
 const DEF_MAX_ARCHIVE_HANDS: u16 = 100;
 
 impl TableType {
-    /// Helper function because dumb
-    pub fn i(self) -> i16 {
-        self.into()
-    }
+    ///// Helper function because dumb
+    //pub fn i(self) -> i16 {
+    //    self.into()
+    //}
+
     pub const fn get_all_as_slice() -> [&'static str; 2] {
         ["Tournament", "Open"]
     }
@@ -28,7 +30,7 @@ impl TableType {
     }
 }
 
-#[derive(Debug, Clone, Copy, Display)]
+#[derive(Debug, Clone, Copy, Display, Serialize)]
 pub enum TableType {
     Tournament,
     Open,

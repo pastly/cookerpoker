@@ -8,7 +8,7 @@ pub fn get_endpoints() -> Vec<rocket::route::Route> {
     routes![
         get_tables,
         new_table,
-        get_table_settings,
+        get_table,
         update_table_settings,
         editable_table_settings,
     ]
@@ -48,7 +48,7 @@ pub async fn new_table(
 }
 
 #[get("/tables/<id>", rank = 2)]
-pub async fn get_table_settings(db: DbConn, _u: User, id: i32) -> Result<Template, AppError> {
+pub async fn get_table(db: DbConn, _u: User, id: i32) -> Result<Template, AppError> {
     let t: GameTable = db
         .run(move |conn| game_tables::table.find(id).first(conn))
         .await?;

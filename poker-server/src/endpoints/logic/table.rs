@@ -13,7 +13,7 @@ pub struct RenderedTable {
     pub state: String,
     pub buy_in: i32,
     pub small_blind: i32,
-    pub table_type: String,
+    pub table_type: TableType,
     // TODO figure out how to show owner name
     pub owner: i32,
 }
@@ -28,9 +28,8 @@ impl From<GameTable> for RenderedTable {
                 .to_string(),
             buy_in: gt.buy_in,
             small_blind: gt.small_blind,
-            table_type: TableState::try_from(gt.table_type)
-                .expect("Bad table type loaded from DB!")
-                .to_string(),
+            table_type: TableType::try_from(gt.table_type)
+                .expect("Bad table type loaded from DB!"),
             owner: gt.table_owner,
         }
     }
