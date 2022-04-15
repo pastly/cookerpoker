@@ -1,1 +1,5 @@
-{{ table }}
+{% extends 'base.html' %}
+{% block content %}
+<p>{{ table }}</p>
+<a href="{% url 'tables:index' %}">Back to table index</a>
+{% endblock %}
