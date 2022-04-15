@@ -1,0 +1,9 @@
+{% if latest_tables %}
+<ul>
+    {% for table in latest_tables %}
+    <li><a href="{% url 'tables:detail' table.id %}">{{ table.name }}</a> ({{table.owner}})</li>
+    {% endfor %}
+</ul>
+{% else %}
+<p>No tables, sorry.</p>
+{% endif %}
