@@ -2,7 +2,7 @@
 members = [
     "poker-core",
     "poker-bin",
-    "poker-server.old",
+    #"poker-server.old",
     "poker-client",
     "poker-messages",
 ]

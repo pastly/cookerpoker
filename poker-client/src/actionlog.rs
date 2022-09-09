@@ -1,6 +1,6 @@
 use crate::elements::Elementable;
 use poker_core::{deck::Card, game::BetAction, hand::best_of_cards, PlayerId};
-use poker_messages::*;
+use poker_messages::game::*;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::{JsCast, JsValue};
@@ -53,19 +53,19 @@ fn base_element(tag: &str) -> Element {
 fn table_header() -> Result<Element, RenderError> {
     let tr = base_element("tr");
     let mut th = base_element("th");
-    th.set_text_content(Some(&"Seq Num".to_string()));
+    th.set_text_content(Some("Seq Num"));
     tr.append_child(&th)?;
 
     th = base_element("th");
-    th.set_text_content(Some(&"Action".to_string()));
+    th.set_text_content(Some("Action"));
     tr.append_child(&th)?;
 
     th = base_element("th");
-    th.set_text_content(Some(&"Cards".to_string()));
+    th.set_text_content(Some("Cards"));
     tr.append_child(&th)?;
 
     th = base_element("th");
-    th.set_text_content(Some(&"Details".to_string()));
+    th.set_text_content(Some("Details"));
     tr.append_child(&th)?;
 
     Ok(tr)

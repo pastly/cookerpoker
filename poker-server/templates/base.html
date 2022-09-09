@@ -8,6 +8,7 @@
   <title>{% block title %}Cooker Poker{% endblock %}</title>
   {% endblock head %}
 </head>
+<body>
 <header>
   <nav>
     <a href='/'><img src="{% static 'logo.png' %}" width=200 alt=logo /></a>
@@ -22,7 +23,6 @@
     </ul>
   </nav>
 </header>
-<body>
   <main>
     {% block content %}
     {% endblock %}

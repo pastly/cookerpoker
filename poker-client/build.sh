@@ -9,9 +9,9 @@ fi
 echo "Compiling with $MODE"
 for CRATE_DIR in .; do
     cd $CRATE_DIR
-    #cargo fmt
-    cargo clippy
-    cargo check
-    wasm-pack -v build $MODE --target web
+    cargo fmt
+    #cargo clippy
+    #cargo check
+    wasm-pack -v build $MODE --no-typescript --target web
     cd -
 done
