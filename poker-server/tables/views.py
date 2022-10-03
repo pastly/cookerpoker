@@ -64,11 +64,9 @@ def state(request, table_id):
 
 @login_required
 def method_reset(request, table_id):
-    if request.method != 'POST':
-        return HttpResponseNotAllowed(['POST'])
     # TODO: ensure user is seated at table
     # TODO: ensure user is admin of table? in future this code should be removed, so maybe not important
     table = get_object_or_404(Table, pk=table_id)
     state = poker_core_py.devonly_reset_state(latest_state(table_id))
     save_state(table.id, state)
-    return HttpResponse("")
+    return redirect('tables:play', table.id)

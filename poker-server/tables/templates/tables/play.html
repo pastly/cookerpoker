@@ -35,10 +35,9 @@
   <div id="community"></div>
   <div id="pot"></div>
 </div>
-<form method="POST" action="{% url 'tables:method_reset' table.id %}">
-    {% csrf_token %}
-    <input type="submit" value="Reset Game">
-</form>
+<div>
+    <a href="{% url 'tables:method_reset' table.id %}">Reset game</a>
+</div>
 
 <script type=module>
     import init, {
