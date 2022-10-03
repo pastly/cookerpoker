@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "poker-core",
+    "poker-core-py",
     "poker-bin",
     "poker-client",
     "poker-messages",

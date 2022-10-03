@@ -1,5 +1,8 @@
 {% extends 'base.html' %}
 {% block content %}
 <p>{{ table }}</p>
-<a href="{% url 'tables:index' %}">Back to table index</a>
+<form method="post">
+    {% csrf_token %}
+    <input type="submit" value="Join table">
+</form>
 {% endblock %}

@@ -6,6 +6,7 @@ mod utils;
 use elements::{Community, Elementable, Pocket, Pot};
 use poker_core::deck::Deck;
 use poker_core::game::BetAction;
+use poker_core::new::{FilteredGameState, Player};
 use poker_messages::game::*;
 use poker_messages::table_mgmt::*;
 use std::time::Duration;
@@ -86,6 +87,51 @@ fn a(ae: ActionEnum) -> Action {
     Action {
         seq: next_seq_num(),
         action: ae,
+    }
+}
+
+fn redraw_pocket(elm: &HtmlElement, player: &Player, is_cash: bool) {
+    let name_elm = elm
+        .get_elements_by_class_name("pocket-cards")
+        .item(0)
+        .unwrap();
+    name_elm
+        .dyn_ref::<HtmlElement>()
+        .expect("HtmlElement")
+        .set_inner_text(&format!("Player {}", player.id));
+    let stack_elm = elm
+        .get_elements_by_class_name("pocket-stack")
+        .item(0)
+        .unwrap();
+    stack_elm
+        .dyn_ref::<HtmlElement>()
+        .expect("HtmlElement")
+        .set_inner_text(&format!(
+            "{}{}",
+            if is_cash { "$" } else { "" },
+            player.stack,
+        ));
+}
+
+#[wasm_bindgen]
+pub fn redraw(state: String) {
+    let state: FilteredGameState = serde_json::from_str(&state).unwrap();
+    let is_cash = state.is_cash();
+    let mut next_player_div = 1;
+    let doc = web_sys::window()
+        .expect("No window?")
+        .document()
+        .expect("No document?");
+    for player in state.players.players_iter() {
+        let div_id = format!("pocket-{}", next_player_div);
+        next_player_div += 1;
+        let elm = doc.get_element_by_id(&div_id).unwrap();
+        redraw_pocket(
+            elm.dyn_ref::<HtmlElement>()
+                .expect("div should be HtmlElement"),
+            player,
+            is_cash,
+        );
     }
 }
 
@@ -209,7 +255,7 @@ fn dev_controls_buttons(main: &Element) {
             .dyn_into::<HtmlInputElement>()
             .expect("Unable to dyn_into HtmlInputElement")
             .value_as_number() as i32;
-        let msg = SitIntent::new(player_n, table_n, player_balance);
+        let msg = SitIntent::new(table_n);
         alert(&serde_json::to_string(&msg).unwrap());
     }) as Box<dyn FnMut()>);
 
@@ -222,12 +268,12 @@ fn dev_controls_buttons(main: &Element) {
 }
 
 #[wasm_bindgen]
-pub fn create_dev_controls() {
+pub fn create_join_table_controls() {
     let doc = web_sys::window()
         .expect("No window?")
         .document()
         .expect("No document?");
-    let main_div = doc.get_element_by_id("devcontrols").unwrap();
+    let main_div = doc.get_element_by_id("join-table-controls").unwrap();
     while let Some(child) = main_div.last_child() {
         main_div.remove_child(&child).unwrap();
     }

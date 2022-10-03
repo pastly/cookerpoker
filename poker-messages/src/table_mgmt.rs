@@ -1,11 +1,18 @@
 //! Client <--> Server messages that aren't core to a poker hand, such as people
 //! sitting down/standing up.
 
-use poker_core::game::{Currency, PlayerId};
+//use poker_core::game::{Currency, PlayerId};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 type TableId = i32;
+
+/// Wrapper for all our types of messages to help de/serialize
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Msg {
+    SitIntent(SitIntent),
+    SitIntentResp(SitIntentResp),
+}
 
 /// Error codes for all server -> client messages
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,20 +37,17 @@ impl fmt::Display for RespErrCode {
 
 /// Client --> Server: A player intends to sit down at a table. They may not be
 /// allowed to for some reason.
+///
+/// The player is implicit from the authenticated user that is sending the message
+/// Starting stack info may need to be added.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SitIntent {
-    player_id: PlayerId,
     table_id: TableId,
-    monies: Currency,
 }
 
 impl SitIntent {
-    pub fn new<C: Into<Currency>>(player_id: PlayerId, table_id: TableId, monies: C) -> Self {
-        Self {
-            player_id,
-            table_id,
-            monies: monies.into(),
-        }
+    pub fn new(table_id: TableId) -> Self {
+        Self { table_id }
     }
 }
 

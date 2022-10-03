@@ -8,3 +8,7 @@ class Table(models.Model):
 
     def __str__(self):
         return f'{self.name} (owner {self.owner})'
+
+class TableState(models.Model):
+    table = models.ForeignKey(Table, null=True, on_delete=models.SET_NULL)
+    data = models.TextField()

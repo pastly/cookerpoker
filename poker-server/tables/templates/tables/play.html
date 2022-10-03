@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block content %}
+<p>{{ table }}</p>
+<div id='table'>
+  <div class=pocket id="pocket-1">
+    <div class="pocket-cards"></div>
+    <div class="pocket-name"></div>
+    <div class="pocket-stack"></div>
+  </div>
+  <div class=pocket id="pocket-2">
+    <div class="pocket-cards"></div>
+    <div class="pocket-name"></div>
+    <div class="pocket-stack"></div>
+  </div>
+  <div class=pocket id="pocket-3">
+    <div class="pocket-cards"></div>
+    <div class="pocket-name"></div>
+    <div class="pocket-stack"></div>
+  </div>
+  <div class=pocket id="pocket-4">
+    <div class="pocket-cards"></div>
+    <div class="pocket-name"></div>
+    <div class="pocket-stack"></div>
+  </div>
+  <div class=pocket id="pocket-5">
+    <div class="pocket-cards"></div>
+    <div class="pocket-name"></div>
+    <div class="pocket-stack"></div>
+  </div>
+  <div class=pocket id="pocket-6">
+    <div class="pocket-cards"></div>
+    <div class="pocket-name"></div>
+    <div class="pocket-stack"></div>
+  </div>
+  <div id="community"></div>
+  <div id="pot"></div>
+</div>
+<form method="POST" action="{% url 'tables:method_reset' table.id %}">
+    {% csrf_token %}
+    <input type="submit" value="Reset Game">
+</form>
+
+<script type=module>
+    import init, {
+        create_join_table_controls,
+        redraw,
+    } from '/static/poker_client.js'
+    let REDRAW_INTERVAL_ID = 0;
+    async function run() {
+        await init();
+        // To call any wasm funcs right after init, do so here.
+        //create_join_table_controls();
+        redraw_interval();
+        REDRAW_INTERVAL_ID = setInterval(redraw_interval, 2000)
+    }
+    run();
+    function redraw_interval() {
+        let url = "{% url 'tables:state' table.id %}";
+        let req = new XMLHttpRequest();
+        req.open("GET", url);
+        req.send();
+        req.onload = function() {
+            if (req.status != 200) {
+                alert(`Error ${req.status}: ${req.statusText}`)
+                return;
+            }
+            redraw(req.response);
+        };
+        req.timeout = 900;
+    }
+</script>
+{% endblock %}
+
