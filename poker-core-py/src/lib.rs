@@ -1,4 +1,4 @@
-use poker_core::new::{GameError, GameState};
+use poker_core::{GameError, state::GameState};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 

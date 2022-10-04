@@ -6,7 +6,7 @@ from .models import Table
 
 import poker_core_py
 
-def latest_state(table_id, filtered_for=None):
+def latest_state(table_id):
     states = TableState.objects.filter(table_id=table_id).order_by('-id')[:1]
     if len(states):
         return states[0].data
@@ -15,9 +15,11 @@ def latest_state(table_id, filtered_for=None):
     print(state_data)
     state = TableState(table=Table.objects.get(pk=table_id), data=state_data)
     state.save()
-    if filtered_for is None:
-        return state.data
-    return poker_core_py.filter_state(state.data, filtered_for)
+    return state.data
+
+def latest_filtered_state(table_id, player_id):
+    state = latest_state(table_id)
+    return poker_core_py.filter_state(state, player_id)
 
 def save_state(table_id, state_data):
     state = TableState(table=Table.objects.get(pk=table_id), data=state_data)
@@ -50,7 +52,7 @@ def play(request, table_id):
         request,
         'tables/play.html',
         {
-            'state': latest_state(table.id, filtered_for=user.id),
+            'state': latest_filtered_state(table.id, user.id),
             'table': table,
         }
     )
@@ -60,7 +62,7 @@ def state(request, table_id):
     table = get_object_or_404(Table, pk=table_id)
     # TODO: ensure user is seated at table
     user = request.user
-    return HttpResponse(latest_state(table.id, filtered_for=user.id))
+    return HttpResponse(latest_filtered_state(table.id, user.id))
 
 @login_required
 def method_reset(request, table_id):

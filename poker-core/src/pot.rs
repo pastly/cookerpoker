@@ -3,45 +3,13 @@
 //!
 //! The public interface functions to Pot return [`LogItem`]s useful to verify Pot is behaving
 //! correctly.
-use super::players::PlayerId;
-use super::BetAction;
-use derive_more::{Add, AddAssign, Div, From, Mul, Rem, Sub, SubAssign, Sum};
+use crate::bet::BetAction;
+use crate::Currency;
+use crate::PlayerId;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::HashMap;
-
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    Default,
-    Add,
-    AddAssign,
-    Sub,
-    SubAssign,
-    Div,
-    Rem,
-    Mul,
-    Sum,
-    From,
-    Serialize,
-    Deserialize,
-    derive_more::Deref,
-)]
-pub struct Currency(i32);
-
-impl std::fmt::Display for Currency {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let dollars = self.0 / 100;
-        let cents = self.0 - (dollars * 100);
-        write!(f, "{}.{:02}", dollars, cents)
-    }
-}
 
 #[derive(Debug, Clone)]
 pub enum LogItem {
@@ -104,7 +72,7 @@ impl std::fmt::Display for LogItem {
 
 /// Players put Stakes in Pots. Binds an is_allin flag to the bet amount, as an important part of
 /// pot logic is keeping track of AllIn-related limits on winnings.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub struct Stake {
     is_allin: bool,
     amount: Currency,
@@ -197,7 +165,7 @@ fn split_x_by_y(x: i32, y: i32) -> Vec<i32> {
 /// Each function returns a list of [`LogItem`]s. If the caller so chooses, they can record these
 /// and use them to verify Pot is acting correctly or determine how it calculated a complex side pot
 /// situation.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pot {
     /// Pots from previous betting rounds. These will not be changed, and when it comes time to pay
     /// the winner, these are where the funds come from.
@@ -210,7 +178,7 @@ pub struct Pot {
 
 /// An innner subpot that Pot uses to keep track of pools of money that players can win. New
 /// InnerPots are created every betting round and extra ones are created when players go all in.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 struct InnerPot {
     /// The players that are eligible to win this pot and the stake they put into this pot
     /// (is_allin, amount).
@@ -242,7 +210,7 @@ impl InnerPot {
             assert!(!winning_players.is_empty());
             // split the payout evenly across all the winning players. It's important that we
             // avoided division by 0 by making sure there is >0 winning players.
-            let payouts = split_x_by_y(*self.value(), winning_players.len().try_into().unwrap());
+            let payouts = split_x_by_y(self.value(), winning_players.len().try_into().unwrap());
             for (player, payout) in itertools::zip(winning_players, payouts) {
                 hm.insert(*player, payout.into());
             }
@@ -357,9 +325,14 @@ impl Pot {
     /// The value of all InnerPots that are settled and will not change. I.e. funds from previous
     /// betting rounds
     fn settled_value(&self) -> Currency {
-        let mut ret = 0.into();
+        let mut ret = 0;
         for sp in &self.settled {
-            ret += sp.players.values().copied().map(|s| s.amount).sum();
+            ret += sp
+                .players
+                .values()
+                .copied()
+                .map(|s| s.amount)
+                .sum::<Currency>();
         }
         ret
     }
@@ -370,7 +343,13 @@ impl Pot {
     /// previous betting rounds. Unsettled means they are still potentially going to change due to
     /// calling raises, etc.
     pub fn total_value(&self) -> Currency {
-        self.settled_value() + self.working.values().copied().map(|s| s.amount).sum()
+        self.settled_value()
+            + self
+                .working
+                .values()
+                .copied()
+                .map(|s| s.amount)
+                .sum::<Currency>()
     }
 
     /// Consumes the pot and returns the total payout.

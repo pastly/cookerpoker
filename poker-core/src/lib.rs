@@ -1,8 +1,34 @@
+pub mod bet;
 pub mod cards;
-pub mod game;
-pub mod new;
-pub mod util;
+pub mod player;
+pub mod pot;
+pub mod state;
+mod util;
 
 pub use cards::{deck, hand};
-pub use game::players::PlayerId;
-pub use game::table::GameInProgress;
+
+// pub? Old one was, but why needed?
+const MAX_PLAYERS: usize = 12;
+pub type PlayerId = i32;
+pub type Currency = i32;
+
+#[derive(Debug, derive_more::Display, derive_more::Error)]
+pub enum GameError {
+    PlayerAlreadySeated,
+    TableFull,
+    NotEnoughPlayers,
+    StreetNotComplete,
+    PlayerNotFound,
+    PlayerIsNotBetting,
+    NoBetExpected,
+    OutOfTurn,
+    PlayerStackTooShort,
+    InvalidBet,
+    DeckError(deck::DeckError),
+}
+
+impl From<deck::DeckError> for GameError {
+    fn from(e: deck::DeckError) -> Self {
+        Self::DeckError(e)
+    }
+}

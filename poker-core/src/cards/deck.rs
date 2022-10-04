@@ -206,7 +206,7 @@ impl From<base64ct::Error> for DeckError {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Deck {
     cards: Vec<Card>,
 }

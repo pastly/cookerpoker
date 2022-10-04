@@ -1,14 +1,4 @@
-pub mod log;
-pub mod players;
-pub mod pot;
-pub mod table;
-
-use self::hand::HandError;
-
-pub use super::{deck, hand};
-pub use log::LogItem;
-pub use players::PlayerId;
-pub use pot::Currency;
+use crate::Currency;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -54,40 +44,27 @@ pub enum BetError {
     NoBetExpected,
 }
 
-impl std::error::Error for BetError {}
-
-#[derive(Debug, derive_more::Display)]
-pub enum GameError {
-    DeckError(deck::DeckError),
-    BetError(BetError),
-    HandError(HandError),
-    NotEnoughPlayers,
-    SeatTaken,
-    PlayerAlreadySeated,
-    UnknownPlayer,
-    InvalidSeat,
-    BettingPlayerCantStand,
-    BetNotExpected,
-    RoundNotOver,
-    InvalidBet(String),
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
+pub enum BetStatus {
+    Folded,
+    Waiting,
+    In(Currency),
+    AllIn(Currency),
 }
 
-impl std::error::Error for GameError {}
-
-impl From<deck::DeckError> for GameError {
-    fn from(d: deck::DeckError) -> Self {
-        GameError::DeckError(d)
+impl Default for BetStatus {
+    fn default() -> Self {
+        BetStatus::Waiting
     }
 }
 
-impl From<BetError> for GameError {
-    fn from(d: BetError) -> Self {
-        GameError::BetError(d)
-    }
-}
-
-impl From<HandError> for GameError {
-    fn from(d: HandError) -> Self {
-        GameError::HandError(d)
+impl From<BetAction> for BetStatus {
+    fn from(ba: BetAction) -> Self {
+        match ba {
+            BetAction::AllIn(x) => BetStatus::AllIn(x),
+            BetAction::Fold => BetStatus::Folded,
+            BetAction::Bet(x) | BetAction::Call(x) | BetAction::Raise(x) => BetStatus::In(x),
+            BetAction::Check => BetStatus::In(0),
+        }
     }
 }
