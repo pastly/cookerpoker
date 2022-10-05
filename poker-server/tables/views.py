@@ -21,8 +21,8 @@ def latest_filtered_state(table_id, player_id):
     state = latest_state(table_id)
     return poker_core_py.filter_state(state, player_id)
 
-def save_state(table_id, state_data):
-    state = TableState(table=Table.objects.get(pk=table_id), data=state_data)
+def save_state(table, state_data):
+    state = TableState(table=table, data=state_data)
     state.save()
 
 def index(request):
@@ -40,7 +40,7 @@ def detail(request, table_id):
     stack = 1000
     state = latest_state(table_id)
     new_state = poker_core_py.seat_player(state, user_id, stack)
-    TableState(table=Table.objects.get(pk=table_id), data=new_state).save()
+    save_state(table, new_state)
     return redirect('tables:play', table_id)
 
 @login_required
@@ -62,6 +62,11 @@ def state(request, table_id):
     table = get_object_or_404(Table, pk=table_id)
     # TODO: ensure user is seated at table
     user = request.user
+    # try ticking state forward
+    state = latest_state(table.id)
+    new_state = poker_core_py.tick_state(state)
+    save_state(table, new_state)
+    print(latest_filtered_state(table.id, user.id))
     return HttpResponse(latest_filtered_state(table.id, user.id))
 
 @login_required
@@ -70,5 +75,5 @@ def method_reset(request, table_id):
     # TODO: ensure user is admin of table? in future this code should be removed, so maybe not important
     table = get_object_or_404(Table, pk=table_id)
     state = poker_core_py.devonly_reset_state(latest_state(table_id))
-    save_state(table.id, state)
+    save_state(table, state)
     return redirect('tables:play', table.id)

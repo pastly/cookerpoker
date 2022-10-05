@@ -29,7 +29,7 @@ impl Default for TableType {
 pub struct FilteredGameState {
     //state: State,
     table_type: TableType,
-    pub players: Players,
+    pub players: FilteredPlayers,
     /*pub*/ community: [Option<Card>; COMMUNITY_SIZE],
 }
 
@@ -99,10 +99,18 @@ pub struct GameState {
 }
 
 impl GameState {
-    pub fn filter(&self, _player_id: PlayerId) -> FilteredGameState {
+    pub fn filter(&self, player_id: PlayerId) -> FilteredGameState {
+        let mut players = self.players.clone();
+        for p in players.players.iter_mut() {
+            if let Some(p) = p {
+                if p.id != player_id {
+                    p.pocket = None;
+                }
+            }
+        }
         FilteredGameState {
             table_type: self.table_type,
-            players: self.players.clone(),
+            players: players,
             community: self.community,
         }
     }
@@ -133,6 +141,15 @@ impl GameState {
         }
         let p = Player::new(player_id, stack);
         self.players.seat_player(p)?;
+        Ok(())
+    }
+
+    /// If we are able to automatically move the current game forward, do so
+    pub fn tick(&mut self) -> Result<(), GameError> {
+        // If there's no game going and there's enough people to start one, do so
+        if matches!(self.state, State::NotStarded) && self.players.betting_players_count() > 1 {
+            return self.start_hand();
+        }
         Ok(())
     }
 

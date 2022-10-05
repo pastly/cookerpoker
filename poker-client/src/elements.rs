@@ -96,7 +96,7 @@ impl Elementable for Pot {
 pub(crate) struct Pocket {
     pub(crate) cards: [Option<Card>; 2],
     pub(crate) name: Option<String>,
-    pub(crate) monies: Option<i32>,
+    pub(crate) stack: Option<i32>,
 }
 
 impl Elementable for Pocket {
@@ -113,14 +113,14 @@ impl Elementable for Pocket {
         elm.append_child(&self.cards[0].into_element()).unwrap();
         elm.append_child(&self.cards[1].into_element()).unwrap();
         let name_elm = base_element("p");
-        let monies_elm = base_element("p");
-        if let Some(monies) = self.monies {
-            monies_elm.set_text_content(Some(&monies.to_string()));
+        let stack_elm = base_element("p");
+        if let Some(stack) = self.stack {
+            stack_elm.set_text_content(Some(&stack.to_string()));
         }
         if let Some(name) = &self.name {
             name_elm.set_text_content(Some(name));
         }
-        elm.append_child(&monies_elm).unwrap();
+        elm.append_child(&stack_elm).unwrap();
         elm.append_child(&name_elm).unwrap();
     }
 }

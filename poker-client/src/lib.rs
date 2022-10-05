@@ -1,12 +1,14 @@
-mod actionlog;
+//mod actionlog;
 mod elements;
 pub mod http;
 mod utils;
 
+use crate::utils::card_char;
 use elements::{Community, Elementable, Pocket, Pot};
+use poker_core::bet::BetAction;
 use poker_core::deck::Deck;
-use poker_core::game::BetAction;
-use poker_core::new::{FilteredGameState, Player};
+use poker_core::player::Player;
+use poker_core::state::FilteredGameState;
 use poker_messages::game::*;
 use poker_messages::table_mgmt::*;
 use std::time::Duration;
@@ -49,22 +51,6 @@ pub fn show_community(n: u8) {
 }
 
 #[wasm_bindgen]
-pub fn show_pocket(seat: u8) {
-    let doc = web_sys::window()
-        .expect("No window?")
-        .document()
-        .expect("No document?");
-    let elm = doc.get_element_by_id(&format!("pocket-{}", seat)).unwrap();
-    let mut d = Deck::default();
-    let pocket = Pocket {
-        cards: [Some(d.draw().unwrap()), None],
-        name: Some(String::from("Matt")),
-        monies: Some(42069),
-    };
-    pocket.fill_element(&elm);
-}
-
-#[wasm_bindgen]
 pub fn show_pot() {
     let pot = Pot(Some(vec![100, 450, 420]));
     let doc = web_sys::window()
@@ -91,26 +77,57 @@ fn a(ae: ActionEnum) -> Action {
 }
 
 fn redraw_pocket(elm: &HtmlElement, player: &Player, is_cash: bool) {
-    let name_elm = elm
-        .get_elements_by_class_name("pocket-cards")
-        .item(0)
-        .unwrap();
-    name_elm
-        .dyn_ref::<HtmlElement>()
-        .expect("HtmlElement")
-        .set_inner_text(&format!("Player {}", player.id));
-    let stack_elm = elm
-        .get_elements_by_class_name("pocket-stack")
-        .item(0)
-        .unwrap();
-    stack_elm
-        .dyn_ref::<HtmlElement>()
-        .expect("HtmlElement")
-        .set_inner_text(&format!(
-            "{}{}",
-            if is_cash { "$" } else { "" },
-            player.stack,
-        ));
+    let p = Pocket {
+        cards: [
+            if player.pocket.is_some() {
+                Some(player.pocket.unwrap()[0])
+            } else {
+                None
+            },
+            if player.pocket.is_some() {
+                Some(player.pocket.unwrap()[1])
+            } else {
+                None
+            },
+        ],
+        name: Some(format!("Player {}", player.id)),
+        stack: Some(player.stack),
+    };
+    p.fill_element(&elm);
+    //let name_elm = elm
+    //    .get_elements_by_class_name("pocket-cards")
+    //    .item(0)
+    //    .unwrap();
+    //name_elm
+    //    .dyn_ref::<HtmlElement>()
+    //    .expect("HtmlElement")
+    //    .set_inner_text(&format!("Player {}", player.id));
+    //let stack_elm = elm
+    //    .get_elements_by_class_name("pocket-stack")
+    //    .item(0)
+    //    .unwrap();
+    //stack_elm
+    //    .dyn_ref::<HtmlElement>()
+    //    .expect("HtmlElement")
+    //    .set_inner_text(&format!(
+    //        "{}{}",
+    //        if is_cash { "$" } else { "" },
+    //        player.stack,
+    //    ));
+    //if let Some(pocket) = player.pocket {
+    //    let cards_elm = elm
+    //        .get_elements_by_class_name("pocket-cards")
+    //        .item(0)
+    //        .unwrap();
+    //    cards_elm
+    //        .dyn_ref::<HtmlElement>()
+    //        .expect("HtmlElement")
+    //        .set_inner_text(&format!(
+    //            "{} {}",
+    //            card_char(pocket[0]),
+    //            card_char(pocket[1])
+    //        ));
+    //}
 }
 
 #[wasm_bindgen]
@@ -135,42 +152,42 @@ pub fn redraw(state: String) {
     }
 }
 
-#[wasm_bindgen]
-pub fn render() {
-    let mut d = Deck::default();
-    let p1 = PlayerInfo::new(1001, "Alice".to_string(), 5000, 1);
-    let p2 = PlayerInfo::new(1002, "Bob".to_string(), 5000, 2);
-    let p3 = PlayerInfo::new(1003, "Charlie".to_string(), 5000, 3);
-    let p4 = PlayerInfo::new(1004, "David".to_string(), 5000, 4);
-    let mut actions = vec![a(ActionEnum::Epoch(Epoch::new(
-        vec![p1, p2, p3, p4],
-        (5, 10),
-        (1, 2, 3),
-        Duration::new(15, 0),
-    )))];
-    actions.push(a(ActionEnum::CardsDealt(CardsDealt::new(
-        vec![1, 2, 3, 4],
-        [d.draw().unwrap(), d.draw().unwrap()],
-    ))));
-    actions.push(a(ActionEnum::Bet(Bet::new(2, BetAction::Check))));
-    actions.push(a(ActionEnum::Flop(Flop([
-        d.draw().unwrap(),
-        d.draw().unwrap(),
-        d.draw().unwrap(),
-    ]))));
-    actions.push(a(ActionEnum::Turn(Turn(d.draw().unwrap()))));
-    actions.push(a(ActionEnum::River(River(d.draw().unwrap()))));
-    actions.push(a(ActionEnum::Reveal(Reveal::new(
-        3,
-        [d.draw().unwrap(), d.draw().unwrap()],
-    ))));
-    let doc = web_sys::window()
-        .expect("No window?")
-        .document()
-        .expect("No document?");
-    let elm = doc.get_element_by_id("gamelog").unwrap();
-    actionlog::render_html_list(&ActionList(actions), &elm, 1001).unwrap();
-}
+//#[wasm_bindgen]
+//pub fn render() {
+//    let mut d = Deck::default();
+//    let p1 = PlayerInfo::new(1001, "Alice".to_string(), 5000, 1);
+//    let p2 = PlayerInfo::new(1002, "Bob".to_string(), 5000, 2);
+//    let p3 = PlayerInfo::new(1003, "Charlie".to_string(), 5000, 3);
+//    let p4 = PlayerInfo::new(1004, "David".to_string(), 5000, 4);
+//    let mut actions = vec![a(ActionEnum::Epoch(Epoch::new(
+//        vec![p1, p2, p3, p4],
+//        (5, 10),
+//        (1, 2, 3),
+//        Duration::new(15, 0),
+//    )))];
+//    actions.push(a(ActionEnum::CardsDealt(CardsDealt::new(
+//        vec![1, 2, 3, 4],
+//        [d.draw().unwrap(), d.draw().unwrap()],
+//    ))));
+//    actions.push(a(ActionEnum::Bet(Bet::new(2, BetAction::Check))));
+//    actions.push(a(ActionEnum::Flop(Flop([
+//        d.draw().unwrap(),
+//        d.draw().unwrap(),
+//        d.draw().unwrap(),
+//    ]))));
+//    actions.push(a(ActionEnum::Turn(Turn(d.draw().unwrap()))));
+//    actions.push(a(ActionEnum::River(River(d.draw().unwrap()))));
+//    actions.push(a(ActionEnum::Reveal(Reveal::new(
+//        3,
+//        [d.draw().unwrap(), d.draw().unwrap()],
+//    ))));
+//    let doc = web_sys::window()
+//        .expect("No window?")
+//        .document()
+//        .expect("No document?");
+//    let elm = doc.get_element_by_id("gamelog").unwrap();
+//    actionlog::render_html_list(&ActionList(actions), &elm, 1001).unwrap();
+//}
 
 /// Create an Element with the given tag. E.g. with tag "a" create an <a> element.
 fn base_element(tag: &str) -> Element {

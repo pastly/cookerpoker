@@ -58,6 +58,16 @@ fn seat_player(
     Ok(serde_json::to_string(&state).unwrap())
 }
 
+#[pyfunction]
+fn tick_state(
+    opaque_state: OpaqueState,
+) -> Result<OpaqueState, PyGameError> {
+    let mut state: GameState =
+        serde_json::from_str(&opaque_state).expect("Unable to deserialize state");
+    state.tick()?;
+    Ok(serde_json::to_string(&state).unwrap())
+}
+
 /// A Python module implemented in Rust.
 #[pymodule]
 fn poker_core_py(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -66,5 +76,6 @@ fn poker_core_py(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(new_game_state, m)?)?;
     m.add_function(wrap_pyfunction!(devonly_reset_state, m)?)?;
     m.add_function(wrap_pyfunction!(seat_player, m)?)?;
+    m.add_function(wrap_pyfunction!(tick_state, m)?)?;
     Ok(())
 }

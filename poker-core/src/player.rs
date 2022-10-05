@@ -37,7 +37,7 @@ impl Default for Players {
 pub struct Player {
     pub id: PlayerId,
     pub stack: Currency,
-    pub(crate) pocket: Option<[Card; POCKET_SIZE]>,
+    pub pocket: Option<[Card; POCKET_SIZE]>,
     pub bet_status: BetStatus,
 }
 impl Players {

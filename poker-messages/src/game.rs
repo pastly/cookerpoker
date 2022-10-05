@@ -1,5 +1,6 @@
 use poker_core::deck::Card;
-use poker_core::game::{BetAction, Currency, PlayerId};
+use poker_core::bet::BetAction;
+use poker_core::{Currency, PlayerId};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
