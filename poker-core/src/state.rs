@@ -209,12 +209,8 @@ impl GameState {
         let bet = self.bet(player_id, bet_action)?;
         // based on the bet's value, update current_bet and min_raise if needed
         let bet_value = match bet {
-            BetAction::Check |
-            BetAction::Fold => 0,
-            BetAction::Call(v) |
-            BetAction::Bet(v) |
-            BetAction::Raise(v) |
-            BetAction::AllIn(v) => v,
+            BetAction::Check | BetAction::Fold => 0,
+            BetAction::Call(v) | BetAction::Bet(v) | BetAction::Raise(v) | BetAction::AllIn(v) => v,
         };
         if bet_value > self.current_bet {
             let old_current_bet = self.current_bet;
