@@ -5,7 +5,7 @@ call 50000
 check
 fold
 
-# Second hand. Player 2 is second to act and covers player 1. They both
-# go all in, and player 2 should end up with all money.
+# Second hand. Player 1 is second to act and covers player 2. They both
+# go all in, and player 1 should end up with all money.
 allin 50000
 allin 150000

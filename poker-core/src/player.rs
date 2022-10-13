@@ -14,9 +14,9 @@ pub struct Players {
     /// loation of dealer token, index into players array
     pub token_dealer: usize,
     /// loation of small blind token, index into players array
-    pub(crate) token_sb: usize,
+    pub token_sb: usize,
     /// loation of big blind token, index into players array
-    pub(crate) token_bb: usize,
+    pub token_bb: usize,
     /// players (as indexes into players array that we need bets from next, ordered in reverse
     /// (next expected better is last in this Vec, and so on)
     pub(crate) need_bets_from: Vec<usize>,
@@ -40,6 +40,9 @@ pub struct Player {
     pub stack: Currency,
     pub pocket: Option<[Card; POCKET_SIZE]>,
     pub bet_status: BetStatus,
+    /// Whether or not this player wants to be dealt in. They could be forced to sit out if they get
+    /// stacked.
+    pub sitting_out: bool,
 }
 impl Players {
     pub fn player_by_id(&self, id: PlayerId) -> Option<&Player> {
@@ -167,7 +170,30 @@ impl Players {
         self.players_iter().filter(|x| !x.is_folded())
     }
 
+    fn seated_players_iter(&self) -> impl Iterator<Item = &Player> {
+        self.players_iter().filter(|x| !x.sitting_out)
+    }
+
+    pub(crate) fn clean_state(&mut self) {
+        for p in self.players_iter_mut() {
+            p.bet_status = BetStatus::Waiting;
+            p.pocket = None;
+        }
+    }
+
+    fn auto_sitout(&mut self) {
+        for p in self.players_iter_mut() {
+            if p.stack < 1 {
+                p.sitting_out = true;
+            }
+        }
+    }
+
     pub(crate) fn start_hand(&mut self) -> Result<(), GameError> {
+        self.auto_sitout();
+        if self.seated_players_iter().count() < 2 {
+            return Err(GameError::NotEnoughPlayers);
+        }
         //self.unfold_all();
         //self.auto_fold_players();
         for p in self.players_iter_mut() {
@@ -242,13 +268,6 @@ impl Players {
         self.token_bb = s[2];
         Ok(())
     }
-
-    pub(crate) fn devonly_reset(&mut self) {
-        for p in self.players_iter_mut() {
-            p.pocket = None;
-            p.bet_status = BetStatus::Waiting;
-        }
-    }
 }
 
 impl Player {
@@ -258,6 +277,7 @@ impl Player {
             stack,
             pocket: None,
             bet_status: BetStatus::Waiting,
+            sitting_out: stack < 1,
         }
     }
 

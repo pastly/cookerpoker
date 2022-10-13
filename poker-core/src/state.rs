@@ -1,5 +1,5 @@
 use crate::bet::BetAction;
-use crate::deck::{Card, Deck};
+use crate::deck::{Card, Deck, DeckSeed};
 use crate::hand::best_hands;
 use crate::log::LogItem;
 use crate::player::{Player, Players};
@@ -64,7 +64,7 @@ impl FilteredGameState {
 /// States a game can be in, e.g. not even stardard, dealing, showdown, etc.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, derive_more::Display, Serialize, Deserialize)]
 pub enum State {
-    NotStarded,
+    NotStarted,
     Dealing,
     Street(Street),
     Showdown,
@@ -73,7 +73,7 @@ pub enum State {
 
 impl Default for State {
     fn default() -> Self {
-        Self::NotStarded
+        Self::NotStarted
     }
 }
 
@@ -89,13 +89,13 @@ pub enum Street {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GameState {
     /// The state this Game is in ... as in what street or showdown or paused
-    state: State,
+    pub state: State,
     /// Cash. Maybe tourny in the future
     table_type: TableType,
     /// The players seated at this table and their per-player info
-    players: Players,
+    pub players: Players,
     /// The community cards
-    community: [Option<Card>; COMMUNITY_SIZE],
+    pub community: [Option<Card>; COMMUNITY_SIZE],
     /// Management of the pot and any side pots
     pot: Pot,
     /// The deck, obviously.
@@ -131,15 +131,11 @@ impl GameState {
             }
         }
         let self_seat = players.player_with_index_by_id(player_id).map(|(i, _)| i);
-        let nta_seat = match players.need_bets_from.is_empty() {
-            false => Some(players.need_bets_from[players.need_bets_from.len() - 1]),
-            true => None,
-        };
         // Can raise if there was no raise before this player. Or if there was a raiser before this
         // player, if they weren't the one to make it.
         let can_raise = self.last_raiser.is_none() || self.last_raiser.unwrap() != player_id;
         let pot = match self.state {
-            State::NotStarded => None,
+            State::NotStarted => None,
             _ => Some(vec![self.pot.settled_value()]),
         };
         FilteredGameState {
@@ -149,11 +145,26 @@ impl GameState {
             logs: self.logs.clone(),
             self_id: player_id,
             self_seat,
-            nta_seat,
+            nta_seat: self.nta().map(|(idx, _)| idx),
             current_bet: self.current_bet,
             min_raise: self.min_raise,
             can_raise,
             pot,
+        }
+    }
+
+    pub fn pot_total_value(&self) -> Currency {
+        self.pot.total_value()
+    }
+
+    pub fn nta(&self) -> Option<(usize, Player)> {
+        match self.players.need_bets_from.is_empty() {
+            false => {
+                let idx = self.players.need_bets_from[self.players.need_bets_from.len() - 1];
+                let p = self.players.players[idx].unwrap();
+                Some((idx, p))
+            }
+            true => None,
         }
     }
 }
@@ -198,7 +209,7 @@ impl GameState {
         self.player_action(player_id, BetAction::Raise(val))
     }
 
-    fn player_action(
+    pub fn player_action(
         &mut self,
         player_id: PlayerId,
         bet_action: BetAction,
@@ -287,7 +298,7 @@ impl GameState {
     /// If we are able to automatically move the current game forward, do so
     pub fn tick(&mut self) -> Result<(), GameError> {
         // If there's no game going and there's enough people to start one, do so
-        if matches!(self.state, State::NotStarded) && self.players.betting_players_count() > 1 {
+        if matches!(self.state, State::NotStarted) && self.players.betting_players_count() > 1 {
             return self.start_hand();
         }
         // If it's the end of a hand, start a new one
@@ -338,17 +349,25 @@ impl GameState {
         Ok(())
     }
 
-    pub fn start_hand(&mut self) -> Result<(), GameError> {
-        if self.players.players_iter().count() < 2 {
-            return Err(GameError::NotEnoughPlayers);
-        }
-        let mut logs = vec![];
-        self.logs.clear();
-        self.state = State::Dealing;
-        self.deck = Default::default();
+    fn clean_state(&mut self, deck_seed: DeckSeed) {
+        self.state = State::NotStarted;
+        self.players.clean_state();
         self.community = [None; COMMUNITY_SIZE];
         self.pot = Default::default();
+        self.deck = Deck::new(&deck_seed);
+        self.current_bet = 0;
+        self.min_raise = self.big_blind;
         self.last_raiser = None;
+        self.logs.clear();
+    }
+
+    pub fn start_hand(&mut self) -> Result<(), GameError> {
+        let seed = DeckSeed::default();
+        self.start_hand_with_seed(seed)
+    }
+
+    pub fn start_hand_with_seed(&mut self, seed: DeckSeed) -> Result<(), GameError> {
+        self.clean_state(seed);
         self.players.start_hand()?;
 
         self.state = State::Street(Street::PreFlop);
@@ -359,13 +378,12 @@ impl GameState {
         let mut pot_logs = vec![];
         pot_logs.append(&mut self.pot.bet(player_sb, bet_sb));
         pot_logs.append(&mut self.pot.bet(player_bb, bet_bb));
-        logs.extend(pot_logs.into_iter().map(|l| l.into()));
+        self.logs.extend(pot_logs.into_iter().map(|l| l.into()));
 
         let num_p = self.players.betting_players_count() as u8;
         let pockets = self.deck.deal_pockets(num_p)?;
         self.players.deal_pockets(pockets);
 
-        self.logs.append(&mut logs);
         Ok(())
     }
 
@@ -517,19 +535,6 @@ impl GameState {
             self.last_raiser = Some(player_id);
         }
         Ok(bet)
-    }
-
-    /// DEV-only: reset game state to a clean stating state. This func should not panic!
-    ///
-    /// Remove all cards from everywhere.
-    /// Move button to somewhere new?
-    /// Basic clean up stuff like that.
-    ///
-    /// Leave players' seat positions and their stacks alone
-    pub fn devonly_reset(&mut self) {
-        self.players.devonly_reset();
-        self.state = State::NotStarded;
-        self.logs.clear();
     }
 }
 

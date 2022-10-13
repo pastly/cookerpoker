@@ -44,7 +44,7 @@ pub enum BetError {
     NoBetExpected,
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, derive_more::Display, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub enum BetStatus {
     Folded,
     Waiting,

@@ -1,21 +1,17 @@
 use std::error::Error;
 use std::io::{stdin, stdout, BufRead, Write};
-use std::num::ParseIntError;
 
-use poker_core::game::table::{GameInProgress, GameState};
-use poker_core::game::{BetAction, Currency, GameError};
-use poker_core::{deck::DeckSeed, game::players::BetStatus, PlayerId};
+use poker_core::bet::{BetAction, BetStatus};
+use poker_core::deck::DeckSeed;
+use poker_core::state::{GameState, State};
+use poker_core::{Currency, GameError};
 use structopt::StructOpt;
-
-fn parse_currency(src: &str) -> Result<Currency, ParseIntError> {
-    Ok(src.parse::<i32>()?.into())
-}
 
 #[derive(StructOpt)]
 struct Opt {
     #[structopt(short, default_value = "6")]
     n_players: u8,
-    #[structopt(long, default_value="100000", parse(try_from_str=parse_currency))]
+    #[structopt(long, default_value = "100000")]
     start_stack: Currency,
     #[structopt(long, default_value)]
     seed: DeckSeed,
@@ -73,7 +69,7 @@ fn try_parse_bet_action(buf: &str) -> Result<BetAction, Box<dyn Error>> {
             } else if words[1].is_empty() {
                 return Err("Empty second word".into());
             }
-            let amt: Currency = words[1].parse::<i32>()?.into();
+            let amt: Currency = words[1].parse::<i32>()?;
             match words[0].chars().next().unwrap() {
                 'c' => BetAction::Call(amt),
                 'b' => BetAction::Bet(amt),
@@ -128,38 +124,37 @@ fn prompt(q: &str, display_prompts: bool) -> Result<Command, Box<dyn Error>> {
     Ok(c)
 }
 
-fn print_player_info(gip: &GameInProgress, players: &[PlayerId], prefix: &str) {
-    for player in players {
-        let info = gip.get_player_info(*player).expect("Player must exist");
+fn print_player_info(state: &GameState, prefix: &str) {
+    for (idx, player) in state.players.players_iter_with_index() {
         let mut tokens = vec![];
-        if info.is_dealer {
+        if idx == state.players.token_dealer {
             tokens.push("D");
         }
-        if info.is_small_blind {
+        if idx == state.players.token_sb {
             tokens.push("SB");
         }
-        if info.is_big_blind {
+        if idx == state.players.token_bb {
             tokens.push("BB");
         }
         println!(
             "{}{:>4} Player {:>2} [{:>8}] {:<9} {}",
             prefix,
             tokens.join("/"),
-            info.id,
-            format!("{}", info.monies),
-            match info.bet_status {
+            player.id,
+            player.stack,
+            match player.bet_status {
                 BetStatus::Folded => "Folded".to_string(),
                 BetStatus::Waiting => "Waiting".to_string(),
                 BetStatus::In(x) => x.to_string(),
                 BetStatus::AllIn(x) => format!("{} (all in)", x),
             },
-            match info.pocket {
+            match player.pocket {
                 None => String::new(),
                 Some(p) => p[0].to_string() + &p[1].to_string(),
             }
         );
     }
-    println!("Pot total value: {}", gip.pot.total_value());
+    println!("Pot total value: {}", state.pot_total_value());
 }
 
 /// Run a single hand.
@@ -167,12 +162,11 @@ fn print_player_info(gip: &GameInProgress, players: &[PlayerId], prefix: &str) {
 /// On clean exit, returns true if the user gave the quit command or for any other reason we should
 /// not run another game even if the user gave the --multi-round flag. Otherwise false.
 fn single_hand(
-    gip: &mut GameInProgress,
-    players: &[PlayerId],
-    seed: &DeckSeed,
+    state: &mut GameState,
+    seed: DeckSeed,
     display_prompts: bool,
 ) -> Result<bool, Box<dyn Error>> {
-    match gip.start_round(seed) {
+    match state.start_hand_with_seed(seed) {
         Ok(_) => {}
         Err(e) => match e {
             GameError::NotEnoughPlayers => return Ok(true),
@@ -180,35 +174,33 @@ fn single_hand(
         },
     };
     if display_prompts {
-        println!("--- Begin hand {:2} ---", gip.hand_num);
+        //println!("--- Begin hand {:2} ---", gip.hand_num);
         println!("DeckSeed: {}", seed);
-        print_player_info(gip, players, "  ");
+        print_player_info(state, "  ");
     }
     loop {
-        if matches!(gip.state, GameState::EndOfHand) {
+        if matches!(state.state, State::EndOfHand) {
             return Ok(false);
         }
-        let p = gip.next_player().unwrap();
-        let pocket = match gip.get_player_info(p).unwrap().pocket {
-            None => unreachable!(),
-            Some(p) => p,
-        };
+        let (_, player) = state.nta().unwrap();
+        let pocket = player.pocket.unwrap();
         let q = format!(
             "Community: {}\nPlayer {}'s action? {} {}",
-            gip.table_cards
+            state
+                .community
                 .iter()
                 .take_while(|c| c.is_some())
                 .map(|c| c.unwrap().to_string())
                 .collect::<Vec<_>>()
                 .join(""),
-            p,
+            player.id,
             pocket[0],
             pocket[1]
         );
         match prompt(&q, display_prompts)? {
             Command::Info => {
                 if display_prompts {
-                    print_player_info(gip, players, "  ");
+                    print_player_info(state, "  ");
                 }
             }
             Command::Quit => return Ok(true),
@@ -217,8 +209,8 @@ fn single_hand(
                     print_help();
                 }
             }
-            Command::BetAction(ba) => match gip.bet(p, ba) {
-                Ok(_) => {}
+            Command::BetAction(ba) => match state.player_action(player.id, ba) {
+                Ok(_) => { /*println!("p{} did {}", player.id, ba);*/ }
                 Err(e) => println!("{}", e),
             },
         }
@@ -228,48 +220,41 @@ fn single_hand(
     }
 }
 
-fn print_test_info(gip: &GameInProgress, players: &[PlayerId]) -> Result<(), Box<dyn Error>> {
-    println!("state {:?}", gip.state);
-    println!("current_bet {}", gip.current_bet);
-    println!("min_raise {}", gip.min_raise);
-    println!("pot.total_value {}", gip.pot.total_value());
+fn print_test_info(state: &GameState) -> Result<(), Box<dyn Error>> {
+    println!("state {:?}", state.state);
+    println!("current_bet {}", state.current_bet);
+    println!("min_raise {}", state.min_raise);
+    println!("pot.total_value {}", state.pot_total_value());
     println!(
         "community {} {} {} {} {}",
-        match gip.table_cards[0] {
+        match state.community[0] {
             None => "None".to_string(),
             Some(c) => c.to_string(),
         },
-        match gip.table_cards[1] {
+        match state.community[1] {
             None => "None".to_string(),
             Some(c) => c.to_string(),
         },
-        match gip.table_cards[2] {
+        match state.community[2] {
             None => "None".to_string(),
             Some(c) => c.to_string(),
         },
-        match gip.table_cards[3] {
+        match state.community[3] {
             None => "None".to_string(),
             Some(c) => c.to_string(),
         },
-        match gip.table_cards[4] {
+        match state.community[4] {
             None => "None".to_string(),
             Some(c) => c.to_string(),
         },
     );
-    for player in players {
-        let p = gip.get_player_info(*player).expect("Must have player");
-        println!("player {} bank {}", p.id, p.monies);
-    }
-    for player in players {
-        let p = gip.get_player_info(*player).expect("Must have player");
-        println!("player {} bet_status {:?}", p.id, p.bet_status);
-    }
-    for player in players {
-        let p = gip.get_player_info(*player).expect("Must have player");
+    for player in state.players.players_iter() {
+        println!("player {} bank {}", player.id, player.stack);
+        println!("player {} bet_status {}", player.id, player.bet_status);
         println!(
             "player {} pocket {}",
-            p.id,
-            match p.pocket {
+            player.id,
+            match player.pocket {
                 None => "None".to_string(),
                 Some(pocket) => format!("{}{}", pocket[0], pocket[1]),
             }
@@ -280,10 +265,9 @@ fn print_test_info(gip: &GameInProgress, players: &[PlayerId]) -> Result<(), Box
 
 fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
-    let mut gip = GameInProgress::default();
-    let players: Vec<PlayerId> = (1..opt.n_players + 1).map(|i| i.into()).collect();
+    let mut state = GameState::default();
     for n in 1..opt.n_players + 1 {
-        gip.sit_down(n.into(), opt.start_stack, n.into())?;
+        state.try_sit(n.into(), opt.start_stack)?;
     }
     if !opt.no_prompts {
         println!(
@@ -292,13 +276,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
     }
     loop {
-        let wants_quit = single_hand(&mut gip, &players, &opt.seed, !opt.no_prompts)?;
+        let wants_quit = single_hand(&mut state, opt.seed, !opt.no_prompts)?;
         if wants_quit || !opt.multi_round {
             break;
         }
     }
     if !opt.no_summary {
-        print_test_info(&gip, &players)?;
+        print_test_info(&state)?;
     }
     Ok(())
 }

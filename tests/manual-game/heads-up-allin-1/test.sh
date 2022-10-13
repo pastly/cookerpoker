@@ -4,9 +4,9 @@ EXPECTED_FNAME=$1
 ACTUAL_FNAME=$2
 
 declare -a NEEDED_STRINGS=(
-	"state Betting(PreFlop)"
-	"player 1 bank 999.90"
-	"player 2 bank 999.95"
+	"state Street(PreFlop)"
+	"player 2 bank 99990"
+	"player 1 bank 99995"
 
 )
 
