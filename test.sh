@@ -17,8 +17,3 @@ echo Run manual-game tests
 pushd tests/manual-game
 make --keep-going
 popd
-
-echo Run web-integration tests
-pushd tests/web-integration
-make --keep-going
-popd
