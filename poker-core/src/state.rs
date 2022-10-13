@@ -13,6 +13,8 @@ const COMMUNITY_SIZE: usize = 5;
 const DEF_SB: Currency = 5;
 const DEF_BB: Currency = 10;
 
+type PidBA = (PlayerId, BetAction);
+
 /// (Replaces TableType)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub enum TableType {
@@ -123,17 +125,12 @@ pub struct GameState {
 impl GameState {
     pub fn filter(&self, player_id: PlayerId) -> FilteredGameState {
         let mut players = self.players.clone();
-        for p in players.players.iter_mut() {
-            if let Some(p) = p {
-                if p.id != player_id {
-                    p.pocket = None;
-                }
+        for p in players.players.iter_mut().flatten() {
+            if p.id != player_id {
+                p.pocket = None;
             }
         }
-        let self_seat = match players.player_with_index_by_id(player_id) {
-            Some((i, _)) => Some(i),
-            None => None,
-        };
+        let self_seat = players.player_with_index_by_id(player_id).map(|(i, _)| i);
         let nta_seat = match players.need_bets_from.is_empty() {
             false => Some(players.need_bets_from[players.need_bets_from.len() - 1]),
             true => None,
@@ -147,16 +144,16 @@ impl GameState {
         };
         FilteredGameState {
             table_type: self.table_type,
-            players: players,
+            players,
             community: self.community,
             logs: self.logs.clone(),
             self_id: player_id,
-            self_seat: self_seat,
-            nta_seat: nta_seat,
+            self_seat,
+            nta_seat,
             current_bet: self.current_bet,
             min_raise: self.min_raise,
-            can_raise: can_raise,
-            pot: pot,
+            can_raise,
+            pot,
         }
     }
 }
@@ -377,7 +374,7 @@ impl GameState {
     ///
     /// Caller can't assume SB and BB are in for the full SB/BB amount: they could have been a very
     /// short stack and now be allin for less.
-    fn blinds_bet(&mut self) -> Result<((PlayerId, BetAction), (PlayerId, BetAction)), GameError> {
+    fn blinds_bet(&mut self) -> Result<(PidBA, PidBA), GameError> {
         let player_sb =
             self.players.players[self.players.token_sb].ok_or(GameError::PlayerNotFound)?;
         let player_bb =

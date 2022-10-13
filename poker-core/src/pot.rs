@@ -212,7 +212,7 @@ impl InnerPot {
             // avoided division by 0 by making sure there is >0 winning players.
             let payouts = split_x_by_y(self.value(), winning_players.len().try_into().unwrap());
             for (player, payout) in itertools::zip(winning_players, payouts) {
-                hm.insert(*player, payout.into());
+                hm.insert(*player, payout);
             }
             break;
         }
@@ -269,7 +269,7 @@ impl Pot {
                         pot.players.insert(player, stake);
                         // Reduce the amount to 0, indicating to future code that the player's bet
                         // is fully accounted for.
-                        stake.amount = 0.into();
+                        stake.amount = 0;
                         // and since there is no more amount to add to inner pots, stop iterating
                         // over the inner pots.
                         break;
@@ -284,7 +284,7 @@ impl Pot {
                             logs.push(LogItem::EntireStakeInPot(pot_n, player, stake));
                             pot.players.insert(player, stake);
                             // Indicate the bet is fully accounted for.
-                            stake.amount = 0.into();
+                            stake.amount = 0;
                             // Stop interating over the pots since no more amount to add to pots.
                             break;
                         }
@@ -303,7 +303,7 @@ impl Pot {
             // betting round, and they've done so for more than the first player. We create a new
             // inner pot for them and add it to the list of pots. Future iterations of this loop
             // with the next players and their bets will add to this pot.
-            if stake.amount > 0.into() {
+            if stake.amount > 0 {
                 let mut new = InnerPot {
                     max_in: match stake.is_allin {
                         false => None,

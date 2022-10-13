@@ -78,15 +78,11 @@ impl Players {
     }
 
     fn next_empty_seat(&self) -> Option<usize> {
-        match self
-            .players
+        self.players
             .iter()
             .enumerate()
             .find(|(_idx, p)| p.is_none())
-        {
-            Some((idx, _p)) => Some(idx),
-            None => None,
-        }
+            .map(|(i, _)| i)
     }
 
     pub fn players_iter(&self) -> impl Iterator<Item = &Player> /*+ Clone + '_ */ {
@@ -284,7 +280,7 @@ impl Player {
         }
         let existing_in = match self.bet_status {
             BetStatus::In(x) | BetStatus::AllIn(x) => x,
-            BetStatus::Waiting => 0.into(),
+            BetStatus::Waiting => 0,
             BetStatus::Folded => unreachable!(),
         };
         let return_bet = match bet {
@@ -307,7 +303,7 @@ impl Player {
                     Ordering::Less => {
                         // Only called when blinds are short stacked.
                         let r = BetAction::AllIn(self.stack + existing_in);
-                        self.stack = 0.into();
+                        self.stack = 0;
                         r
                     }
                     _ => {

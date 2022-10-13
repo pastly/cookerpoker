@@ -2,7 +2,7 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::collections::HashMap;
 
-pub fn random_string(count: usize) -> String {
+pub fn _random_string(count: usize) -> String {
     let mut rng = thread_rng();
     std::iter::repeat(())
         .map(|()| rng.sample(Alphanumeric))

@@ -1,3 +1,4 @@
+#![allow(clippy::unused_unit)]
 //mod actionlog;
 mod elements;
 pub mod http;
@@ -83,7 +84,7 @@ fn redraw_pocket(elm: &HtmlElement, player: &Player, _is_cash: bool) {
         name: Some(format!("Player {}", player.id)),
         stack: Some(player.stack),
     };
-    p.fill_element(&elm);
+    p.fill_element(elm);
 }
 
 fn redraw_table(state: &FilteredGameState) {
@@ -128,7 +129,7 @@ fn redraw_table(state: &FilteredGameState) {
     Pot(state.pot.clone()).fill_element(&pot_elm);
 }
 
-fn redraw_logs(logs: &Vec<poker_core::log::LogItem>) {
+fn redraw_logs(logs: &[poker_core::log::LogItem]) {
     let doc = web_sys::window()
         .expect("No window?")
         .document()
