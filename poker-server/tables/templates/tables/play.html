@@ -17,25 +17,41 @@
   <div id="community"></div>
   <div id="pot"></div>
 </div>
+<div id="action-buttons">
+</div>
 <div>
     <a href="{% url 'tables:method_reset' table.id %}">Reset game</a>
 </div>
+<div id="logs"></div>
+<pre><span id="state"></span></pre>
 
 <script type=module>
     import init, {
-        create_join_table_controls,
         redraw,
+        onclick_fold,
+        onclick_check,
+        onclick_call,
+        onclick_bet,
+        onclick_raise,
+        onchange_raise,
+        //onclick_bet,
     } from '/static/poker_client.js'
-    let REDRAW_INTERVAL_ID = 0;
+    window.onclick_fold = onclick_fold;
+    window.onclick_check = onclick_check;
+    window.onclick_call = onclick_call;
+    window.onclick_bet = onclick_bet;
+    window.onclick_raise = onclick_raise;
+    window.onchange_raise = onchange_raise;
+    window.send_action = send_action;
+    let REDRAW_TIMEOUT_ID = 0;
     async function run() {
         await init();
         // To call any wasm funcs right after init, do so here.
         //create_join_table_controls();
-        redraw_interval();
-        REDRAW_INTERVAL_ID = setInterval(redraw_interval, 2000)
+        redraw_timeout();
     }
     run();
-    function redraw_interval() {
+    function redraw_timeout() {
         let url = "{% url 'tables:state' table.id %}";
         let req = new XMLHttpRequest();
         req.open("GET", url);
@@ -45,10 +61,26 @@
                 alert(`Error ${req.status}: ${req.statusText}`)
                 return;
             }
-            redraw(req.response);
+            let wait_time = redraw(req.response);
+            REDRAW_TIMEOUT_ID = setTimeout(redraw_timeout, wait_time * 1000);
+        };
+        req.timeout = 900;
+    }
+
+    function send_action(opaque_action) {
+        let url = "{% url 'tables:state' table.id %}";
+        let req = new XMLHttpRequest();
+        req.open("POST", url);
+        req.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        req.setRequestHeader("X-CSRFToken", "{{csrf_token}}");
+        req.send(opaque_action);
+        req.onload = function() {
+            //alert(`${req}`);
+            clearTimeout(REDRAW_TIMEOUT_ID);
+            let wait_time = redraw(req.response);
+            REDRAW_TIMEOUT_ID = setTimeout(redraw_timeout, wait_time * 1000);
         };
         req.timeout = 900;
     }
 </script>
 {% endblock %}
-

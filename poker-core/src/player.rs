@@ -4,6 +4,7 @@ use crate::GameError;
 use crate::{Currency, PlayerId, MAX_PLAYERS};
 use core::cmp::Ordering;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 const POCKET_SIZE: usize = 2;
 
@@ -11,13 +12,13 @@ const POCKET_SIZE: usize = 2;
 pub struct Players {
     pub(crate) players: [Option<Player>; MAX_PLAYERS],
     /// loation of dealer token, index into players array
-    pub(crate) token_dealer: usize,
+    pub token_dealer: usize,
     /// loation of small blind token, index into players array
     pub(crate) token_sb: usize,
     /// loation of big blind token, index into players array
     pub(crate) token_bb: usize,
-    /// players that we need bets from next, ordered in reverse (next expected better is last in
-    /// this Vec, and so on)
+    /// players (as indexes into players array that we need bets from next, ordered in reverse
+    /// (next expected better is last in this Vec, and so on)
     pub(crate) need_bets_from: Vec<usize>,
 }
 
@@ -41,7 +42,7 @@ pub struct Player {
     pub bet_status: BetStatus,
 }
 impl Players {
-    pub(crate) fn player_by_id(&self, id: PlayerId) -> Option<&Player> {
+    pub fn player_by_id(&self, id: PlayerId) -> Option<&Player> {
         self.players_iter().find(|x| x.id == id)
     }
 
@@ -103,7 +104,7 @@ impl Players {
     }
 
     /// Iterate over all players, returning their index into the player array as well
-    fn players_iter_with_index(&self) -> impl Iterator<Item = (usize, &Player)> {
+    pub fn players_iter_with_index(&self) -> impl Iterator<Item = (usize, &Player)> {
         self.players
             .iter()
             .enumerate()
@@ -165,9 +166,18 @@ impl Players {
             .into_iter()
     }
 
+    /// All players that are still eligible to win some or all of the pot (i.e. not folded)
+    pub(crate) fn eligible_players_iter(&self) -> impl Iterator<Item = &Player> /*+ Clone + '_*/ {
+        self.players_iter().filter(|x| !x.is_folded())
+    }
+
     pub(crate) fn start_hand(&mut self) -> Result<(), GameError> {
         //self.unfold_all();
         //self.auto_fold_players();
+        for p in self.players_iter_mut() {
+            p.bet_status = BetStatus::Waiting;
+            p.pocket = None;
+        }
         self.rotate_tokens()?;
         //self.last_better = self.token_dealer;
         // prepare need_bets_from for the blinds bets
@@ -177,6 +187,20 @@ impl Players {
             .take(self.betting_players_count())
             .collect();
         self.need_bets_from.reverse();
+        Ok(())
+    }
+
+    pub(crate) fn end_hand(
+        &mut self,
+        winnings: &HashMap<PlayerId, Currency>,
+    ) -> Result<(), GameError> {
+        for (player_id, amount) in winnings.iter() {
+            if let Some(player) = self.player_by_id_mut(*player_id) {
+                player.stack += *amount;
+            }
+            // TODO: what about player IDs that are unknown for some reason?
+        }
+        //self.unfold_all();
         Ok(())
     }
 
@@ -226,6 +250,7 @@ impl Players {
     pub(crate) fn devonly_reset(&mut self) {
         for p in self.players_iter_mut() {
             p.pocket = None;
+            p.bet_status = BetStatus::Waiting;
         }
     }
 }
@@ -244,6 +269,10 @@ impl Player {
     /// Notably, `all_in` players are no longer betting, and excluded
     pub(crate) const fn is_betting(&self) -> bool {
         matches!(self.bet_status, BetStatus::In(_) | BetStatus::Waiting)
+    }
+
+    pub(crate) const fn is_folded(&self) -> bool {
+        matches!(self.bet_status, BetStatus::Folded)
     }
 
     /// Validates that the player has enough money to make the given bet.

@@ -84,6 +84,14 @@
 	font-size: 300%;
 }
 
+.next-action {
+    border: 1px solid var(--color-secondary);
+}
+
+#action-buttons button {
+    margin-right: 1em;
+}
+
 @media screen and (max-width: 1020px) {
     :root {
         --line-height: 125%;

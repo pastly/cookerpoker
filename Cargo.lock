@@ -685,6 +685,7 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "getrandom",
+ "lazy_static",
  "poker-core",
  "poker-messages",
  "reqwest",
@@ -713,7 +714,9 @@ dependencies = [
 name = "poker-core-py"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "poker-core",
+ "poker-messages",
  "pyo3",
  "serde_json",
 ]

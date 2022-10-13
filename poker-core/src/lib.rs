@@ -1,5 +1,6 @@
 pub mod bet;
 pub mod cards;
+pub mod log;
 pub mod player;
 pub mod pot;
 pub mod state;
@@ -25,10 +26,17 @@ pub enum GameError {
     PlayerStackTooShort,
     InvalidBet,
     DeckError(deck::DeckError),
+    HandError(hand::HandError),
 }
 
 impl From<deck::DeckError> for GameError {
     fn from(e: deck::DeckError) -> Self {
         Self::DeckError(e)
+    }
+}
+
+impl From<hand::HandError> for GameError {
+    fn from(e: hand::HandError) -> Self {
+        Self::HandError(e)
     }
 }

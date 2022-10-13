@@ -11,8 +11,8 @@ def latest_state(table_id):
     if len(states):
         return states[0].data
     state_data = poker_core_py.new_game_state()
-    print('made new state ------- ')
-    print(state_data)
+    # print('made new state ------- ')
+    # print(state_data)
     state = TableState(table=Table.objects.get(pk=table_id), data=state_data)
     state.save()
     return state.data
@@ -56,9 +56,8 @@ def play(request, table_id):
             'table': table,
         }
     )
-
-@login_required
-def state(request, table_id):
+    
+def state_get(request, table_id):
     table = get_object_or_404(Table, pk=table_id)
     # TODO: ensure user is seated at table
     user = request.user
@@ -66,8 +65,26 @@ def state(request, table_id):
     state = latest_state(table.id)
     new_state = poker_core_py.tick_state(state)
     save_state(table, new_state)
-    print(latest_filtered_state(table.id, user.id))
+    # print(latest_filtered_state(table.id, user.id))
     return HttpResponse(latest_filtered_state(table.id, user.id))
+
+def state_post(request, table_id):
+    table = get_object_or_404(Table, pk=table_id)
+    # TODO: ensure user is seated at table
+    user = request.user
+    state = latest_state(table.id)
+    obj = request.body.decode(request.encoding or 'utf-8')
+    new_state = poker_core_py.player_action(state, user.id, obj)
+    save_state(table, new_state)
+    new_state2 = poker_core_py.tick_state(new_state)
+    save_state(table, new_state2)
+    return HttpResponse(latest_filtered_state(table.id, user.id))
+
+@login_required
+def state(request, table_id):
+    if request.method == 'POST':
+        return state_post(request, table_id)
+    return state_get(request, table_id)
 
 @login_required
 def method_reset(request, table_id):

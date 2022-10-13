@@ -1,5 +1,7 @@
 use crate::bet::BetAction;
 use crate::deck::{Card, Deck};
+use crate::hand::best_hands;
+use crate::log::LogItem;
 use crate::player::{Player, Players};
 use crate::pot::Pot;
 use crate::GameError;
@@ -29,8 +31,26 @@ impl Default for TableType {
 pub struct FilteredGameState {
     //state: State,
     table_type: TableType,
-    pub players: FilteredPlayers,
-    /*pub*/ community: [Option<Card>; COMMUNITY_SIZE],
+    /// Index into players.players: slot that this player (the one the game state has been filtered
+    /// for) is in. Is None if player wasn't found (i.e. they aren't at this table)
+    pub self_seat: Option<usize>,
+    /// ID of the player this game state has been filtered for. This is always present even if the
+    /// player isn't at this table. It's taken from the filter function argument.
+    pub self_id: PlayerId,
+    pub players: Players,
+    /// Index into players.players: Next To Act, the player who should act next. Is None if action
+    /// is not expected from any player at this time.
+    pub nta_seat: Option<usize>,
+    pub community: [Option<Card>; COMMUNITY_SIZE],
+    pub logs: Vec<LogItem>,
+    /// Amount player needs to bet/call in order to stay in the hand
+    pub current_bet: Currency,
+    /// Minimum player needs to raise in order for it to be a valid raise
+    pub min_raise: Currency,
+    /// Whether or not the player is allowed to raise
+    pub can_raise: bool,
+    /// The pot, and any side pots
+    pub pot: Option<Vec<Currency>>,
 }
 
 impl FilteredGameState {
@@ -96,6 +116,8 @@ pub struct GameState {
     ///
     /// It's confusing. See <https://duckduckgo.com/?t=ffab&q=allin+raise+less+than+minraise>
     last_raiser: Option<PlayerId>,
+    /// Logs since the the start of this hand
+    logs: Vec<LogItem>,
 }
 
 impl GameState {
@@ -108,10 +130,33 @@ impl GameState {
                 }
             }
         }
+        let self_seat = match players.player_with_index_by_id(player_id) {
+            Some((i, _)) => Some(i),
+            None => None,
+        };
+        let nta_seat = match players.need_bets_from.is_empty() {
+            false => Some(players.need_bets_from[players.need_bets_from.len() - 1]),
+            true => None,
+        };
+        // Can raise if there was no raise before this player. Or if there was a raiser before this
+        // player, if they weren't the one to make it.
+        let can_raise = self.last_raiser.is_none() || self.last_raiser.unwrap() != player_id;
+        let pot = match self.state {
+            State::NotStarded => None,
+            _ => Some(vec![self.pot.settled_value()]),
+        };
         FilteredGameState {
             table_type: self.table_type,
             players: players,
             community: self.community,
+            logs: self.logs.clone(),
+            self_id: player_id,
+            self_seat: self_seat,
+            nta_seat: nta_seat,
+            current_bet: self.current_bet,
+            min_raise: self.min_raise,
+            can_raise: can_raise,
+            pot: pot,
         }
     }
 }
@@ -130,11 +175,113 @@ impl Default for GameState {
             current_bet: DEF_BB,
             min_raise: 2 * DEF_BB,
             last_raiser: None,
+            logs: Default::default(),
         }
     }
 }
 
 impl GameState {
+    pub fn player_folds(&mut self, player_id: PlayerId) -> Result<(), GameError> {
+        self.player_action(player_id, BetAction::Fold)
+    }
+
+    pub fn player_calls(&mut self, player_id: PlayerId) -> Result<(), GameError> {
+        self.player_action(player_id, BetAction::Call(self.current_bet))
+    }
+
+    pub fn player_checks(&mut self, player_id: PlayerId) -> Result<(), GameError> {
+        self.player_action(player_id, BetAction::Check)
+    }
+
+    pub fn player_bets(&mut self, player_id: PlayerId, val: Currency) -> Result<(), GameError> {
+        self.player_action(player_id, BetAction::Bet(val))
+    }
+
+    pub fn player_raises(&mut self, player_id: PlayerId, val: Currency) -> Result<(), GameError> {
+        self.player_action(player_id, BetAction::Raise(val))
+    }
+
+    fn player_action(
+        &mut self,
+        player_id: PlayerId,
+        bet_action: BetAction,
+    ) -> Result<(), GameError> {
+        let bet = self.bet(player_id, bet_action)?;
+        // based on the bet's value, update current_bet and min_raise if needed
+        let bet_value = match bet {
+            BetAction::Check |
+            BetAction::Fold => 0,
+            BetAction::Call(v) |
+            BetAction::Bet(v) |
+            BetAction::Raise(v) |
+            BetAction::AllIn(v) => v,
+        };
+        if bet_value > self.current_bet {
+            let old_current_bet = self.current_bet;
+            self.current_bet = bet_value;
+            self.min_raise = self.current_bet + (self.current_bet - old_current_bet);
+        }
+        let mut pot_logs = vec![];
+        pot_logs.append(&mut self.pot.bet(player_id, bet));
+        self.logs.extend(pot_logs.into_iter().map(|l| l.into()));
+
+        if self.players.eligible_players_iter().count() == 1 {
+            self.finalize_hand()?;
+        } else if self.players.need_bets_from.is_empty() {
+            while self.players.need_bets_from.is_empty() && !matches!(self.state, State::Showdown) {
+                let next_state = self.advance_street()?;
+                self.state = next_state;
+            }
+            if matches!(self.state, State::Showdown) {
+                self.finalize_hand()?;
+            }
+        }
+        Ok(())
+    }
+
+    fn advance_street(&mut self) -> Result<State, GameError> {
+        let next = match self.state {
+            State::Street(round) => match round {
+                Street::PreFlop => State::Street(Street::Flop),
+                Street::Flop => State::Street(Street::Turn),
+                Street::Turn => State::Street(Street::River),
+                Street::River => State::Showdown,
+            },
+            _ => unreachable!(),
+        };
+        self.players.next_street()?;
+        let pot_logs = self.pot.finalize_round();
+        self.logs.extend(pot_logs.into_iter().map(|l| l.into()));
+        self.current_bet = 0;
+        self.min_raise = self.big_blind;
+        self.last_raiser = None;
+        if let State::Street(street) = next {
+            match street {
+                Street::PreFlop => unreachable!(),
+                Street::Flop => {
+                    self.deck.burn();
+                    let c1 = self.deck.draw()?;
+                    let c2 = self.deck.draw()?;
+                    let c3 = self.deck.draw()?;
+                    self.community[0] = Some(c1);
+                    self.community[1] = Some(c2);
+                    self.community[2] = Some(c3);
+                }
+                Street::Turn => {
+                    self.deck.burn();
+                    let c1 = self.deck.draw()?;
+                    self.community[3] = Some(c1);
+                }
+                Street::River => {
+                    self.deck.burn();
+                    let c1 = self.deck.draw()?;
+                    self.community[4] = Some(c1);
+                }
+            }
+        }
+        Ok(next)
+    }
+
     pub fn try_sit(&mut self, player_id: PlayerId, stack: Currency) -> Result<(), GameError> {
         if self.players.player_by_id(player_id).is_some() {
             return Err(GameError::PlayerAlreadySeated);
@@ -150,6 +297,51 @@ impl GameState {
         if matches!(self.state, State::NotStarded) && self.players.betting_players_count() > 1 {
             return self.start_hand();
         }
+        // If it's the end of a hand, start a new one
+        if matches!(self.state, State::EndOfHand) {
+            return self.start_hand();
+        }
+        //println!("{}", self.state);
+        // // If there's a game going and there's only one person left that's eligible to win the pot,
+        // // award it and move the game on.
+        // if matches!(self.state, State::Street(_))
+        //     && self.players.eligible_players_iter().count() == 1
+        // {
+        //     self.finalize_hand()?;
+        // }
+        Ok(())
+    }
+
+    fn finalize_hand(&mut self) -> Result<(), GameError> {
+        let pot = std::mem::take(&mut self.pot);
+        // players and their pockets, as a vec
+        let players: Vec<(PlayerId, [Card; 2])> = self
+            .players
+            .eligible_players_iter()
+            .map(|p| (p.id, p.pocket.unwrap()))
+            .collect();
+        // PlayerIds, sorted in a Vec<Vec<PlayerId>>, for pot's payout function
+        let ranked_players = if players.len() == 1 {
+            vec![vec![players[0].0]]
+        } else {
+            assert!(self.community[4].is_some());
+            let community = [
+                self.community[0].unwrap(),
+                self.community[1].unwrap(),
+                self.community[2].unwrap(),
+                self.community[3].unwrap(),
+                self.community[4].unwrap(),
+            ];
+            let map = players.iter().copied().collect();
+            best_hands(&map, community)?
+                .iter()
+                .map(|inner| inner.iter().map(|item| item.0).collect())
+                .collect()
+        };
+        let (winnings, pot_logs) = pot.payout(&ranked_players);
+        self.players.end_hand(&winnings)?;
+        self.state = State::EndOfHand;
+        self.logs.extend(pot_logs.into_iter().map(|pli| pli.into()));
         Ok(())
     }
 
@@ -157,6 +349,8 @@ impl GameState {
         if self.players.players_iter().count() < 2 {
             return Err(GameError::NotEnoughPlayers);
         }
+        let mut logs = vec![];
+        self.logs.clear();
         self.state = State::Dealing;
         self.deck = Default::default();
         self.community = [None; COMMUNITY_SIZE];
@@ -168,13 +362,17 @@ impl GameState {
         self.current_bet = 0;
         let ((player_sb, bet_sb), (player_bb, bet_bb)) = self.blinds_bet()?;
         self.current_bet = self.big_blind;
-        self.pot.bet(player_sb, bet_sb);
-        self.pot.bet(player_bb, bet_bb);
+        self.min_raise = self.current_bet * 2;
+        let mut pot_logs = vec![];
+        pot_logs.append(&mut self.pot.bet(player_sb, bet_sb));
+        pot_logs.append(&mut self.pot.bet(player_bb, bet_bb));
+        logs.extend(pot_logs.into_iter().map(|l| l.into()));
 
         let num_p = self.players.betting_players_count() as u8;
         let pockets = self.deck.deal_pockets(num_p)?;
         self.players.deal_pockets(pockets);
-        self.current_bet = self.big_blind;
+
+        self.logs.append(&mut logs);
         Ok(())
     }
 
@@ -188,10 +386,8 @@ impl GameState {
             self.players.players[self.players.token_sb].ok_or(GameError::PlayerNotFound)?;
         let player_bb =
             self.players.players[self.players.token_bb].ok_or(GameError::PlayerNotFound)?;
-        let bet_sb = BetAction::Bet(self.small_blind);
-        let bet_bb = BetAction::Bet(self.big_blind);
-        self.bet(player_sb.id, bet_sb)?;
-        self.bet(player_bb.id, bet_bb)?;
+        let bet_sb = self.bet(player_sb.id, BetAction::Bet(self.small_blind))?;
+        let bet_bb = self.bet(player_bb.id, BetAction::Bet(self.big_blind))?;
         // the blinds have bet, and we need to make sure they have the opportunity to bet again this
         // round, so rebuild need_bets_from
         self.players.need_bets_from = self
@@ -206,7 +402,7 @@ impl GameState {
 
     /// Check that the player can make the given bet, adjusting it if possible. Returns the
     /// (possibly adjusted) bet this player made
-    fn bet(&mut self, player_id: PlayerId, bet: BetAction) -> Result<(), GameError> {
+    fn bet(&mut self, player_id: PlayerId, bet: BetAction) -> Result<BetAction, GameError> {
         // Check for obvious errors: game not in correct state
         if !matches!(self.state, State::Street(_)) {
             return Err(GameError::NoBetExpected);
@@ -327,7 +523,7 @@ impl GameState {
         if should_update_last_raiser {
             self.last_raiser = Some(player_id);
         }
-        Ok(())
+        Ok(bet)
     }
 
     /// DEV-only: reset game state to a clean stating state. This func should not panic!
@@ -339,6 +535,8 @@ impl GameState {
     /// Leave players' seat positions and their stacks alone
     pub fn devonly_reset(&mut self) {
         self.players.devonly_reset();
+        self.state = State::NotStarded;
+        self.logs.clear();
     }
 }
 
