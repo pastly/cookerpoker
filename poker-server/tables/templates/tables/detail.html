@@ -3,6 +3,9 @@
 <p>{{ table }}</p>
 <form method="post">
     {% csrf_token %}
-    <input type="submit" value="Join table">
+    <button type="submit" name="join">Join table</button>
+    {% if user_is_owner %}
+    <button type="submit" name="delete">Delete table</button>
+    {% endif %}
 </form>
 {% endblock %}

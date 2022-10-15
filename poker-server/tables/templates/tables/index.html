@@ -1,5 +1,12 @@
 {% extends 'base.html' %}
 {% block content %}
+<form action="" method="POST">
+<h2>Create new table</h2>
+{%csrf_token%}
+{{new_table_form}}
+<button type="submit" name="create">Create</button>
+</form>
+<h2>Latest tables</h2>
 {% if latest_tables %}
 <ul>
     {% for table in latest_tables %}
