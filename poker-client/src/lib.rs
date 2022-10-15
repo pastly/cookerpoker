@@ -1,7 +1,6 @@
 #![allow(clippy::unused_unit)]
 //mod actionlog;
 mod elements;
-pub mod http;
 mod utils;
 
 use elements::{Community, Elementable, Pocket, Pot};
