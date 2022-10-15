@@ -5,8 +5,9 @@ tests/manual-game/*/output.actual.txt
 tests/web-integration/*/*.db
 tests/web-integration/*/*.log
 tests/web-integration/*/*.pid
-tests/web-integration/*/templates
-tests/web-integration/*/static
+tests/web-integration/*/server.stdout.txt
+tests/web-integration/*/server.stderr.txt
+
 
 *.swp
 test.db*
