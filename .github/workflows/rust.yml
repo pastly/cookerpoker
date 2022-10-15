@@ -12,6 +12,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - uses: rui314/setup-mold@v1
 
     - name: Cache
       uses: actions/cache@v2
@@ -23,9 +24,6 @@ jobs:
           ~/.cargo/git/db/
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-    - name: Install mold (linker)
-      run: sudo apt-get install -y mold
 
     - name: Update
       run: rustup update; rustup component add rustfmt; rustup component add clippy
