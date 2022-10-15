@@ -53,7 +53,11 @@ def detail(request, table_id):
         table_id = table.id
         stack = 1000
         state = latest_state(table_id)
-        new_state = poker_core_py.seat_player(state, user_id, stack)
+        try:
+            new_state = poker_core_py.seat_player(state, user_id, stack)
+        except ValueError as e:
+            if str(e) == 'PlayerAlreadySeated':
+                return redirect('tables:play', table_id)
         save_state(table, new_state)
         return redirect('tables:play', table_id)
     elif 'delete' in request.POST:
