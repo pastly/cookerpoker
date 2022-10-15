@@ -89,17 +89,11 @@ impl Players {
     }
 
     pub fn players_iter(&self) -> impl Iterator<Item = &Player> /*+ Clone + '_ */ {
-        self.players
-            .iter()
-            .filter(|x| x.is_some())
-            .map(|x| x.as_ref().unwrap())
+        self.players.iter().filter_map(|x| x.as_ref())
     }
 
     fn players_iter_mut(&mut self) -> impl Iterator<Item = &mut Player> {
-        self.players
-            .iter_mut()
-            .filter(|x| x.is_some())
-            .map(|x| x.as_mut().unwrap())
+        self.players.iter_mut().filter_map(|x| x.as_mut())
     }
 
     /// Iterate over all players, returning their index into the player array as well

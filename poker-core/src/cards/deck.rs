@@ -179,7 +179,7 @@ impl Card {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum DeckError {
     OutOfCards,
     TooManyPlayers,
@@ -280,7 +280,7 @@ impl Deck {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DeckSeed([u8; SEED_LEN]);
 
 impl DeckSeed {

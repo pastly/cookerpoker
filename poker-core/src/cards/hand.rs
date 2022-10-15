@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum WinState {
     Win,
     Tie,
@@ -371,7 +371,7 @@ impl HandClass {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum HandError {
     NotFiveCards(usize),
     NotTwoCards(usize),
