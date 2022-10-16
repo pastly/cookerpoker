@@ -66,18 +66,25 @@ impl Players {
         }
     }
 
-    pub(crate) fn deal_pockets(&mut self, mut pockets: Vec<[Card; 2]>) {
+    pub(crate) fn deal_pockets(
+        &mut self,
+        mut pockets: Vec<[Card; 2]>,
+    ) -> HashMap<PlayerId, Option<[Card; 2]>> {
         assert_eq!(pockets.len(), self.betting_players_count());
         let dt = self.token_dealer;
+        let mut ret = HashMap::new();
         // Can't use a betting_players_iter_after_mut() becasue can't chain/cycle mutable iterator
         // May be able to fix this with custom iterator
         // Until then, iterate twice
         for (_, player) in self.betting_players_iter_mut().skip_while(|(i, _)| *i < dt) {
             player.pocket = Some(pockets.pop().unwrap());
+            ret.insert(player.id, Some(player.pocket.unwrap()));
         }
         for (_, player) in self.betting_players_iter_mut().take_while(|(i, _)| *i < dt) {
             player.pocket = Some(pockets.pop().unwrap());
+            ret.insert(player.id, Some(player.pocket.unwrap()));
         }
+        ret
     }
 
     fn next_empty_seat(&self) -> Option<usize> {

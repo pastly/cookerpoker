@@ -179,7 +179,7 @@ fn single_hand(
         print_player_info(state, "  ");
     }
     loop {
-        if matches!(state.state, State::EndOfHand) {
+        if matches!(state.state(), State::EndOfHand) {
             return Ok(false);
         }
         let (_, player) = state.nta().unwrap();
@@ -221,9 +221,9 @@ fn single_hand(
 }
 
 fn print_test_info(state: &GameState) -> Result<(), Box<dyn Error>> {
-    println!("state {:?}", state.state);
-    println!("current_bet {}", state.current_bet);
-    println!("min_raise {}", state.min_raise);
+    println!("state {:?}", state.state());
+    println!("current_bet {}", state.current_bet());
+    println!("min_raise {}", state.min_raise());
     println!("pot.total_value {}", state.pot_total_value());
     println!(
         "community {} {} {} {} {}",

@@ -89,7 +89,7 @@ pub enum Street {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GameState {
     /// The state this Game is in ... as in what street or showdown or paused
-    pub state: State,
+    __state_dont_change_directly: State,
     /// Cash. Maybe tourny in the future
     table_type: TableType,
     /// The players seated at this table and their per-player info
@@ -106,10 +106,10 @@ pub struct GameState {
     big_blind: Currency,
     /// The amount that each player is expected to match in order to make it to the end of the
     /// current betting round.
-    pub current_bet: Currency,
+    __current_bet_dont_change_directly: Currency,
     /// If a player wishes to raise this betting round, they must raise to at least this amount.
     /// This is the total amount to raise to, i.e. it is larger than current_bet.
-    pub min_raise: Currency,
+    __min_raise_dont_change_directly: Currency,
     /// The last person to raise this betting round.
     ///
     /// Needed because of the full bet rule. You can't raise, have action come back to you, then
@@ -134,20 +134,40 @@ impl GameState {
         // Can raise if there was no raise before this player. Or if there was a raiser before this
         // player, if they weren't the one to make it.
         let can_raise = self.last_raiser.is_none() || self.last_raiser.unwrap() != player_id;
-        let pot = match self.state {
+        let pot = match self.state() {
             State::NotStarted => None,
             _ => Some(vec![self.pot.settled_value()]),
         };
+        let logs = self
+            .logs
+            .clone()
+            .into_iter()
+            .map(|li| match li {
+                LogItem::Pot(_)
+                | LogItem::StateChange(_, _)
+                | LogItem::CurrentBetSet(_, _, _, _)
+                | LogItem::Flop(_, _, _)
+                | LogItem::Turn(_)
+                | LogItem::River(_) => li,
+                LogItem::PocketDealt(pid, _) => {
+                    if pid == player_id {
+                        li
+                    } else {
+                        LogItem::PocketDealt(pid, None)
+                    }
+                }
+            })
+            .collect();
         FilteredGameState {
             table_type: self.table_type,
             players,
             community: self.community,
-            logs: self.logs.clone(),
+            logs,
             self_id: player_id,
             self_seat,
             nta_seat: self.nta().map(|(idx, _)| idx),
-            current_bet: self.current_bet,
-            min_raise: self.min_raise,
+            current_bet: self.current_bet(),
+            min_raise: self.min_raise(),
             can_raise,
             pot,
         }
@@ -172,7 +192,7 @@ impl GameState {
 impl Default for GameState {
     fn default() -> Self {
         Self {
-            state: Default::default(),
+            __state_dont_change_directly: Default::default(),
             table_type: Default::default(),
             players: Default::default(),
             community: [None; COMMUNITY_SIZE],
@@ -180,8 +200,8 @@ impl Default for GameState {
             deck: Default::default(),
             small_blind: DEF_SB,
             big_blind: DEF_BB,
-            current_bet: DEF_BB,
-            min_raise: 2 * DEF_BB,
+            __current_bet_dont_change_directly: DEF_BB,
+            __min_raise_dont_change_directly: 2 * DEF_BB,
             last_raiser: None,
             logs: Default::default(),
         }
@@ -194,7 +214,7 @@ impl GameState {
     }
 
     pub fn player_calls(&mut self, player_id: PlayerId) -> Result<(), GameError> {
-        self.player_action(player_id, BetAction::Call(self.current_bet))
+        self.player_action(player_id, BetAction::Call(self.current_bet()))
     }
 
     pub fn player_checks(&mut self, player_id: PlayerId) -> Result<(), GameError> {
@@ -220,10 +240,11 @@ impl GameState {
             BetAction::Check | BetAction::Fold => 0,
             BetAction::Call(v) | BetAction::Bet(v) | BetAction::Raise(v) | BetAction::AllIn(v) => v,
         };
-        if bet_value > self.current_bet {
-            let old_current_bet = self.current_bet;
-            self.current_bet = bet_value;
-            self.min_raise = self.current_bet + (self.current_bet - old_current_bet);
+        if bet_value > self.current_bet() {
+            let old_cb = self.current_bet();
+            let cb = bet_value;
+            let mr = cb + (cb - old_cb);
+            self.set_current_bet(cb, mr);
         }
         let mut pot_logs = vec![];
         pot_logs.append(&mut self.pot.bet(player_id, bet));
@@ -232,19 +253,48 @@ impl GameState {
         if self.players.eligible_players_iter().count() == 1 {
             self.finalize_hand()?;
         } else if self.players.need_bets_from.is_empty() {
-            while self.players.need_bets_from.is_empty() && !matches!(self.state, State::Showdown) {
+            while self.players.need_bets_from.is_empty() && !matches!(self.state(), State::Showdown)
+            {
                 let next_state = self.advance_street()?;
-                self.state = next_state;
+                self.change_state(next_state);
             }
-            if matches!(self.state, State::Showdown) {
+            if matches!(self.state(), State::Showdown) {
                 self.finalize_hand()?;
             }
         }
         Ok(())
     }
 
+    fn change_state(&mut self, new: State) {
+        self.logs
+            .push(LogItem::StateChange(self.__state_dont_change_directly, new));
+        // this is the only place the state should ever be changed directly
+        self.__state_dont_change_directly = new;
+    }
+
+    fn set_current_bet(&mut self, new_cb: Currency, new_mr: Currency) {
+        let old_cb = self.__current_bet_dont_change_directly;
+        let old_mr = self.__min_raise_dont_change_directly;
+        self.logs
+            .push(LogItem::CurrentBetSet(old_cb, new_cb, old_mr, new_mr));
+        self.__current_bet_dont_change_directly = new_cb;
+        self.__min_raise_dont_change_directly = new_mr;
+    }
+
+    pub const fn state(&self) -> State {
+        self.__state_dont_change_directly
+    }
+
+    pub const fn current_bet(&self) -> Currency {
+        self.__current_bet_dont_change_directly
+    }
+
+    pub const fn min_raise(&self) -> Currency {
+        self.__min_raise_dont_change_directly
+    }
+
     fn advance_street(&mut self) -> Result<State, GameError> {
-        let next = match self.state {
+        let next = match self.state() {
             State::Street(round) => match round {
                 Street::PreFlop => State::Street(Street::Flop),
                 Street::Flop => State::Street(Street::Turn),
@@ -256,8 +306,7 @@ impl GameState {
         self.players.next_street()?;
         let pot_logs = self.pot.finalize_round();
         self.logs.extend(pot_logs.into_iter().map(|l| l.into()));
-        self.current_bet = 0;
-        self.min_raise = self.big_blind;
+        self.set_current_bet(0, self.big_blind);
         self.last_raiser = None;
         if let State::Street(street) = next {
             match street {
@@ -270,16 +319,19 @@ impl GameState {
                     self.community[0] = Some(c1);
                     self.community[1] = Some(c2);
                     self.community[2] = Some(c3);
+                    self.logs.push(LogItem::Flop(c1, c2, c3));
                 }
                 Street::Turn => {
                     self.deck.burn();
                     let c1 = self.deck.draw()?;
                     self.community[3] = Some(c1);
+                    self.logs.push(LogItem::Turn(c1));
                 }
                 Street::River => {
                     self.deck.burn();
                     let c1 = self.deck.draw()?;
                     self.community[4] = Some(c1);
+                    self.logs.push(LogItem::River(c1));
                 }
             }
         }
@@ -298,21 +350,13 @@ impl GameState {
     /// If we are able to automatically move the current game forward, do so
     pub fn tick(&mut self) -> Result<(), GameError> {
         // If there's no game going and there's enough people to start one, do so
-        if matches!(self.state, State::NotStarted) && self.players.betting_players_count() > 1 {
+        if matches!(self.state(), State::NotStarted) && self.players.betting_players_count() > 1 {
             return self.start_hand();
         }
         // If it's the end of a hand, start a new one
-        if matches!(self.state, State::EndOfHand) {
+        if matches!(self.state(), State::EndOfHand) {
             return self.start_hand();
         }
-        //println!("{}", self.state);
-        // // If there's a game going and there's only one person left that's eligible to win the pot,
-        // // award it and move the game on.
-        // if matches!(self.state, State::Street(_))
-        //     && self.players.eligible_players_iter().count() == 1
-        // {
-        //     self.finalize_hand()?;
-        // }
         Ok(())
     }
 
@@ -344,21 +388,20 @@ impl GameState {
         };
         let (winnings, pot_logs) = pot.payout(&ranked_players);
         self.players.end_hand(&winnings)?;
-        self.state = State::EndOfHand;
+        self.change_state(State::EndOfHand);
         self.logs.extend(pot_logs.into_iter().map(|pli| pli.into()));
         Ok(())
     }
 
     fn clean_state(&mut self, deck_seed: DeckSeed) {
-        self.state = State::NotStarted;
+        self.logs.clear();
+        self.change_state(State::NotStarted);
         self.players.clean_state();
         self.community = [None; COMMUNITY_SIZE];
         self.pot = Default::default();
         self.deck = Deck::new(&deck_seed);
-        self.current_bet = 0;
-        self.min_raise = self.big_blind;
+        self.set_current_bet(0, self.big_blind);
         self.last_raiser = None;
-        self.logs.clear();
     }
 
     pub fn start_hand(&mut self) -> Result<(), GameError> {
@@ -370,11 +413,10 @@ impl GameState {
         self.clean_state(seed);
         self.players.start_hand()?;
 
-        self.state = State::Street(Street::PreFlop);
-        self.current_bet = 0;
+        self.change_state(State::Street(Street::PreFlop));
+        self.set_current_bet(0, self.big_blind);
         let ((player_sb, bet_sb), (player_bb, bet_bb)) = self.blinds_bet()?;
-        self.current_bet = self.big_blind;
-        self.min_raise = self.current_bet * 2;
+        self.set_current_bet(self.big_blind, self.big_blind * 2);
         let mut pot_logs = vec![];
         pot_logs.append(&mut self.pot.bet(player_sb, bet_sb));
         pot_logs.append(&mut self.pot.bet(player_bb, bet_bb));
@@ -382,7 +424,12 @@ impl GameState {
 
         let num_p = self.players.betting_players_count() as u8;
         let pockets = self.deck.deal_pockets(num_p)?;
-        self.players.deal_pockets(pockets);
+        self.logs.extend(
+            self.players
+                .deal_pockets(pockets)
+                .into_iter()
+                .map(|(k, v)| LogItem::PocketDealt(k, v)),
+        );
 
         Ok(())
     }
@@ -415,7 +462,7 @@ impl GameState {
     /// (possibly adjusted) bet this player made
     fn bet(&mut self, player_id: PlayerId, bet: BetAction) -> Result<BetAction, GameError> {
         // Check for obvious errors: game not in correct state
-        if !matches!(self.state, State::Street(_)) {
+        if !matches!(self.state(), State::Street(_)) {
             return Err(GameError::NoBetExpected);
         }
         // Check for obvious errors: bet too small, or this player shouldn't be betting, etc.
@@ -425,12 +472,12 @@ impl GameState {
             // can be for any amount, so no errors to catch
             BetAction::AllIn(_) => {}
             BetAction::Bet(x) | BetAction::Call(x) => {
-                match x.cmp(&self.current_bet) {
+                match x.cmp(&self.current_bet()) {
                     Ordering::Less => return Err(GameError::InvalidBet),
                     Ordering::Greater => {
                         // only an error if there is a non-zero current bet. It's 0 for the start of
                         // post-flop rounds
-                        if self.current_bet != 0 {
+                        if self.current_bet() != 0 {
                             return Err(GameError::InvalidBet);
                         }
                     }
@@ -439,7 +486,7 @@ impl GameState {
                 }
             }
             BetAction::Raise(x) => {
-                if x < &self.min_raise {
+                if x < &self.min_raise() {
                     return Err(GameError::InvalidBet);
                 }
                 // Cannot raise if same player was most recent player to raise
@@ -473,7 +520,7 @@ impl GameState {
             BetAction::Call(x) | BetAction::Bet(x) | BetAction::Raise(x) | BetAction::AllIn(x) => {
                 // it should be safe and correct to check all these bet types, even if we only
                 // expect allin/raise
-                *x >= self.min_raise
+                *x >= self.min_raise()
             }
         };
 
@@ -496,7 +543,7 @@ impl GameState {
                 self.players.need_bets_from.pop();
             }
             BetAction::Call(x) | BetAction::Bet(x) | BetAction::Raise(x) | BetAction::AllIn(x) => {
-                match x.cmp(&self.current_bet) {
+                match x.cmp(&self.current_bet()) {
                     std::cmp::Ordering::Less => {
                         // the only time less is ok is if this is allin
                         if bet.is_allin() {

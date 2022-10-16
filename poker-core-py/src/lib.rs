@@ -1,5 +1,5 @@
 use poker_core::{state::GameState, GameError, PlayerId};
-use poker_messages::{action, Msg};
+use poker_messages::{action, Msg, SeqNum};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
@@ -90,6 +90,17 @@ fn player_action(
     Ok(serde_json::to_string(&state).unwrap())
 }
 
+#[pyfunction]
+fn serial_filter_state(
+    opaque_state: OpaqueState,
+    _player_id: PlayerId,
+    _starting_seqnum: SeqNum,
+) -> Result<(), PyGameError> {
+    let _state: GameState =
+        serde_json::from_str(&opaque_state).expect("Unable to deserialize state");
+    Ok(())
+}
+
 /// A Python module implemented in Rust.
 #[pymodule]
 fn poker_core_py(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -99,5 +110,6 @@ fn poker_core_py(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(seat_player, m)?)?;
     m.add_function(wrap_pyfunction!(tick_state, m)?)?;
     m.add_function(wrap_pyfunction!(player_action, m)?)?;
+    m.add_function(wrap_pyfunction!(serial_filter_state, m)?)?;
     Ok(())
 }
