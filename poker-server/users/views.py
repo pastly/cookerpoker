@@ -1,5 +1,9 @@
+import json
+from django.http import HttpResponse
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from .forms import RegisterForm
 
 def register(request):
@@ -17,3 +21,8 @@ def register(request):
     else:
         form = RegisterForm()
     return render(request, 'users/register.html', {'form': form})
+
+@login_required
+def info(request, user_id):
+    user = User.objects.filter(id=user_id).values('id', 'username').first()
+    return HttpResponse(json.dumps(user), content_type='application/json')

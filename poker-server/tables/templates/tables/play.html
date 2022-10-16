@@ -34,6 +34,7 @@
         onclick_bet,
         onclick_raise,
         onchange_raise,
+        save_player_info,
         //onclick_bet,
     } from '/static/poker_client.js'
     window.onclick_fold = onclick_fold;
@@ -43,6 +44,7 @@
     window.onclick_raise = onclick_raise;
     window.onchange_raise = onchange_raise;
     window.send_action = send_action;
+    window.send_player_info_request = send_player_info_request;
     let REDRAW_TIMEOUT_ID = 0;
     async function run() {
         await init();
@@ -80,6 +82,18 @@
             let wait_time = redraw(req.response);
             REDRAW_TIMEOUT_ID = setTimeout(redraw_timeout, wait_time * 1000);
         };
+        req.timeout = 900;
+    }
+
+    function send_player_info_request(player_id) {
+        let url = `/users/${player_id}/info`;
+        let req = new XMLHttpRequest();
+        req.open("GET", url);
+        req.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        req.send();
+        req.onload = function() {
+            save_player_info(req.response);
+        }
         req.timeout = 900;
     }
 </script>

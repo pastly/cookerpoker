@@ -1,15 +1,18 @@
 #![allow(clippy::unused_unit)]
 //mod actionlog;
 mod elements;
+mod player_info;
 mod utils;
 
 use elements::{Community, Elementable, Pocket, Pot};
+use player_info::PlayerInfo;
 use poker_core::bet::BetStatus;
 use poker_core::deck::{Card, Deck};
 use poker_core::player::Player;
 use poker_core::state::FilteredGameState;
-use poker_core::Currency;
+use poker_core::{Currency, PlayerId};
 use poker_messages::{action, Msg};
+use std::collections::HashMap;
 use std::sync::Mutex;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -25,6 +28,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 lazy_static! {
     static ref LAST_STATE: Mutex<Option<FilteredGameState>> = Mutex::new(None);
+    static ref PLAYER_INFO: Mutex<HashMap<PlayerId, PlayerInfo>> = Mutex::new(HashMap::new());
 }
 //const K_DEV_TABLE_N: &str = "dev-table-n";
 //const K_DEV_PLAYER_N: &str = "dev-player-n";
@@ -32,8 +36,11 @@ lazy_static! {
 
 #[wasm_bindgen]
 extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
     fn alert(s: &str);
     fn send_action(s: &str);
+    fn send_player_info_request(player_id: PlayerId);
 }
 
 #[wasm_bindgen]
@@ -67,6 +74,13 @@ pub fn show_pot() {
 }
 
 fn redraw_pocket(elm: &HtmlElement, player: &Player, _is_cash: bool) {
+    let player_info_cache = PLAYER_INFO
+        .lock()
+        .expect("Unable to lock player info cache");
+    let name = player_info_cache
+        .get(&player.id)
+        .map(|pi| pi.username.clone())
+        .unwrap_or_else(|| format!("Player {}", player.id));
     let p = Pocket {
         cards: [
             if player.pocket.is_some() {
@@ -80,7 +94,7 @@ fn redraw_pocket(elm: &HtmlElement, player: &Player, _is_cash: bool) {
                 None
             },
         ],
-        name: Some(format!("Player {}", player.id)),
+        name: Some(name),
         stack: Some(player.stack),
     };
     p.fill_element(elm);
@@ -250,6 +264,17 @@ fn redraw_action_buttons(state: &FilteredGameState) {
     elm.append_child(&box_).unwrap();
 }
 
+fn send_player_info_requests_for_missing_players(state: &FilteredGameState) {
+    let cache = PLAYER_INFO
+        .lock()
+        .expect("could not lock player info cache");
+    for pid in state.players.players_iter().map(|p| p.id) {
+        if !cache.contains_key(&pid) {
+            send_player_info_request(pid);
+        }
+    }
+}
+
 /// Redraw the table/hands/etc. based on the given state object. Return the number of seconds we
 /// should wait before polling for a new update.
 #[wasm_bindgen]
@@ -260,6 +285,7 @@ pub fn redraw(state: String) -> i32 {
         return if is_self_nta(&state) { 30 } else { 2 };
     }
     *last_state = Some(state.clone());
+    send_player_info_requests_for_missing_players(&state);
     redraw_table(&state);
     redraw_logs(&state.logs);
     redraw_state(&state);
@@ -347,4 +373,15 @@ pub fn onchange_raise(val: f64) {
         .dyn_into::<HtmlInputElement>()
         .expect("HtmlInputElement");
     raise_slider.set_value_as_number(val);
+}
+
+#[wasm_bindgen]
+pub fn save_player_info(pi: String) {
+    let info: PlayerInfo =
+        serde_json::from_str(&pi).expect("Unable to deserialize PlayerInfo json");
+    let mut cache = PLAYER_INFO
+        .lock()
+        .expect("could not lock player info cache");
+    log(&format!("Got player info {}: {:?}", info.id, info));
+    cache.insert(info.id, info);
 }
