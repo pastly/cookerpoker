@@ -10,7 +10,6 @@ use poker_core::bet::BetStatus;
 use poker_core::deck::{Card, Deck};
 use poker_core::log::LogItem;
 use poker_core::pot;
-use poker_core::state::BaseState;
 use poker_core::{Currency, PlayerId, SeqNum, MAX_PLAYERS};
 use poker_messages::{action, Msg};
 use std::collections::HashMap;
@@ -28,9 +27,7 @@ extern crate lazy_static;
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 lazy_static! {
-    //static ref LAST_STATE: Mutex<Option<FilteredGameState>> = Mutex::new(None);
     static ref SAVED_LOGS: Mutex<Vec<(usize, LogItem)>> = Mutex::new(Vec::new());
-    static ref LAST_BASE_STATE: Mutex<BaseState> = Mutex::new(Default::default());
     static ref POCKETS: Mutex<Vec<Pocket>> = Mutex::new(Vec::with_capacity(MAX_PLAYERS));
     static ref COMMUNITY: Mutex<[Option<Card>; 5]> = Mutex::new([None; 5]);
     static ref CURRENT_BET_AND_RAISE: Mutex<(Currency, Currency)> = Mutex::new((0, 0));
@@ -381,10 +378,6 @@ pub fn redraw(changes_message_str: String) -> i32 {
         log(&format!("{idx}: {:?}", item));
         match item {
             LogItem::NewBaseState(bs) => {
-                let mut saved_bs = LAST_BASE_STATE
-                    .lock()
-                    .expect("could not get saved base state");
-                *saved_bs = bs.as_ref().clone();
                 let mut pockets = POCKETS.lock().expect("could not get saved pockets");
                 let pi_cache = PLAYER_INFO
                     .lock()
