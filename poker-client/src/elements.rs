@@ -1,5 +1,7 @@
 use crate::utils::card_char;
+use poker_core::bet::BetStatus;
 use poker_core::deck::Card;
+use poker_core::PlayerId;
 use wasm_bindgen::JsCast;
 use web_sys::Element;
 
@@ -67,7 +69,7 @@ impl Elementable for Community {
     }
 }
 
-pub(crate) struct Pot(pub(crate) Option<Vec<i32>>);
+pub(crate) struct Pot(pub(crate) Vec<i32>);
 
 impl Elementable for Pot {
     fn into_element(self) -> Element {
@@ -77,26 +79,34 @@ impl Elementable for Pot {
     }
 
     fn fill_element(&self, elm: &Element) {
-        if self.0.is_none() || self.0.as_ref().unwrap().is_empty() {
-            elm.set_text_content(None)
-        } else {
-            let v = self.0.as_ref().unwrap();
-            let mut s = String::from("Pot: ");
-            for i in 0..v.len() {
-                s += &v[i].to_string();
-                if i != v.len() - 1 {
-                    s += " | Side pot: ";
-                }
+        let v = &self.0;
+        let mut s = String::from("Pot: ");
+        for i in 0..v.len() {
+            s += &v[i].to_string();
+            if i != v.len() - 1 {
+                s += " | Side pot: ";
             }
-            elm.set_text_content(Some(&s))
         }
+        elm.set_text_content(Some(&s))
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Pocket {
-    pub(crate) cards: [Option<Card>; 2],
-    pub(crate) name: Option<String>,
-    pub(crate) stack: Option<i32>,
+    // lots of option on cards because want to be able to represent lots of things:
+    // - player sitting but no cards (yet): None
+    // - player sitting and has unknown cards: Some([None, None])
+    // - player sitting and has revealed a card: Some([Some(), None])
+    // - player sitting and either has revealed both cards or its us: Some([Some(), Some()])
+    pub(crate) cards: Option<[Option<Card>; 2]>,
+    pub(crate) name: String,
+    pub(crate) stack: i32,
+    pub(crate) seat_idx: usize,
+    pub(crate) player_id: PlayerId,
+    pub(crate) bet_status: BetStatus,
+    pub(crate) is_btn: bool,
+    pub(crate) is_sb: bool,
+    pub(crate) is_bb: bool,
 }
 
 impl Elementable for Pocket {
@@ -110,17 +120,40 @@ impl Elementable for Pocket {
         while let Some(child) = elm.last_child() {
             elm.remove_child(&child).unwrap();
         }
-        elm.append_child(&self.cards[0].into_element()).unwrap();
-        elm.append_child(&self.cards[1].into_element()).unwrap();
+        if self.cards.is_some() {
+            elm.append_child(&self.cards.unwrap()[0].into_element())
+                .unwrap();
+            elm.append_child(&self.cards.unwrap()[1].into_element())
+                .unwrap();
+        }
         let name_elm = base_element("p");
         let stack_elm = base_element("p");
-        if let Some(stack) = self.stack {
-            stack_elm.set_text_content(Some(&stack.to_string()));
-        }
-        if let Some(name) = &self.name {
-            name_elm.set_text_content(Some(name));
-        }
+        stack_elm.set_text_content(Some(&self.stack.to_string()));
+        name_elm.set_text_content(Some(&self.name));
         elm.append_child(&stack_elm).unwrap();
         elm.append_child(&name_elm).unwrap();
+        let token_elm = base_element("p");
+        let mut tokens = vec![];
+        if self.is_btn {
+            tokens.push("BTN");
+        }
+        if self.is_sb {
+            tokens.push("SB");
+        }
+        if self.is_bb {
+            tokens.push("BB");
+        }
+        token_elm.set_text_content(Some(&tokens.join("/")));
+        elm.append_child(&token_elm).unwrap();
+        match self.bet_status {
+            BetStatus::Folded | BetStatus::Waiting => {}
+            BetStatus::In(x) | BetStatus::AllIn(x) => {
+                if x > 0 {
+                    let wager_elm = base_element("p");
+                    wager_elm.set_text_content(Some(&format!("Wager: {x}")));
+                    elm.append_child(&wager_elm).unwrap();
+                }
+            }
+        }
     }
 }

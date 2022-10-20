@@ -1,9 +1,10 @@
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, HttpResponseNotAllowed, HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseNotAllowed, HttpResponseForbidden, HttpResponseBadRequest
 from .forms import NewTableForm
 from .models import TableState
 from .models import Table
+import json
 
 import poker_core_py
 
@@ -17,10 +18,6 @@ def latest_state(table_id):
     state = TableState(table=Table.objects.get(pk=table_id), data=state_data)
     state.save()
     return state.data
-
-def latest_filtered_state(table_id, player_id):
-    state = latest_state(table_id)
-    return poker_core_py.filter_state(state, player_id)
 
 def save_state(table, state_data):
     state = TableState(table=table, data=state_data)
@@ -58,7 +55,8 @@ def detail(request, table_id):
         except ValueError as e:
             if str(e) == 'PlayerAlreadySeated':
                 return redirect('tables:play', table_id)
-        save_state(table, new_state)
+        new_state2 = poker_core_py.tick_state(new_state)
+        save_state(table, new_state2)
         return redirect('tables:play', table_id)
     elif 'delete' in request.POST:
         table = get_object_or_404(Table, pk=table_id)
@@ -80,40 +78,41 @@ def play(request, table_id):
         request,
         'tables/play.html',
         {
-            'state': latest_filtered_state(table.id, user.id),
             'table': table,
+            'user': user,
         }
     )
 
-    
-def state_get(request, table_id):
+def state_since(request, table_id, seq):
     table = get_object_or_404(Table, pk=table_id)
     # TODO: ensure user is seated at table
     user = request.user
-    # try ticking state forward
     state = latest_state(table.id)
-    new_state = poker_core_py.tick_state(state)
-    save_state(table, new_state)
-    # print(latest_filtered_state(table.id, user.id))
-    return HttpResponse(latest_filtered_state(table.id, user.id))
+    changes = poker_core_py.state_changes_since(state, seq, user.id)
+    return HttpResponse(changes)
 
-def state_post(request, table_id):
+def state_action(request, table_id, action, last_seq):
     table = get_object_or_404(Table, pk=table_id)
     # TODO: ensure user is seated at table
     user = request.user
     state = latest_state(table.id)
-    obj = request.body.decode(request.encoding or 'utf-8')
-    new_state = poker_core_py.player_action(state, user.id, obj)
+    new_state = poker_core_py.player_action(state, user.id, action)
     save_state(table, new_state)
     new_state2 = poker_core_py.tick_state(new_state)
     save_state(table, new_state2)
-    return HttpResponse(latest_filtered_state(table.id, user.id))
+    changes = state_since(request, table_id, last_seq)
+    return HttpResponse(changes)
 
 @login_required
 def state(request, table_id):
-    if request.method == 'POST':
-        return state_post(request, table_id)
-    return state_get(request, table_id)
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    obj = json.loads(request.body.decode(request.encoding or 'utf-8'))
+    if 'action' in obj and 'since' in obj:
+        return state_action(request, table_id, obj['action'], obj['since'])
+    elif 'since' in obj:
+        return state_since(request, table_id, obj['since'])
+    return HttpResponseBadRequest()
 
 @login_required
 def method_reset(request, table_id):

@@ -23,11 +23,11 @@
     grid-template-columns: 3fr 1fr 3fr 1fr 3fr;
     grid-template-rows: auto;
     grid-template-areas:
-        ".        .         pocket-4  .         .       "
-        "pocket-3 .         .         .         pocket-5"
+        ".        .         pocket-3  .         .       "
+        "pocket-2 .         .         .         pocket-4"
 	".        community community community .       "
-        "pocket-2 .         pot       pot       pocket-6"
-        ".        .         pocket-1  .         .       ";
+        "pocket-1 .         pot       pot       pocket-5"
+        ".        .         pocket-0  .         .       ";
 }
 
 #pot {
@@ -39,27 +39,27 @@
 }
 
 .pocket:nth-of-type(1) {
-    grid-area: pocket-1;
+    grid-area: pocket-0;
 }
 
 .pocket:nth-of-type(2) {
-    grid-area: pocket-2;
+    grid-area: pocket-1;
 }
 
 .pocket:nth-of-type(3) {
-    grid-area: pocket-3;
+    grid-area: pocket-2;
 }
 
 .pocket:nth-of-type(4) {
-    grid-area: pocket-4;
+    grid-area: pocket-3;
 }
 
 .pocket:nth-of-type(5) {
-    grid-area: pocket-5;
+    grid-area: pocket-4;
 }
 
 .pocket:nth-of-type(6) {
-    grid-area: pocket-6;
+    grid-area: pocket-5;
 }
 
 .pocket {

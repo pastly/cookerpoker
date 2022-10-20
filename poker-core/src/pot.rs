@@ -75,7 +75,7 @@ impl std::fmt::Display for LogItem {
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub struct Stake {
     is_allin: bool,
-    amount: Currency,
+    pub amount: Currency,
 }
 
 impl std::fmt::Display for Stake {

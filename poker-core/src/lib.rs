@@ -8,10 +8,10 @@ mod util;
 
 pub use cards::{deck, hand};
 
-// pub? Old one was, but why needed?
-const MAX_PLAYERS: usize = 12;
+pub const MAX_PLAYERS: usize = 12;
 pub type PlayerId = i32;
 pub type Currency = i32;
+pub type SeqNum = usize;
 
 #[derive(Debug, derive_more::Display, derive_more::Error)]
 pub enum GameError {

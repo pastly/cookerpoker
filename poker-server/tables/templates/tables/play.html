@@ -2,6 +2,8 @@
 {% block content %}
 <p>{{ table }}</p>
 <div id='table'>
+  <div class=pocket id="pocket-0">
+  </div>
   <div class=pocket id="pocket-1">
   </div>
   <div class=pocket id="pocket-2">
@@ -11,8 +13,6 @@
   <div class=pocket id="pocket-4">
   </div>
   <div class=pocket id="pocket-5">
-  </div>
-  <div class=pocket id="pocket-6">
   </div>
   <div id="community"></div>
   <div id="pot"></div>
@@ -35,6 +35,7 @@
         onclick_raise,
         onchange_raise,
         save_player_info,
+        get_last_seq_num,
         //onclick_bet,
     } from '/static/poker_client.js'
     window.onclick_fold = onclick_fold;
@@ -45,6 +46,7 @@
     window.onchange_raise = onchange_raise;
     window.send_action = send_action;
     window.send_player_info_request = send_player_info_request;
+    window.self_player_id = self_player_id;
     let REDRAW_TIMEOUT_ID = 0;
     async function run() {
         await init();
@@ -53,11 +55,16 @@
         redraw_timeout();
     }
     run();
+    function self_player_id() {
+        return {{user.id}};
+    }
     function redraw_timeout() {
         let url = "{% url 'tables:state' table.id %}";
         let req = new XMLHttpRequest();
-        req.open("GET", url);
-        req.send();
+        req.open("POST", url);
+        req.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        req.setRequestHeader("X-CSRFToken", "{{csrf_token}}");
+        req.send(JSON.stringify({"since": get_last_seq_num()}));
         req.onload = function() {
             if (req.status != 200) {
                 alert(`Error ${req.status}: ${req.statusText}`)
@@ -69,13 +76,13 @@
         req.timeout = 900;
     }
 
-    function send_action(opaque_action) {
+    function send_action(last_seq, opaque_action) {
         let url = "{% url 'tables:state' table.id %}";
         let req = new XMLHttpRequest();
         req.open("POST", url);
         req.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
         req.setRequestHeader("X-CSRFToken", "{{csrf_token}}");
-        req.send(opaque_action);
+        req.send(JSON.stringify({'since': last_seq, 'action': opaque_action}));
         req.onload = function() {
             //alert(`${req}`);
             clearTimeout(REDRAW_TIMEOUT_ID);

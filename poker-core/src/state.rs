@@ -1,11 +1,10 @@
 use crate::bet::BetAction;
 use crate::deck::{Card, Deck, DeckSeed};
 use crate::hand::best_hands;
-use crate::log::LogItem;
+use crate::log::{Log, LogItem};
 use crate::player::{Player, Players};
 use crate::pot::Pot;
-use crate::GameError;
-use crate::{Currency, PlayerId};
+use crate::{Currency, GameError, PlayerId, SeqNum, MAX_PLAYERS};
 use core::cmp::Ordering;
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +14,6 @@ const DEF_BB: Currency = 10;
 
 type PidBA = (PlayerId, BetAction);
 
-/// (Replaces TableType)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub enum TableType {
     Cash,
@@ -27,37 +25,36 @@ impl Default for TableType {
     }
 }
 
-/// GameState, but filtered to just the state that a given player should be able to see. I.e. while
-/// GameState needs to know all hole cards, this will only reveal the hole cards of a single player
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct FilteredGameState {
-    //state: State,
-    table_type: TableType,
-    /// Index into players.players: slot that this player (the one the game state has been filtered
-    /// for) is in. Is None if player wasn't found (i.e. they aren't at this table)
-    pub self_seat: Option<usize>,
-    /// ID of the player this game state has been filtered for. This is always present even if the
-    /// player isn't at this table. It's taken from the filter function argument.
-    pub self_id: PlayerId,
-    pub players: Players,
-    /// Index into players.players: Next To Act, the player who should act next. Is None if action
-    /// is not expected from any player at this time.
-    pub nta_seat: Option<usize>,
-    pub community: [Option<Card>; COMMUNITY_SIZE],
-    pub logs: Vec<LogItem>,
-    /// Amount player needs to bet/call in order to stay in the hand
-    pub current_bet: Currency,
-    /// Minimum player needs to raise in order for it to be a valid raise
-    pub min_raise: Currency,
-    /// Whether or not the player is allowed to raise
-    pub can_raise: bool,
-    /// The pot, and any side pots
-    pub pot: Option<Vec<Currency>>,
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BaseState {
+    pub table_type: TableType,
+    pub seats: [Option<Player>; MAX_PLAYERS],
 }
 
-impl FilteredGameState {
-    pub fn is_cash(&self) -> bool {
-        matches!(self.table_type, TableType::Cash)
+impl std::fmt::Display for BaseState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:?} {}",
+            self.table_type,
+            self.seats.iter().filter(|p| p.is_some()).count()
+        )
+    }
+}
+
+impl From<&mut GameState> for BaseState {
+    fn from(gs: &mut GameState) -> Self {
+        let mut seats = [None; MAX_PLAYERS];
+        let seats = {
+            for (idx, p) in gs.players.players_iter_with_index() {
+                seats[idx] = Some(*p);
+            }
+            seats
+        };
+        Self {
+            table_type: gs.table_type,
+            seats,
+        }
     }
 }
 
@@ -91,7 +88,7 @@ pub struct GameState {
     /// The state this Game is in ... as in what street or showdown or paused
     __state_dont_change_directly: State,
     /// Cash. Maybe tourny in the future
-    table_type: TableType,
+    pub table_type: TableType,
     /// The players seated at this table and their per-player info
     pub players: Players,
     /// The community cards
@@ -118,59 +115,38 @@ pub struct GameState {
     ///
     /// It's confusing. See <https://duckduckgo.com/?t=ffab&q=allin+raise+less+than+minraise>
     last_raiser: Option<PlayerId>,
-    /// Logs since the the start of this hand
-    logs: Vec<LogItem>,
+    /// Logs since the the start of this hand and an archive of some previous hands
+    logs: Log,
 }
 
 impl GameState {
-    pub fn filter(&self, player_id: PlayerId) -> FilteredGameState {
-        let mut players = self.players.clone();
-        for p in players.players.iter_mut().flatten() {
-            if p.id != player_id {
-                p.pocket = None;
-            }
-        }
-        let self_seat = players.player_with_index_by_id(player_id).map(|(i, _)| i);
-        // Can raise if there was no raise before this player. Or if there was a raiser before this
-        // player, if they weren't the one to make it.
-        let can_raise = self.last_raiser.is_none() || self.last_raiser.unwrap() != player_id;
-        let pot = match self.state() {
-            State::NotStarted => None,
-            _ => Some(vec![self.pot.settled_value()]),
-        };
-        let logs = self
-            .logs
-            .clone()
-            .into_iter()
-            .map(|li| match li {
-                LogItem::Pot(_)
-                | LogItem::StateChange(_, _)
-                | LogItem::CurrentBetSet(_, _, _, _)
-                | LogItem::Flop(_, _, _)
-                | LogItem::Turn(_)
-                | LogItem::River(_) => li,
-                LogItem::PocketDealt(pid, _) => {
-                    if pid == player_id {
-                        li
-                    } else {
-                        LogItem::PocketDealt(pid, None)
-                    }
+    pub fn filtered_changes_since(
+        &self,
+        seq: SeqNum,
+        player_id: PlayerId,
+    ) -> impl Iterator<Item = (SeqNum, LogItem)> + '_ {
+        self.changes_since(seq).map(move |(idx, item)| match item {
+            LogItem::Pot(_)
+            | LogItem::NewBaseState(_)
+            | LogItem::StateChange(_, _)
+            | LogItem::TokensSet(_, _, _)
+            | LogItem::NextToAct(_)
+            | LogItem::CurrentBetSet(_, _, _, _)
+            | LogItem::Flop(_, _, _)
+            | LogItem::Turn(_)
+            | LogItem::River(_) => (idx, item),
+            LogItem::PocketDealt(pid, _pocket) => {
+                if pid == player_id {
+                    (idx, item)
+                } else {
+                    (idx, LogItem::PocketDealt(pid, None))
                 }
-            })
-            .collect();
-        FilteredGameState {
-            table_type: self.table_type,
-            players,
-            community: self.community,
-            logs,
-            self_id: player_id,
-            self_seat,
-            nta_seat: self.nta().map(|(idx, _)| idx),
-            current_bet: self.current_bet(),
-            min_raise: self.min_raise(),
-            can_raise,
-            pot,
-        }
+            }
+        })
+    }
+
+    fn changes_since(&self, seq: SeqNum) -> impl Iterator<Item = (SeqNum, LogItem)> + '_ {
+        self.logs.items_since(seq)
     }
 
     pub fn pot_total_value(&self) -> Currency {
@@ -262,6 +238,9 @@ impl GameState {
                 self.finalize_hand()?;
             }
         }
+        if !self.players.need_bets_from.is_empty() {
+            self.logs.push(LogItem::NextToAct(self.nta().unwrap().0));
+        }
         Ok(())
     }
 
@@ -277,6 +256,7 @@ impl GameState {
         let old_mr = self.__min_raise_dont_change_directly;
         self.logs
             .push(LogItem::CurrentBetSet(old_cb, new_cb, old_mr, new_mr));
+        // this is the only place these should ever be changed directly
         self.__current_bet_dont_change_directly = new_cb;
         self.__min_raise_dont_change_directly = new_mr;
     }
@@ -394,6 +374,8 @@ impl GameState {
     }
 
     fn clean_state(&mut self, deck_seed: DeckSeed) {
+        let bs = Box::new(self.into());
+        self.logs.push(LogItem::NewBaseState(bs));
         self.logs.clear();
         self.change_state(State::NotStarted);
         self.players.clean_state();
@@ -412,25 +394,29 @@ impl GameState {
     pub fn start_hand_with_seed(&mut self, seed: DeckSeed) -> Result<(), GameError> {
         self.clean_state(seed);
         self.players.start_hand()?;
-
         self.change_state(State::Street(Street::PreFlop));
+        self.logs.push(LogItem::TokensSet(
+            self.players.token_dealer,
+            self.players.token_sb,
+            self.players.token_bb,
+        ));
         self.set_current_bet(0, self.big_blind);
         let ((player_sb, bet_sb), (player_bb, bet_bb)) = self.blinds_bet()?;
-        self.set_current_bet(self.big_blind, self.big_blind * 2);
         let mut pot_logs = vec![];
         pot_logs.append(&mut self.pot.bet(player_sb, bet_sb));
         pot_logs.append(&mut self.pot.bet(player_bb, bet_bb));
         self.logs.extend(pot_logs.into_iter().map(|l| l.into()));
+        self.set_current_bet(self.big_blind, self.big_blind * 2);
 
         let num_p = self.players.betting_players_count() as u8;
         let pockets = self.deck.deal_pockets(num_p)?;
-        self.logs.extend(
-            self.players
-                .deal_pockets(pockets)
-                .into_iter()
-                .map(|(k, v)| LogItem::PocketDealt(k, v)),
-        );
-
+        let deal_logs = self
+            .players
+            .deal_pockets(pockets)
+            .into_iter()
+            .map(|(k, v)| LogItem::PocketDealt(k, v));
+        self.logs.extend(deal_logs);
+        self.logs.push(LogItem::NextToAct(self.nta().unwrap().0));
         Ok(())
     }
 
