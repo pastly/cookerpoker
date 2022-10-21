@@ -6,4 +6,79 @@
   <p>You are not logged in</p>
 {% endif %}
 Go to <a href="{% url 'tables:index' %}">tables</a>
+
+<div id='table_container'>
+<div id='pocket-1' class='pocket'>1</div>
+<div id='pocket-2' class='pocket'>2</div>
+<div id='pocket-3' class='pocket'>3</div>
+<div id='pocket-4' class='pocket'>4</div>
+</div>
+
+<style>
+  div {
+    margin: 0;
+    padding: 0;
+  }
+  #foo {
+    color: red;
+  }
+  #table_container {
+    border: 1px solid red;
+    min-height: 500px;
+    position: relative;
+  }
+  .pocket {
+    border: 1px solid blue;
+    display: inline-block;
+    position: absolute;
+  }
+  #pocket-1 {
+    border: 1px solid green;
+  }
+</style>
+
+<script>
+  function place_pockets(container) {
+    let cont_w = container.clientWidth;
+    let cont_h = container.clientHeight;
+    let pocket1 = document.getElementById("pocket-1");
+    let pocket2 = document.getElementById("pocket-2");
+    let pocket3 = document.getElementById("pocket-3");
+    let pocket4 = document.getElementById("pocket-4");
+    pocket1.style.left = `${cont_w/2 - pocket1.clientWidth/2}px`;
+    pocket1.style.top = `0px`;
+    pocket2.style.left = `${cont_w/1 - pocket2.clientWidth/1}px`;
+    pocket2.style.top  = `${cont_h/2 - pocket2.clientHeight/2}px`;
+    pocket3.style.left = `${cont_w/2 - pocket3.clientWidth/2}px`;
+    pocket3.style.top  = `${cont_h/1 - pocket3.clientHeight/1}px`;
+    pocket4.style.left = `0px`;
+    pocket4.style.top  = `${cont_h/2 - pocket4.clientHeight/2}px`;
+  }
+  let container = document.getElementById("table_container");
+  place_pockets(container);
+  for (let i = 1; i < 5; i++) {
+
+    let dest = document.getElementById(`pocket-${i}`);
+    let item = document.createElement("p");
+    item.innerText = "foo";
+    item.id = "foo";
+    dest.appendChild(item);
+    let dest_x_pos = dest.style.left.substring(0, dest.style.left.length-2);
+    let dest_y_pos = dest.style.top.substring(0, dest.style.top.length-2);
+    let cont_w = container.clientWidth;
+    let cont_h = container.clientHeight;
+    item.animate([
+      // keyframes
+      { transform: `translate(${cont_w/2 - dest_x_pos}px, ${cont_h/2 - dest_y_pos}px)` },
+      { transform: `translateX(0px) translateY(0px)` }
+    ], {
+      // timing options
+      duration: 100000,
+      iterations: 1,
+    });
+  }
+</script>
+
+
+
 {% endblock %}
