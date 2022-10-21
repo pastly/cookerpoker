@@ -78,6 +78,23 @@
 .card {
     font-size: 450%;
     line-height: var(--line-height);
+    color: rgb(0, 0, 0);
+}
+
+.card-club {
+    color: rgb(65, 166, 65);
+}
+
+.card-diamond {
+    color: rgb(63, 98, 234);
+}
+
+.card-heart {
+    color: rgb(168, 44, 44);
+}
+
+.card-spade {
+    color: rgb(0, 0, 0);
 }
 
 #gamelog .card {
