@@ -7,7 +7,7 @@ mod utils;
 use elements::{Community, Elementable, Pocket, Pot};
 use player_info::PlayerInfo;
 use poker_core::bet::BetStatus;
-use poker_core::deck::{Card, Deck};
+use poker_core::deck::Card;
 use poker_core::log::LogItem;
 use poker_core::pot;
 use poker_core::{Currency, PlayerId, SeqNum, MAX_PLAYERS};
@@ -31,7 +31,7 @@ lazy_static! {
     static ref POCKETS: Mutex<Vec<Pocket>> = Mutex::new(Vec::with_capacity(MAX_PLAYERS));
     static ref COMMUNITY: Mutex<[Option<Card>; 5]> = Mutex::new([None; 5]);
     static ref CURRENT_BET_AND_RAISE: Mutex<(Currency, Currency)> = Mutex::new((0, 0));
-    static ref NTA: Mutex<usize> = Mutex::new(MAX_PLAYERS+1);
+    static ref NTA: Mutex<usize> = Mutex::new(MAX_PLAYERS + 1);
     static ref POT: Mutex<Vec<Currency>> = Mutex::new(Vec::with_capacity(4));
     static ref PLAYER_INFO: Mutex<HashMap<PlayerId, PlayerInfo>> = Mutex::new(HashMap::new());
 }
@@ -55,123 +55,15 @@ pub fn greet() {
     alert("Hello, poker-client!");
 }
 
-#[wasm_bindgen]
-pub fn show_community(n: u8) {
-    let doc = web_sys::window()
-        .expect("No window?")
-        .document()
-        .expect("No document?");
-    let elm = doc.get_element_by_id("community").unwrap();
-    let mut d = Deck::default();
-    let cards = (0..n).map(|_| d.draw().unwrap()).collect();
-    let comm = Community(cards);
-    comm.fill_element(&elm);
+fn get_or_request_player_info(player_id: PlayerId) -> Option<PlayerInfo> {
+    let cache = PLAYER_INFO.lock().expect("Unable to get player info cache");
+    if let Some(pi) = cache.get(&player_id) {
+        Some(pi.clone())
+    } else {
+        send_player_info_request(player_id);
+        None
+    }
 }
-
-#[wasm_bindgen]
-pub fn show_pot() {
-    let pot = Pot(vec![100, 450, 420]);
-    let doc = web_sys::window()
-        .expect("No window?")
-        .document()
-        .expect("No document?");
-    let elm = doc.get_element_by_id("pot").unwrap();
-    pot.fill_element(&elm);
-}
-
-//fn redraw_pocket(elm: &HtmlElement, player: &Player, _is_cash: bool) {
-//    let player_info_cache = PLAYER_INFO
-//        .lock()
-//        .expect("Unable to lock player info cache");
-//    let name = player_info_cache
-//        .get(&player.id)
-//        .map(|pi| pi.username.clone())
-//        .unwrap_or_else(|| format!("Player {}", player.id));
-//    let p = Pocket {
-//        cards: Some([
-//            if player.pocket.is_some() {
-//                Some(player.pocket.unwrap()[0])
-//            } else {
-//                None
-//            },
-//            if player.pocket.is_some() {
-//                Some(player.pocket.unwrap()[1])
-//            } else {
-//                None
-//            },
-//        ]),
-//        name: Some(name),
-//        stack: Some(player.stack),
-//    };
-//    p.fill_element(elm);
-//}
-
-//fn redraw_table(state: &FilteredGameState) {
-//    let mut next_player_div = 1;
-//    let doc = web_sys::window()
-//        .expect("No window?")
-//        .document()
-//        .expect("No document?");
-//    for (idx, player) in state.players.players_iter_with_index() {
-//        let div_id = format!("pocket-{}", next_player_div);
-//        next_player_div += 1;
-//        let elm = doc.get_element_by_id(&div_id).unwrap();
-//        redraw_pocket(
-//            elm.dyn_ref::<HtmlElement>()
-//                .expect("div should be HtmlElement"),
-//            player,
-//            state.is_cash(),
-//        );
-//        if state.nta_seat.is_some() && state.nta_seat.unwrap() == idx {
-//            elm.class_list().add_1("next-action").unwrap();
-//        } else {
-//            elm.class_list().remove_1("next-action").unwrap();
-//        }
-//        if idx == state.players.token_dealer {
-//            let p = base_element("p");
-//            p.set_text_content(Some("BTN"));
-//            elm.dyn_ref::<HtmlElement>()
-//                .expect("HtmlElement")
-//                .append_child(&p)
-//                .unwrap();
-//        }
-//    }
-//    let community_elm = doc.get_element_by_id("community").unwrap();
-//    let community: Vec<Card> = state
-//        .community
-//        .iter()
-//        .take_while(|c| c.is_some())
-//        .map(|c| c.unwrap())
-//        .collect();
-//    Community(community).fill_element(&community_elm);
-//    let pot_elm = doc.get_element_by_id("pot").unwrap();
-//    Pot(state.pot.clone()).fill_element(&pot_elm);
-//}
-
-//fn redraw_logs(logs: &[poker_core::log::LogItem]) {
-//    let doc = web_sys::window()
-//        .expect("No window?")
-//        .document()
-//        .expect("No document?");
-//    let logs_div = doc.get_element_by_id("logs").unwrap();
-//    while let Some(child) = logs_div.last_child() {
-//        logs_div.remove_child(&child).unwrap();
-//    }
-//    for log in logs.iter() {
-//        let p = base_element("p");
-//        p.set_text_content(Some(&format!("{}", log)));
-//        logs_div.append_child(&p).unwrap();
-//    }
-//}
-
-//fn redraw_state(state: &FilteredGameState) {
-//    let doc = web_sys::window()
-//        .expect("No window?")
-//        .document()
-//        .expect("No document?");
-//    let state_div = doc.get_element_by_id("state").unwrap();
-//    state_div.set_text_content(Some(&serde_json::to_string_pretty(&state).unwrap()));
-//}
 
 fn get_self_pocket(pockets: &[Pocket]) -> Option<&Pocket> {
     pockets
@@ -291,17 +183,6 @@ fn redraw_action_buttons(action_on_self: bool) {
     elm.append_child(&box_).unwrap();
 }
 
-//fn send_player_info_requests_for_missing_players(state: &FilteredGameState) {
-//    let cache = PLAYER_INFO
-//        .lock()
-//        .expect("could not lock player info cache");
-//    for pid in state.players.players_iter().map(|p| p.id) {
-//        if !cache.contains_key(&pid) {
-//            send_player_info_request(pid);
-//        }
-//    }
-//}
-
 fn redraw_pockets() {
     let doc = web_sys::window()
         .expect("No window?")
@@ -315,13 +196,18 @@ fn redraw_pockets() {
             }
         }
     }
-    let pockets = POCKETS.lock().expect("could not get saved pockets");
+    let mut pockets = POCKETS.lock().expect("could not get saved pockets");
     let nta = *NTA.lock().expect("unable to get saved nta");
-    for pocket in pockets.iter() {
+    let pi_cache = PLAYER_INFO.lock().expect("unable to get player info cache");
+    for pocket in pockets.iter_mut() {
         let elm_id = format!("pocket-{}", pocket.seat_idx);
         let elm = doc
             .get_element_by_id(&elm_id)
             .expect("could not find pocket");
+        if pocket.needs_better_name && pi_cache.contains_key(&pocket.player_id) {
+            pocket.needs_better_name = false;
+            pocket.name = pi_cache.get(&pocket.player_id).unwrap().username.clone();
+        }
         pocket.fill_element(&elm);
         if pocket.seat_idx == nta {
             elm.class_list().add_1("next-action").unwrap();
@@ -379,9 +265,6 @@ pub fn redraw(changes_message_str: String) -> i32 {
         match item {
             LogItem::NewBaseState(bs) => {
                 let mut pockets = POCKETS.lock().expect("could not get saved pockets");
-                let pi_cache = PLAYER_INFO
-                    .lock()
-                    .expect("could not lock player info cache");
                 pockets.clear();
                 for (seat_idx, player) in bs
                     .seats
@@ -390,10 +273,12 @@ pub fn redraw(changes_message_str: String) -> i32 {
                     .filter(|(_, seat)| seat.is_some())
                     .map(|(idx, seat)| (idx, seat.unwrap()))
                 {
-                    let name = pi_cache
-                        .get(&player.id)
-                        .map(|pi| pi.username.clone())
-                        .unwrap_or_else(|| format!("Player {}", player.id));
+                    let pi = get_or_request_player_info(player.id);
+                    let (name, needs_better_name) = if let Some(pi) = pi {
+                        (pi.username.clone(), false)
+                    } else {
+                        (format!("Player {}", player.id), true)
+                    };
                     let pocket = Pocket {
                         cards: None,
                         name,
@@ -404,6 +289,7 @@ pub fn redraw(changes_message_str: String) -> i32 {
                         is_btn: false,
                         is_sb: false,
                         is_bb: false,
+                        needs_better_name,
                     };
                     pockets.push(pocket);
                     need_redraw_pockets = true;
@@ -531,17 +417,6 @@ pub fn redraw(changes_message_str: String) -> i32 {
     if need_redraw_pot {
         redraw_pot();
     }
-    //let state: FilteredGameState = serde_json::from_str(&state).unwrap();
-    //let mut last_state = LAST_STATE.lock().expect("could not get last state");
-    //if last_state.is_some() && *last_state.as_ref().unwrap() == state {
-    //    return if is_self_nta(&state) { 30 } else { 2 };
-    //}
-    //*last_state = Some(state.clone());
-    //send_player_info_requests_for_missing_players(&state);
-    //redraw_table(&state);
-    //redraw_logs(&state.logs);
-    //redraw_state(&state);
-    //redraw_action_buttons(&state);
     if is_self_nta() {
         30
     } else {

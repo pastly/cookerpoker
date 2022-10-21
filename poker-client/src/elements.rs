@@ -107,6 +107,7 @@ pub(crate) struct Pocket {
     pub(crate) is_btn: bool,
     pub(crate) is_sb: bool,
     pub(crate) is_bb: bool,
+    pub(crate) needs_better_name: bool,
 }
 
 impl Elementable for Pocket {
