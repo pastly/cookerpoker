@@ -264,6 +264,7 @@ pub fn redraw(changes_message_str: String) -> i32 {
         log(&format!("{idx}: {:?}", item));
         match item {
             LogItem::NewBaseState(bs) => {
+                POT.lock().expect("could not get saved pot").clear();
                 let mut pockets = POCKETS.lock().expect("could not get saved pockets");
                 pockets.clear();
                 for (seat_idx, player) in bs

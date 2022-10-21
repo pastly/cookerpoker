@@ -80,6 +80,10 @@ impl Elementable for Pot {
 
     fn fill_element(&self, elm: &Element) {
         let v = &self.0;
+        if v.is_empty() {
+            elm.set_text_content(None);
+            return;
+        }
         let mut s = String::from("Pot: ");
         for i in 0..v.len() {
             s += &v[i].to_string();
