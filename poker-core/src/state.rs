@@ -374,11 +374,11 @@ impl GameState {
     }
 
     fn clean_state(&mut self, deck_seed: DeckSeed) {
+        self.logs.rotate();
+        self.players.clean_state();
         let bs = Box::new(self.into());
         self.logs.push(LogItem::NewBaseState(bs));
-        self.logs.clear();
         self.change_state(State::NotStarted);
-        self.players.clean_state();
         self.community = [None; COMMUNITY_SIZE];
         self.pot = Default::default();
         self.deck = Deck::new(&deck_seed);

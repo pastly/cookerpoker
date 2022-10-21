@@ -4,6 +4,8 @@ use crate::state;
 use crate::{Currency, PlayerId, SeqNum};
 use serde::{Deserialize, Serialize};
 
+const MAX_ARCHIVED_HANDS: usize = 3;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LogItem {
     Pot(pot::LogItem),
@@ -72,8 +74,9 @@ impl Log {
         }
     }
 
-    pub(crate) fn clear(&mut self) {
+    pub(crate) fn rotate(&mut self) {
         self.archive.append(&mut self.active);
+        self.drop_oldest_archived();
     }
 
     pub(crate) fn items_since(
@@ -91,5 +94,21 @@ impl Log {
             .skip_while(move |(seq, _item)| *seq <= oldest_seq)
             .cloned();
         iter1.chain(iter2)
+    }
+
+    fn drop_oldest_archived(&mut self) {
+        let mut game_count = 0;
+        let mut first_keep_seq_num = 0;
+        for (seq_num, item) in self.archive.iter().rev() {
+            if matches!(item, LogItem::NewBaseState(_)) {
+                game_count += 1;
+                if game_count == MAX_ARCHIVED_HANDS {
+                    first_keep_seq_num = *seq_num;
+                    break;
+                }
+            }
+        }
+        self.archive
+            .retain(|(seq, _item)| *seq >= first_keep_seq_num);
     }
 }
