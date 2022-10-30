@@ -125,30 +125,36 @@ impl GameState {
         seq: SeqNum,
         player_id: PlayerId,
     ) -> impl Iterator<Item = (SeqNum, LogItem)> + '_ {
-        self.changes_since(seq).map(move |(idx, item)| match item {
-            LogItem::Pot(_)
-            | LogItem::NewBaseState(_)
-            | LogItem::StateChange(_, _)
-            | LogItem::TokensSet(_, _, _)
-            | LogItem::NextToAct(_)
-            | LogItem::CurrentBetSet(_, _, _, _)
-            | LogItem::HandReveal(_, _)
-            | LogItem::Flop(_, _, _)
-            | LogItem::Turn(_)
-            | LogItem::River(_) => (idx, item),
-            LogItem::PocketDealt(pid, _pocket) => {
-                if pid == player_id {
-                    (idx, item)
-                } else {
-                    (idx, LogItem::PocketDealt(pid, None))
+        self.logs
+            .items_since(seq)
+            .map(move |(idx, item)| match item {
+                LogItem::Pot(_)
+                | LogItem::NewBaseState(_)
+                | LogItem::StateChange(_, _)
+                | LogItem::TokensSet(_, _, _)
+                | LogItem::NextToAct(_)
+                | LogItem::CurrentBetSet(_, _, _, _)
+                | LogItem::HandReveal(_, _)
+                | LogItem::Flop(_, _, _)
+                | LogItem::Turn(_)
+                | LogItem::River(_) => (idx, item),
+                LogItem::PocketDealt(pid, _pocket) => {
+                    if pid == player_id {
+                        (idx, item)
+                    } else {
+                        (idx, LogItem::PocketDealt(pid, None))
+                    }
                 }
-            }
-        })
+            })
     }
 
-    fn changes_since(&self, seq: SeqNum) -> impl Iterator<Item = (SeqNum, LogItem)> + '_ {
-        self.logs.items_since(seq)
-    }
+    //#[cfg(test)]
+    //pub(crate) fn changes_since(
+    //    &self,
+    //    seq: SeqNum,
+    //) -> impl Iterator<Item = (SeqNum, LogItem)> + '_ {
+    //    self.logs.items_since(seq)
+    //}
 
     pub fn pot_total_value(&self) -> Currency {
         self.pot.total_value()
@@ -423,6 +429,17 @@ impl GameState {
         pot_logs.append(&mut self.pot.bet(player_bb, bet_bb));
         self.logs.extend(pot_logs.into_iter().map(|l| l.into()));
         self.set_current_bet(self.big_blind, self.big_blind * 2);
+        // at this point, there is no last raiser, but the bet function thinks there is (it considers
+        // the BB to have taken the most recent agressive action). Thus we won't let the BB raise if
+        // no one raises before him ... unless we clear the last_raiser.
+        // We assert here because if logic changes, we might be able to clean this up, or we might
+        // be fucking something up.
+        assert!(self.last_raiser.is_some());
+        assert_eq!(
+            self.last_raiser.unwrap(),
+            self.players.players[self.players.token_bb].unwrap().id,
+        );
+        self.last_raiser = None;
 
         let num_p = self.players.betting_players_count() as u8;
         let pockets = self.deck.deal_pockets(num_p)?;
@@ -644,5 +661,30 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// When action folds to the SB and the SB just completes, the BB is allowed to raise
+    #[test]
+    fn bigblind_can_raise() {
+        let mut gs = GameState::default();
+        const STACK: Currency = DEF_BB * 10;
+        const SB_PID: PlayerId = 1;
+        const BB_PID: PlayerId = 2;
+        gs.try_sit(SB_PID, STACK).unwrap();
+        gs.try_sit(BB_PID, STACK).unwrap();
+        gs.start_hand().unwrap();
+        const SB_SEAT: usize = 0;
+        const BB_SEAT: usize = 1;
+        // sanity checks
+        assert_eq!(gs.players.token_dealer, BB_SEAT);
+        assert_eq!(gs.players.token_sb, SB_SEAT);
+        assert_eq!(gs.players.token_bb, BB_SEAT);
+        assert_eq!(gs.nta().unwrap().0, SB_SEAT);
+        // sb completes, action now on bb
+        gs.player_calls(SB_PID).unwrap();
+        // sanity check: bb is nta
+        assert_eq!(gs.nta().unwrap().0, BB_SEAT);
+        // the test: BB is allowed to raise
+        gs.player_raises(BB_PID, DEF_BB * 3).unwrap();
     }
 }
