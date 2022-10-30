@@ -15,6 +15,7 @@ pub enum LogItem {
     NextToAct(usize),               // seat index into player array
     CurrentBetSet(Currency, Currency, Currency, Currency),
     PocketDealt(PlayerId, Option<[Card; 2]>),
+    HandReveal(PlayerId, [Option<Card>; 2]), // Option "on the inside" to support player revealing just one card
     Flop(Card, Card, Card),
     Turn(Card),
     River(Card),
@@ -41,6 +42,14 @@ impl std::fmt::Display for LogItem {
                 None => write!(f, "Player {player_id} dealt a hand"),
                 Some(p) => write!(f, "Player {player_id} dealt {}{}", p[0], p[1]),
             },
+            LogItem::HandReveal(player_id, cards) => {
+                write!(
+                    f,
+                    "Player {player_id} reveals {}{}",
+                    cards[0].map_or_else(|| "".to_owned(), |c| c.to_string()),
+                    cards[1].map_or_else(|| "".to_owned(), |c| c.to_string())
+                )
+            }
             // LogItem::SitDown(p, seat, monies) => {
             //     write!(f, "p{} sits in seat {} with {}", p, seat, monies)
             // }

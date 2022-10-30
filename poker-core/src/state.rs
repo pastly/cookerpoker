@@ -132,6 +132,7 @@ impl GameState {
             | LogItem::TokensSet(_, _, _)
             | LogItem::NextToAct(_)
             | LogItem::CurrentBetSet(_, _, _, _)
+            | LogItem::HandReveal(_, _)
             | LogItem::Flop(_, _, _)
             | LogItem::Turn(_)
             | LogItem::River(_) => (idx, item),
@@ -367,6 +368,21 @@ impl GameState {
                 .collect()
         };
         let (winnings, pot_logs) = pot.payout(&ranked_players);
+        // determine who needs to reveal their hand to win, if anybody, and log the reveal. A hand
+        // needs to be revealed if there's more than 1 person that could win the pot at this time.
+        if players.len() > 1 {
+            for winning_player_id in winnings.keys() {
+                let p = self
+                    .players
+                    .player_by_id(*winning_player_id)
+                    .expect("Unable to get player that allegedly won (at least part of) the pot");
+                let cards = p
+                    .pocket
+                    .expect("player that won (at least part of) the pot has no cards");
+                let li = LogItem::HandReveal(*winning_player_id, [Some(cards[0]), Some(cards[1])]);
+                self.logs.push(li);
+            }
+        }
         self.players.end_hand(&winnings)?;
         self.change_state(State::EndOfHand);
         self.logs.extend(pot_logs.into_iter().map(|pli| pli.into()));

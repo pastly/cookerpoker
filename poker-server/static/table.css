@@ -1,0 +1,113 @@
+.hide {
+  display: none !important;
+}
+
+div {
+  margin: 0;
+  padding: 0;
+}
+#foo {
+  color: red;
+}
+#table_container {
+  border: 10px solid white;
+  background-color: green;
+  min-height: 600px;
+  position: relative;
+  border-radius: 600px;
+}
+.pocket {
+  background-color: #555;
+  position: absolute;
+  display: grid;
+  padding: 0;
+  width: 10em;
+  border-radius: 2.5em;
+  box-shadow: 2px 2px 10px black;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-rows: auto;
+  grid-template-areas:
+    ".     card0 card1     ."
+    ".     card0 card1     ."
+    "name  name  name   name"
+    "stack stack stack stack"
+}
+.pocket .name {
+  grid-area: name;
+  text-align: center;
+}
+.pocket .stack {
+  grid-area: stack;
+  text-align: center;
+}
+.pocket .card0 {
+  grid-area: card0;
+}
+.pocket .card1 {
+  grid-area: card1;
+}
+.next-action {
+    border: 5px solid rgb(63, 98, 234);
+}
+.wager {
+  position: absolute;
+  display: inline-block;
+  padding: 0.5em;
+  border-radius: 100em;
+  border: 3px solid black;
+  background-color: #6a521a;
+}
+.card {
+  font-size: 450%;
+  line-height: var(--line-height);
+  color: #000;
+  background-color: #000;
+  border-radius: 0.5rem;
+  width: 1em;
+  height: 1.5em;
+  margin-left: 0.05em;
+  margin-right: 0.05em;
+  box-shadow: 1px 1px 1px black;
+}
+.card-club {
+    background-color: rgb(65, 166, 65);
+}
+.card-diamond {
+    background-color: rgb(63, 98, 234);
+}
+.card-heart {
+    background-color: rgb(168, 44, 44);
+}
+.card-spade {
+    background-color: #000;
+    color: #fff;
+}
+#community {
+  /* border: 1px solid red; */
+  position: absolute;
+  display: grid;
+  padding: 0;
+  grid-template-columns: auto;
+  grid-template-rows: auto;
+  grid-template-areas:
+    "card0 card1 card2 card3 card4"
+}
+#community .card:nth-of-type(1) {
+  grid-area: card0;
+}
+#community .card:nth-of-type(2) {
+  grid-area: card1;
+}
+#community .card:nth-of-type(3) {
+  grid-area: card2;
+}
+#community .card:nth-of-type(4) {
+  grid-area: card3;
+}
+#community .card:nth-of-type(5) {
+  grid-area: card4;
+}
+#pot {
+  position: absolute;
+  padding: 0;
+}

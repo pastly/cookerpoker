@@ -1,21 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <p>{{ table }}</p>
-<div id='table'>
-  <div class=pocket id="pocket-0">
-  </div>
-  <div class=pocket id="pocket-1">
-  </div>
-  <div class=pocket id="pocket-2">
-  </div>
-  <div class=pocket id="pocket-3">
-  </div>
-  <div class=pocket id="pocket-4">
-  </div>
-  <div class=pocket id="pocket-5">
-  </div>
-  <div id="community"></div>
-  <div id="pot"></div>
+<div id='table_container'>
 </div>
 <div id="action-buttons">
 </div>
@@ -25,7 +11,12 @@
 <div id="logs"></div>
 <pre><span id="state"></span></pre>
 
+{% load static %}
+<link rel="stylesheet" href="{% static 'table.css' %}"></style>
 <script type=module>
+    import * as vars from "{% static 'table_vars.js' %}";
+    import * as table from "{% static 'table.js' %}";
+    import * as animate from "{% static 'animate.js' %}";
     import init, {
         redraw,
         onclick_fold,
@@ -47,15 +38,72 @@
     window.send_action = send_action;
     window.send_player_info_request = send_player_info_request;
     window.self_player_id = self_player_id;
+    window.ani_redraw_pocket = ani_redraw_pocket;
+    window.ani_deal_card_pocket = ani_deal_card_pocket;
+    window.ani_deal_card_community = ani_deal_card_community;
+    window.ani_reveal_cards = ani_reveal_cards;
+    window.ani_clear_community = ani_clear_community;
+    window.ani_clear_bets = ani_clear_bets;
+    window.ani_clear_pot = ani_clear_pot;
+    window.ani_make_bet = ani_make_bet;
+    window.ani_collect_pot = ani_collect_pot;
+    window.ani_push_winnings = ani_push_winnings;
+    window.ani_next_to_act = ani_next_to_act;
+    window.animate_next = animate.animate_next;
     let REDRAW_TIMEOUT_ID = 0;
     const WAITING_PLAYER_INFO_REQS = new Set();
     async function run() {
         await init();
         // To call any wasm funcs right after init, do so here.
-        //create_join_table_controls();
         redraw_timeout();
+        table.initialize_table();
     }
     run();
+
+    function ani_redraw_pocket(seat, name, stack) {
+        animate.ANIMATION_QUEUE.push(new animate.RedrawPocketAni(seat, name, stack));
+    }
+
+    function ani_deal_card_pocket(seat, card_n, card) {
+        animate.ANIMATION_QUEUE.push(new animate.DealCardPocketAni(seat, card_n, card));
+    }
+
+    function ani_deal_card_community(card_n, card) {
+        animate.ANIMATION_QUEUE.push(new animate.DealCardCommunityAni(card_n, card));
+    }
+
+    function ani_reveal_cards(seat_idx, card0, card1) {
+        animate.ANIMATION_QUEUE.push(new animate.RevealCardsAni(seat_idx, card0, card1));
+    }
+
+    function ani_clear_community() {
+        animate.ANIMATION_QUEUE.push(new animate.ClearCommunityAni());
+    }
+
+    function ani_clear_bets() {
+        animate.ANIMATION_QUEUE.push(new animate.ClearBetsAni());
+    }
+
+    function ani_clear_pot() {
+        animate.ANIMATION_QUEUE.push(new animate.ClearPotAni());
+    }
+
+    function ani_make_bet(seat, stack, wager) {
+        animate.ANIMATION_QUEUE.push(new animate.MakeBetAni(seat, stack, wager));
+    }
+
+    function ani_collect_pot(pots) {
+        animate.ANIMATION_QUEUE.push(new animate.CollectPotAni(pots));
+    }
+
+    function ani_push_winnings(seats, winnings) {
+        animate.ANIMATION_QUEUE.push(new animate.PushWinningsAni(seats, winnings));
+    }
+
+    function ani_next_to_act(seat) {
+        animate.ANIMATION_QUEUE.push(new animate.NextToActAni(seat));
+    }
+
     function self_player_id() {
         return {{user.id}};
     }

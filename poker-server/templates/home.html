@@ -8,138 +8,13 @@
 Go to <a href="{% url 'tables:index' %}">tables</a>
 
 <div id='table_container'>
-<!-- <div id='pocket-1' class='pocket'>1</div> -->
-<!-- <div id='pocket-2' class='pocket'>2</div> -->
-<!-- <div id='pocket-3' class='pocket'>3</div> -->
-<!-- <div id='pocket-4' class='pocket'>4</div> -->
 </div>
 
 <style>
-  div {
-    margin: 0;
-    padding: 0;
-  }
-  #foo {
-    color: red;
-  }
-  #table_container {
-    border: 1px solid red;
-    min-height: 500px;
-    position: relative;
-  }
-  .pocket {
-    border: 1px solid blue;
-    position: absolute;
-    display: grid;
-    padding: 0;
-    grid-template-columns: 1fr 1fr 1fr 1fr;
-    grid-template-rows: auto;
-    grid-template-areas:
-      ".    card1  card2     ."
-      ".    card1  card2     ."
-      "name name   name   name"
-      "stack stack stack stack"
-  }
-  #pocket-1 {
-    border: 1px solid green;
-  }
-  .pocket .name {
-    grid-area: name;
-    text-align: center;
-  }
-  .pocket .stack {
-    grid-area: stack;
-    text-align: center;
-  }
-  .pocket .card1 {
-    grid-area: card1;
-    width: 1em;
-    height: 1.5em;
-  }
-  .pocket .card2 {
-    grid-area: card2;
-    width: 1em;
-    height: 1.5em;
-  }
 </style>
 
 {% load static %}
 <script>
-  const ID_TABLE_CONTAINER = "table_container";
-  const IDPREFIX_POCKET = "pocket-";
-  const IDPREFIX_CARD = "card";
-  let animation_queue = new Array();
 </script>
 <script src="{% static 'animate.js' %}"></script>
-<script>
-  function create_pockets(n) {
-    let table = document.getElementById(ID_TABLE_CONTAINER);
-    for (let i = 1; i < n+1; i++) {
-      let pocket = document.createElement("div");
-      pocket.id = `${IDPREFIX_POCKET}${i}`;
-      pocket.classList.add("pocket");
-      table.appendChild(pocket);
-
-      let name = document.createElement("span");
-      name.classList.add("name");
-      name.innerText = `Player ${i}`;
-      let stack = document.createElement("span");
-      stack.classList.add("stack");
-      stack.innerText = "1000";
-      pocket.appendChild(name);
-      pocket.appendChild(stack);
-      let c1 = document.createElement("p");
-      c1.classList.add("card");
-      c1.classList.add(IDPREFIX_CARD + "1");
-      //c1.innerText = "🃅";
-      let c2 = document.createElement("p");
-      c2.classList.add("card");
-      c2.classList.add(IDPREFIX_CARD + "2");
-      //c2.innerText = "🂾";
-      pocket.appendChild(c1);
-      pocket.appendChild(c2);
-    }
-  }
-  function place_pockets(container) {
-    let cont_w = container.clientWidth;
-    let cont_h = container.clientHeight;
-    let pocket1 = document.getElementById(`${IDPREFIX_POCKET}1`);
-    let pocket2 = document.getElementById(`${IDPREFIX_POCKET}2`);
-    let pocket3 = document.getElementById(`${IDPREFIX_POCKET}3`);
-    let pocket4 = document.getElementById(`${IDPREFIX_POCKET}4`);
-    pocket1.style.left = `${cont_w/2 - pocket1.clientWidth/2}px`;
-    pocket1.style.top = `0px`;
-    pocket2.style.left = `${cont_w/1 - pocket2.clientWidth/1}px`;
-    pocket2.style.top  = `${cont_h/2 - pocket2.clientHeight/2}px`;
-    pocket3.style.left = `${cont_w/2 - pocket3.clientWidth/2}px`;
-    pocket3.style.top  = `${cont_h/1 - pocket3.clientHeight/1}px`;
-    pocket4.style.left = `0px`;
-    pocket4.style.top  = `${cont_h/2 - pocket4.clientHeight/2}px`;
-  }
-  function animate_next() {
-    let q = animation_queue;
-    if (q.length < 1) {
-      return;
-    }
-    let ani = q.shift();
-    let wait = ani.animate();
-    if (q.length > 0) {
-      setTimeout(() => animate_next(), wait);
-    }
-  }
-  let container = document.getElementById(ID_TABLE_CONTAINER);
-  create_pockets(4);
-  place_pockets(container);
-  for (let c = 1; c < 3; c++) {
-    for (let p = 1; p < 5; p++) {
-      animation_queue.push(new DealCardAni(p, c, "🃅"));
-    }
-  }
-  if (animation_queue.length > 0) {
-    animate_next();
-  }
-</script>
-
-
-
 {% endblock %}

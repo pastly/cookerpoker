@@ -4,10 +4,10 @@ mod elements;
 mod player_info;
 mod utils;
 
-use elements::{Community, Elementable, Pocket, Pot};
+use elements::Pocket;
 use player_info::PlayerInfo;
 use poker_core::bet::BetStatus;
-use poker_core::deck::Card;
+use poker_core::deck::{Card, Suit};
 use poker_core::log::LogItem;
 use poker_core::pot;
 use poker_core::{Currency, PlayerId, SeqNum, MAX_PLAYERS};
@@ -40,6 +40,32 @@ lazy_static! {
 //const K_DEV_PLAYER_BALANCE: &str = "dev-player-balance";
 
 #[wasm_bindgen]
+pub struct WrappedCard(Card);
+
+#[wasm_bindgen]
+impl WrappedCard {
+    pub fn char(&self) -> char {
+        utils::card_char(self.0)
+    }
+
+    pub fn suit(&self) -> String {
+        match self.0.suit() {
+            Suit::Club => "club",
+            Suit::Diamond => "diamond",
+            Suit::Heart => "heart",
+            Suit::Spade => "spade",
+        }
+        .to_owned()
+    }
+}
+
+impl From<Card> for WrappedCard {
+    fn from(c: Card) -> Self {
+        Self(c)
+    }
+}
+
+#[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
@@ -47,6 +73,18 @@ extern "C" {
     fn send_action(last_seq: SeqNum, s: &str);
     fn send_player_info_request(player_id: PlayerId);
     fn self_player_id() -> PlayerId;
+    fn ani_redraw_pocket(seat_idx: usize, name: &str, stack: Currency);
+    fn ani_deal_card_pocket(sead_idx: usize, card_n: u8, card: Option<WrappedCard>);
+    fn ani_deal_card_community(card_n: u8, card: WrappedCard);
+    fn ani_reveal_cards(seat_idx: usize, card0: Option<WrappedCard>, card1: Option<WrappedCard>);
+    fn ani_clear_community();
+    fn ani_clear_bets();
+    fn ani_clear_pot();
+    fn ani_make_bet(seat_idx: usize, new_stack: Currency, total_wager: Currency);
+    fn ani_collect_pot(pots: Vec<Currency>);
+    fn ani_push_winnings(seats_idxs: Vec<usize>, winnings: Vec<Currency>);
+    fn ani_next_to_act(seat_idx: usize);
+    fn animate_next();
 }
 
 #[wasm_bindgen]
@@ -183,65 +221,6 @@ fn redraw_action_buttons(action_on_self: bool) {
     elm.append_child(&box_).unwrap();
 }
 
-fn redraw_pockets() {
-    let doc = web_sys::window()
-        .expect("No window?")
-        .document()
-        .expect("No document?");
-    for n in 0..MAX_PLAYERS {
-        let elm_id = format!("pocket-{}", n);
-        if let Some(elm) = doc.get_element_by_id(&elm_id) {
-            while let Some(child) = elm.last_child() {
-                elm.remove_child(&child).unwrap();
-            }
-        }
-    }
-    let mut pockets = POCKETS.lock().expect("could not get saved pockets");
-    let nta = *NTA.lock().expect("unable to get saved nta");
-    let pi_cache = PLAYER_INFO.lock().expect("unable to get player info cache");
-    for pocket in pockets.iter_mut() {
-        let elm_id = format!("pocket-{}", pocket.seat_idx);
-        let elm = doc
-            .get_element_by_id(&elm_id)
-            .expect("could not find pocket");
-        if pocket.needs_better_name && pi_cache.contains_key(&pocket.player_id) {
-            pocket.needs_better_name = false;
-            pocket.name = pi_cache.get(&pocket.player_id).unwrap().username.clone();
-        }
-        pocket.fill_element(&elm);
-        if pocket.seat_idx == nta {
-            elm.class_list().add_1("next-action").unwrap();
-        } else {
-            elm.class_list().remove_1("next-action").unwrap();
-        }
-    }
-}
-
-fn redraw_community() {
-    let doc = web_sys::window()
-        .expect("No window?")
-        .document()
-        .expect("No document?");
-    let elm = doc.get_element_by_id("community").unwrap();
-    let community = COMMUNITY.lock().expect("unable to get saved community");
-    let comm: Vec<Card> = community
-        .iter()
-        .take_while(|c| c.is_some())
-        .map(|c| c.unwrap())
-        .collect();
-    Community(comm).fill_element(&elm);
-}
-
-fn redraw_pot() {
-    let pot = POT.lock().expect("unable to get saved pot");
-    let doc = web_sys::window()
-        .expect("No window?")
-        .document()
-        .expect("No document?");
-    let elm = doc.get_element_by_id("pot").unwrap();
-    Pot(pot.to_vec()).fill_element(&elm);
-}
-
 /// Redraw the table/hands/etc. based on the given state object. Return the number of seconds we
 /// should wait before polling for a new update and the last sequence number we observed.
 #[wasm_bindgen]
@@ -254,10 +233,7 @@ pub fn redraw(changes_message_str: String) -> i32 {
             return 2;
         }
     };
-    let mut need_redraw_pockets = false;
     let mut need_redraw_action_buttons = false;
-    let mut need_redraw_community = false;
-    let mut need_redraw_pot = false;
     let mut saved_logs = SAVED_LOGS.lock().expect("could not get saved logs");
     saved_logs.extend(logs.iter().cloned());
     for (idx, item) in logs.iter() {
@@ -280,6 +256,7 @@ pub fn redraw(changes_message_str: String) -> i32 {
                     } else {
                         (format!("Player {}", player.id), true)
                     };
+                    ani_redraw_pocket(seat_idx, &name, player.stack);
                     let pocket = Pocket {
                         cards: None,
                         name,
@@ -293,12 +270,12 @@ pub fn redraw(changes_message_str: String) -> i32 {
                         needs_better_name,
                     };
                     pockets.push(pocket);
-                    need_redraw_pockets = true;
                 }
                 *COMMUNITY.lock().expect("unable to get saved community") = [None; 5];
-                need_redraw_community = true;
+                ani_clear_community();
+                ani_clear_bets();
+                ani_clear_pot();
                 need_redraw_action_buttons = true;
-                need_redraw_pot = true;
             }
             LogItem::PocketDealt(player_id, cards) => {
                 let mut pockets = POCKETS.lock().expect("could not get saved pockets");
@@ -308,8 +285,15 @@ pub fn redraw(changes_message_str: String) -> i32 {
                             None => [None, None],
                             Some(cards) => [Some(cards[0]), Some(cards[1])],
                         });
-                        need_redraw_pockets = true;
                     }
+                }
+                if let Some(seat_idx) = pockets
+                    .iter()
+                    .find(|p| p.player_id == *player_id)
+                    .map(|p| p.seat_idx)
+                {
+                    ani_deal_card_pocket(seat_idx, 0, cards.map(|cs| cs[0].into()));
+                    ani_deal_card_pocket(seat_idx, 1, cards.map(|cs| cs[1].into()));
                 }
             }
             LogItem::TokensSet(btn, sb, bb) => {
@@ -317,20 +301,18 @@ pub fn redraw(changes_message_str: String) -> i32 {
                 for pocket in pockets.iter_mut() {
                     if pocket.seat_idx == *btn {
                         pocket.is_btn = true;
-                        need_redraw_pockets = true;
                     }
                     if pocket.seat_idx == *sb {
                         pocket.is_sb = true;
-                        need_redraw_pockets = true;
                     }
                     if pocket.seat_idx == *bb {
                         pocket.is_bb = true;
-                        need_redraw_pockets = true;
                     }
                 }
             }
             LogItem::NextToAct(seat) => {
                 *NTA.lock().expect("could not get saved nta") = *seat;
+                ani_next_to_act(*seat);
                 need_redraw_action_buttons = true;
             }
             LogItem::Pot(pot_item) => match pot_item {
@@ -341,7 +323,6 @@ pub fn redraw(changes_message_str: String) -> i32 {
                         if pocket.player_id == *player_id {
                             let old_bet_status = pocket.bet_status;
                             pocket.bet_status = bet_status;
-                            need_redraw_pockets = true;
                             let old_wager = match old_bet_status {
                                 BetStatus::In(x) | BetStatus::AllIn(x) => x,
                                 BetStatus::Folded | BetStatus::Waiting => 0,
@@ -350,6 +331,9 @@ pub fn redraw(changes_message_str: String) -> i32 {
                                 BetStatus::In(new_wager) | BetStatus::AllIn(new_wager) => {
                                     pocket.stack += old_wager;
                                     pocket.stack -= new_wager;
+                                    if old_wager != new_wager {
+                                        ani_make_bet(pocket.seat_idx, pocket.stack, new_wager);
+                                    }
                                 }
                                 _ => {}
                             }
@@ -360,7 +344,24 @@ pub fn redraw(changes_message_str: String) -> i32 {
                 | pot::LogItem::EntireStakeInPot(_, _, _)
                 | pot::LogItem::PartialStakeInPot(_, _, _, _)
                 | pot::LogItem::NewPotCreated(_, _, _) => {}
-                pot::LogItem::Payouts(_, _) => {}
+                pot::LogItem::Payouts(subpot_id, amounts) => {
+                    if subpot_id.is_some() {
+                        continue;
+                    }
+                    let pockets = POCKETS.lock().expect("could not get saved pockets");
+                    let mut seats = Vec::with_capacity(amounts.len());
+                    let mut winnings = Vec::with_capacity(amounts.len());
+                    for (player_id, amount) in amounts.iter() {
+                        for pocket in pockets.iter() {
+                            if pocket.player_id == *player_id {
+                                seats.push(pocket.seat_idx);
+                                winnings.push(*amount);
+                                break;
+                            }
+                        }
+                    }
+                    ani_push_winnings(seats, winnings);
+                }
                 pot::LogItem::BetsSorted(v) => {
                     let mut pot = POT.lock().expect("unable to get saved pot");
                     for (_player_id, stake) in v.iter() {
@@ -369,7 +370,7 @@ pub fn redraw(changes_message_str: String) -> i32 {
                         }
                         pot[0] += stake.amount;
                     }
-                    need_redraw_pot = true;
+                    ani_collect_pot(pot.clone());
                 }
             },
             LogItem::CurrentBetSet(_, cb, _, mr) => {
@@ -385,38 +386,46 @@ pub fn redraw(changes_message_str: String) -> i32 {
                 for pocket in pockets.iter_mut() {
                     pocket.bet_status = BetStatus::Waiting;
                 }
-                need_redraw_pockets = true;
+                ani_clear_bets();
             }
             LogItem::Flop(c1, c2, c3) => {
                 let mut comm = COMMUNITY.lock().expect("unable to get saved community");
                 comm[0] = Some(*c1);
                 comm[1] = Some(*c2);
                 comm[2] = Some(*c3);
-                need_redraw_community = true;
+                ani_deal_card_community(0, (*c1).into());
+                ani_deal_card_community(1, (*c2).into());
+                ani_deal_card_community(2, (*c3).into());
             }
             LogItem::Turn(c) => {
                 let mut comm = COMMUNITY.lock().expect("unable to get saved community");
                 comm[3] = Some(*c);
-                need_redraw_community = true;
+                ani_deal_card_community(3, (*c).into());
             }
             LogItem::River(c) => {
                 let mut comm = COMMUNITY.lock().expect("unable to get saved community");
                 comm[4] = Some(*c);
-                need_redraw_community = true;
+                ani_deal_card_community(4, (*c).into());
+            }
+            LogItem::HandReveal(player_id, cards) => {
+                let mut pockets = POCKETS.lock().expect("could not get saved pockets");
+                for pocket in pockets.iter_mut() {
+                    if pocket.player_id == *player_id {
+                        pocket.cards = Some(*cards);
+                        ani_reveal_cards(
+                            pocket.seat_idx,
+                            cards[0].map(|c| c.into()),
+                            cards[1].map(|c| c.into()),
+                        );
+                        continue;
+                    }
+                }
             }
         }
     }
-    if need_redraw_pockets {
-        redraw_pockets();
-    }
+    animate_next();
     if need_redraw_action_buttons {
         redraw_action_buttons(is_self_nta());
-    }
-    if need_redraw_community {
-        redraw_community();
-    }
-    if need_redraw_pot {
-        redraw_pot();
     }
     if is_self_nta() {
         30
