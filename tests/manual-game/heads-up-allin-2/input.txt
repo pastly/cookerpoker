@@ -7,5 +7,5 @@ fold
 
 # Second hand. Player 1 is second to act and covers player 2. They both
 # go all in, and player 1 should end up with all money.
-allin 50000
 allin 150000
+allin 50000

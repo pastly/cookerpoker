@@ -1,11 +1,11 @@
 # First hand just to give players different amounts of money. Real test is
 # second hand
-raise 50000
-call 50000
+raise 100
+call 100
 fold
 
-# Second hand. Player 2 is second to act and is covered by player 1. They both
-# go all in, and player 2 *should* only double up. They should NOT win player
-# 1's full stack.
-allin 150000
-allin 50000
+# Second hand. Player 1 is first to act and is covered by player 2. They both go
+# all in, and player 1 should only double up. Player 1 should not end up with all the
+# money.
+allin 99900
+allin 100100

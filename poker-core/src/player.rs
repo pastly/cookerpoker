@@ -209,7 +209,17 @@ impl Players {
             .map(|(i, _)| i)
             .take(self.betting_players_count())
             .collect();
-        self.need_bets_from.reverse();
+        // need_bets_from stores the next needed seat at the end of the vector. This requires
+        // reversing the list in all cases except when we're heads up. When heads up, the dealer/sb
+        // acts first preflop, and the dealer/sb seat should already be the 2nd (of two) items in
+        // the vector.
+        if self.betting_players_count() == 2 {
+            assert_eq!(self.token_dealer, self.token_sb);
+            assert_eq!(self.token_bb, self.need_bets_from[0]);
+            assert_eq!(self.token_sb, self.need_bets_from[1]);
+        } else {
+            self.need_bets_from.reverse();
+        }
         Ok(())
     }
 
@@ -242,12 +252,21 @@ impl Players {
             .map(|(i, _)| i)
             .take(self.betting_players_count())
             .collect();
+        // unlike in start_hand, we want to reverse the list even when just heads up. The dealer/sb
+        // player acts last, will be the last item in the vector, thus the vec needs to be reversed
+        // so it is first. (NTA is always last item in this vec)
         self.need_bets_from.reverse();
         Ok(())
     }
 
+    /// Rotate the BTN, SB, and BB tokens to the next seats clockwise.
+    ///
+    /// It is almost definitely the case that this function does not currently handle players that
+    /// join on "the wrong side" of the button and are supposed to sit out for a bit before being
+    /// dealt in. Idk the rules for this, so it's not implemented at this time. 11/11/22 MT
     pub(crate) fn rotate_tokens(&mut self) -> Result<(), GameError> {
-        if self.betting_players_iter().count() < 2 {
+        let n_players = self.betting_players_iter().count();
+        if n_players < 2 {
             return Err(GameError::NotEnoughPlayers);
         }
         let mut s: [usize; 3] = [0, 0, 0];
@@ -262,11 +281,16 @@ impl Players {
             s[1] = iter.next().unwrap();
             s[2] = iter.next().unwrap();
         }
-
-        self.token_dealer = s[0];
-        self.token_sb = s[1];
-        // token_dealer can also be big blind
-        self.token_bb = s[2];
+        // If there's two players, the dealer and SB are the same.
+        if n_players == 2 {
+            self.token_dealer = s[0];
+            self.token_sb = s[0];
+            self.token_bb = s[1];
+        } else {
+            self.token_dealer = s[0];
+            self.token_sb = s[1];
+            self.token_bb = s[2];
+        }
         Ok(())
     }
 }
@@ -357,21 +381,25 @@ impl Player {
 mod tests {
     use super::*;
 
+    /// BTN/SB is same seat when heads up, which is a special case
     #[test]
-    fn token_rotation() {
+    fn token_rotation_heads_up() {
         let mut players = Players::default();
         const LAST_SEAT: usize = MAX_PLAYERS - 1;
         players.players[0] = Some(Player::new(1, 10));
         players.players[LAST_SEAT] = Some(Player::new(2, 10));
         players.rotate_tokens().unwrap();
         assert_eq!(players.token_dealer, LAST_SEAT);
-        assert_eq!(players.token_sb, 0);
-        assert_eq!(players.token_bb, LAST_SEAT);
-        players.rotate_tokens().unwrap();
-        assert_eq!(players.token_dealer, 0);
         assert_eq!(players.token_sb, LAST_SEAT);
         assert_eq!(players.token_bb, 0);
+        players.rotate_tokens().unwrap();
+        assert_eq!(players.token_dealer, 0);
+        assert_eq!(players.token_sb, 0);
+        assert_eq!(players.token_bb, LAST_SEAT);
+    }
 
+    #[test]
+    fn token_rotation() {
         // TODO: test that empty stack players are skipped over
         // let mut players = Players::default();
         // players.players[0] = Some(Player::new(1, 10));
@@ -382,6 +410,7 @@ mod tests {
         // assert_eq!(players.token_bb, 0);
 
         let mut players = Players::default();
+        const LAST_SEAT: usize = MAX_PLAYERS - 1;
         players.players[0] = Some(Player::new(1, 10));
         players.players[3] = Some(Player::new(2, 10));
         players.players[5] = Some(Player::new(3, 10));

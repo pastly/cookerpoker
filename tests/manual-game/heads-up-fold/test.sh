@@ -5,7 +5,7 @@ ACTUAL_FNAME=$2
 
 declare -a NEEDED_STRINGS=(
 	"state EndOfHand"
-	"player 2 bank 100005"
+	"player 1 bank 100005"
 )
 
 for S in "${NEEDED_STRINGS[@]}"; do

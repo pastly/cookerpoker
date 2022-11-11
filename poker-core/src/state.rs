@@ -623,7 +623,7 @@ mod tests {
         );
         assert_eq!(
             gs.players.player_by_id(2).unwrap().bet_status,
-            BetStatus::In(10)
+            BetStatus::In(DEF_SB)
         );
     }
 
@@ -670,13 +670,13 @@ mod tests {
         const STACK: Currency = DEF_BB * 10;
         const SB_PID: PlayerId = 1;
         const BB_PID: PlayerId = 2;
-        gs.try_sit(SB_PID, STACK).unwrap();
         gs.try_sit(BB_PID, STACK).unwrap();
+        gs.try_sit(SB_PID, STACK).unwrap();
         gs.start_hand().unwrap();
-        const SB_SEAT: usize = 0;
-        const BB_SEAT: usize = 1;
+        const SB_SEAT: usize = 1;
+        const BB_SEAT: usize = 0;
         // sanity checks
-        assert_eq!(gs.players.token_dealer, BB_SEAT);
+        assert_eq!(gs.players.token_dealer, SB_SEAT);
         assert_eq!(gs.players.token_sb, SB_SEAT);
         assert_eq!(gs.players.token_bb, BB_SEAT);
         assert_eq!(gs.nta().unwrap().0, SB_SEAT);
@@ -684,7 +684,7 @@ mod tests {
         gs.player_calls(SB_PID).unwrap();
         // sanity check: bb is nta
         assert_eq!(gs.nta().unwrap().0, BB_SEAT);
-        // the test: BB is allowed to raise
+        // the test: bb is allowed to raise
         gs.player_raises(BB_PID, DEF_BB * 3).unwrap();
     }
 }

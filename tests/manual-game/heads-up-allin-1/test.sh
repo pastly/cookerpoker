@@ -5,8 +5,8 @@ ACTUAL_FNAME=$2
 
 declare -a NEEDED_STRINGS=(
 	"state Street(PreFlop)"
-	"player 2 bank 99990"
-	"player 1 bank 99995"
+	"player 1 bank 199790"
+	"player 2 bank 195"
 
 )
 
