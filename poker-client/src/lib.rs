@@ -10,7 +10,7 @@ use poker_core::bet::BetStatus;
 use poker_core::deck::{Card, Suit};
 use poker_core::log::LogItem;
 use poker_core::pot;
-use poker_core::{Currency, PlayerId, SeqNum, MAX_PLAYERS};
+use poker_core::{Currency, PlayerId, SeatIdx, SeqNum, MAX_PLAYERS};
 use poker_messages::{action, Msg};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -31,7 +31,7 @@ lazy_static! {
     static ref POCKETS: Mutex<Vec<Pocket>> = Mutex::new(Vec::with_capacity(MAX_PLAYERS));
     static ref COMMUNITY: Mutex<[Option<Card>; 5]> = Mutex::new([None; 5]);
     static ref CURRENT_BET_AND_RAISE: Mutex<(Currency, Currency)> = Mutex::new((0, 0));
-    static ref NTA: Mutex<usize> = Mutex::new(MAX_PLAYERS + 1);
+    static ref NTA: Mutex<SeatIdx> = Mutex::new(MAX_PLAYERS + 1);
     static ref POT: Mutex<Vec<Currency>> = Mutex::new(Vec::with_capacity(4));
     static ref PLAYER_INFO: Mutex<HashMap<PlayerId, PlayerInfo>> = Mutex::new(HashMap::new());
 }
@@ -73,17 +73,17 @@ extern "C" {
     fn send_action(last_seq: SeqNum, s: &str);
     fn send_player_info_request(player_id: PlayerId);
     fn self_player_id() -> PlayerId;
-    fn ani_redraw_pocket(seat_idx: usize, name: &str, stack: Currency);
-    fn ani_deal_card_pocket(sead_idx: usize, card_n: u8, card: Option<WrappedCard>);
+    fn ani_redraw_pocket(seat_idx: SeatIdx, name: &str, stack: Currency);
+    fn ani_deal_card_pocket(sead_idx: SeatIdx, card_n: u8, card: Option<WrappedCard>);
     fn ani_deal_card_community(card_n: u8, card: WrappedCard);
-    fn ani_reveal_cards(seat_idx: usize, card0: Option<WrappedCard>, card1: Option<WrappedCard>);
+    fn ani_reveal_cards(seat_idx: SeatIdx, card0: Option<WrappedCard>, card1: Option<WrappedCard>);
     fn ani_clear_community();
     fn ani_clear_bets();
     fn ani_clear_pot();
-    fn ani_make_bet(seat_idx: usize, new_stack: Currency, total_wager: Currency);
+    fn ani_make_bet(seat_idx: SeatIdx, new_stack: Currency, total_wager: Currency);
     fn ani_collect_pot(pots: Vec<Currency>);
-    fn ani_push_winnings(seats_idxs: Vec<usize>, winnings: Vec<Currency>);
-    fn ani_next_to_act(seat_idx: usize);
+    fn ani_push_winnings(seats_idxs: Vec<SeatIdx>, winnings: Vec<Currency>);
+    fn ani_next_to_act(seat_idx: SeatIdx);
     fn animate_next();
 }
 

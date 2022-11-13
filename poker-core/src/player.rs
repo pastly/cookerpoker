@@ -1,7 +1,7 @@
 use crate::bet::{BetAction, BetStatus};
 use crate::deck::Card;
 use crate::GameError;
-use crate::{Currency, PlayerId, MAX_PLAYERS};
+use crate::{Currency, PlayerId, SeatIdx, MAX_PLAYERS};
 use core::cmp::Ordering;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -49,7 +49,7 @@ impl Players {
         self.players_iter().find(|x| x.id == id)
     }
 
-    pub(crate) fn player_with_index_by_id(&self, id: PlayerId) -> Option<(usize, &Player)> {
+    pub(crate) fn player_with_index_by_id(&self, id: PlayerId) -> Option<(SeatIdx, &Player)> {
         self.players_iter_with_index().find(|(_, x)| x.id == id)
     }
 
@@ -57,7 +57,7 @@ impl Players {
         self.players_iter_mut().find(|x| x.id == id)
     }
 
-    pub(crate) fn seat_player(&mut self, player: Player) -> Result<usize, GameError> {
+    pub(crate) fn seat_player(&mut self, player: Player) -> Result<SeatIdx, GameError> {
         if let Some(seat_idx) = self.next_empty_seat() {
             self.players[seat_idx] = Some(player);
             Ok(seat_idx)
@@ -87,7 +87,7 @@ impl Players {
         ret
     }
 
-    fn next_empty_seat(&self) -> Option<usize> {
+    fn next_empty_seat(&self) -> Option<SeatIdx> {
         self.players
             .iter()
             .enumerate()
@@ -104,7 +104,7 @@ impl Players {
     }
 
     /// Iterate over all players, returning their index into the player array as well
-    pub fn players_iter_with_index(&self) -> impl Iterator<Item = (usize, &Player)> {
+    pub fn players_iter_with_index(&self) -> impl Iterator<Item = (SeatIdx, &Player)> {
         self.players
             .iter()
             .enumerate()
@@ -113,7 +113,7 @@ impl Players {
     }
 
     /// Iterate over all players, returning their index into the player array as well
-    fn players_iter_mut_with_index(&mut self) -> impl Iterator<Item = (usize, &mut Player)> {
+    fn players_iter_mut_with_index(&mut self) -> impl Iterator<Item = (SeatIdx, &mut Player)> {
         self.players
             .iter_mut()
             .enumerate()
@@ -126,7 +126,7 @@ impl Players {
     ///
     /// Note: say the only not-betting player is seat idx 2. This will list 0 and 1 before going
     /// on to 3 and the rest. This behavior is depended upon by betting_players_iter_after(...).
-    fn betting_players_iter(&self) -> impl Iterator<Item = (usize, &Player)> /*+ Clone + '_*/ {
+    fn betting_players_iter(&self) -> impl Iterator<Item = (SeatIdx, &Player)> /*+ Clone + '_*/ {
         self.players_iter_with_index()
             .filter(|(_, x)| x.is_betting())
     }
@@ -135,7 +135,7 @@ impl Players {
         self.betting_players_iter().count()
     }
 
-    fn betting_players_iter_mut(&mut self) -> impl Iterator<Item = (usize, &mut Player)> {
+    fn betting_players_iter_mut(&mut self) -> impl Iterator<Item = (SeatIdx, &mut Player)> {
         self.players_iter_mut_with_index()
             .filter(|(_, x)| x.is_betting())
     }
@@ -149,8 +149,8 @@ impl Players {
     /// returned as you need them.
     pub(crate) fn betting_players_iter_after(
         &self,
-        i: usize,
-    ) -> impl Iterator<Item = (usize, &Player)> /*+ Clone + '_*/ {
+        i: SeatIdx,
+    ) -> impl Iterator<Item = (SeatIdx, &Player)> /*+ Clone + '_*/ {
         // Because rust will only let us return one type of iterator and we want to return early if
         // there are no betting players, we collect players into a vec and return an iterator over
         // that vec. Sucks.

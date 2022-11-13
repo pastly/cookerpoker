@@ -4,7 +4,7 @@ use crate::hand::best_hands;
 use crate::log::{Log, LogItem};
 use crate::player::{Player, Players};
 use crate::pot::Pot;
-use crate::{Currency, GameError, PlayerId, SeqNum, MAX_PLAYERS};
+use crate::{Currency, GameError, PlayerId, SeatIdx, SeqNum, MAX_PLAYERS};
 use core::cmp::Ordering;
 use serde::{Deserialize, Serialize};
 
@@ -160,7 +160,7 @@ impl GameState {
         self.pot.total_value()
     }
 
-    pub fn nta(&self) -> Option<(usize, Player)> {
+    pub fn nta(&self) -> Option<(SeatIdx, Player)> {
         match self.players.need_bets_from.is_empty() {
             false => {
                 let idx = self.players.need_bets_from[self.players.need_bets_from.len() - 1];
@@ -648,7 +648,7 @@ mod tests {
                     gs.try_sit(seat as PlayerId, 10000).unwrap();
                 }
                 // move dealer token to correct player
-                while gs.players.token_dealer != first as usize {
+                while gs.players.token_dealer != first as SeatIdx {
                     gs.players.start_hand().unwrap();
                 }
                 let mut deck = Deck::default();
@@ -673,8 +673,8 @@ mod tests {
         gs.try_sit(BB_PID, STACK).unwrap();
         gs.try_sit(SB_PID, STACK).unwrap();
         gs.start_hand().unwrap();
-        const SB_SEAT: usize = 1;
-        const BB_SEAT: usize = 0;
+        const SB_SEAT: SeatIdx = 1;
+        const BB_SEAT: SeatIdx = 0;
         // sanity checks
         assert_eq!(gs.players.token_dealer, SB_SEAT);
         assert_eq!(gs.players.token_sb, SB_SEAT);

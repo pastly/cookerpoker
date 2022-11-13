@@ -12,6 +12,7 @@ pub const MAX_PLAYERS: usize = 12;
 pub type PlayerId = i32;
 pub type Currency = i32;
 pub type SeqNum = usize;
+pub type SeatIdx = usize;
 
 #[derive(Debug, derive_more::Display, derive_more::Error)]
 pub enum GameError {
