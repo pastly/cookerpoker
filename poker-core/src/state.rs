@@ -2,7 +2,7 @@ use crate::bet::BetAction;
 use crate::deck::{Card, Deck, DeckSeed};
 use crate::hand::best_hands;
 use crate::log::{Log, LogItem};
-use crate::player::{Player, Players};
+use crate::player::{Player, PlayerFilter, Players};
 use crate::pot::Pot;
 use crate::{Currency, GameError, PlayerId, SeatIdx, SeqNum, MAX_PLAYERS};
 use core::cmp::Ordering;
@@ -46,7 +46,7 @@ impl From<&mut GameState> for BaseState {
     fn from(gs: &mut GameState) -> Self {
         let mut seats = [None; MAX_PLAYERS];
         let seats = {
-            for (idx, p) in gs.players.players_iter_with_index() {
+            for (idx, p) in gs.players.players_iter(PlayerFilter::ALL) {
                 seats[idx] = Some(*p);
             }
             seats
@@ -233,7 +233,12 @@ impl GameState {
         pot_logs.append(&mut self.pot.bet(player_id, bet));
         self.logs.extend(pot_logs.into_iter().map(|l| l.into()));
 
-        if self.players.eligible_players_iter().count() == 1 {
+        if self
+            .players
+            .players_iter(PlayerFilter::POT_ELIGIBLE)
+            .count()
+            == 1
+        {
             self.finalize_hand()?;
         } else if self.players.need_bets_from.is_empty() {
             while self.players.need_bets_from.is_empty() && !matches!(self.state(), State::Showdown)
@@ -337,7 +342,9 @@ impl GameState {
     /// If we are able to automatically move the current game forward, do so
     pub fn tick(&mut self) -> Result<(), GameError> {
         // If there's no game going and there's enough people to start one, do so
-        if matches!(self.state(), State::NotStarted) && self.players.betting_players_count() > 1 {
+        if matches!(self.state(), State::NotStarted)
+            && self.players.players_iter(PlayerFilter::MAY_BET).count() > 1
+        {
             return self.start_hand();
         }
         // If it's the end of a hand, start a new one
@@ -352,8 +359,8 @@ impl GameState {
         // players and their pockets, as a vec
         let players: Vec<(PlayerId, [Card; 2])> = self
             .players
-            .eligible_players_iter()
-            .map(|p| (p.id, p.pocket.unwrap()))
+            .players_iter(PlayerFilter::POT_ELIGIBLE)
+            .map(|(_, p)| (p.id, p.pocket.unwrap()))
             .collect();
         // PlayerIds, sorted in a Vec<Vec<PlayerId>>, for pot's payout function
         let ranked_players = if players.len() == 1 {
@@ -441,7 +448,7 @@ impl GameState {
         );
         self.last_raiser = None;
 
-        let num_p = self.players.betting_players_count() as u8;
+        let num_p = self.players.players_iter(PlayerFilter::MAY_BET).count() as u8;
         let pockets = self.deck.deal_pockets(num_p)?;
         let deal_logs = self
             .players
@@ -471,7 +478,7 @@ impl GameState {
             .players
             .betting_players_iter_after(self.players.token_bb)
             .map(|(i, _)| i)
-            .take(self.players.betting_players_count())
+            .take(self.players.players_iter(PlayerFilter::MAY_BET).count())
             .collect();
         self.players.need_bets_from.reverse();
         Ok(((player_sb.id, bet_sb), (player_bb.id, bet_bb)))
@@ -578,12 +585,14 @@ impl GameState {
                         // if this player just went all in, then there's one less betting player
                         // left than if this was a raise (b/c they can't do any more actions if
                         // they're allin)
-                        let n = if bet.is_allin() && self.players.betting_players_count() == 0 {
+                        let n = if bet.is_allin()
+                            && self.players.players_iter(PlayerFilter::MAY_BET).count() == 0
+                        {
                             0
                         } else if bet.is_allin() {
-                            self.players.betting_players_count()
+                            self.players.players_iter(PlayerFilter::MAY_BET).count()
                         } else {
-                            self.players.betting_players_count() - 1
+                            self.players.players_iter(PlayerFilter::MAY_BET).count() - 1
                         };
                         self.players.need_bets_from = self
                             .players
@@ -656,7 +665,7 @@ mod tests {
                 // this is the actual test. Does this panic?
                 gs.players.deal_pockets(pockets);
                 // okay so it didn't. let's make sure every player has a pocket.
-                for player in gs.players.players_iter() {
+                for (_, player) in gs.players.players_iter(PlayerFilter::ALL) {
                     assert!(player.pocket.is_some());
                 }
             }

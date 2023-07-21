@@ -2,6 +2,7 @@ use crate::bet::{BetAction, BetStatus};
 use crate::deck::Card;
 use crate::GameError;
 use crate::{Currency, PlayerId, SeatIdx, MAX_PLAYERS};
+use bitflags::bitflags;
 use core::cmp::Ordering;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -34,27 +35,52 @@ impl Default for Players {
     }
 }
 
+/// A player's play status: whether they're playing, sitting out, etc.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+pub enum PlayStatus {
+    Playing,
+    WantsSitOut,
+    SittingOut,
+}
+
+bitflags! {
+    /// Conceptual ways to filter players. E.g. only those that are eligible to win the current pot.
+    ///
+    /// Used in the player iterator functions, both pub and private.
+    pub struct PlayerFilter: u8 {
+        /// Do no filtering: consider all players.
+        const ALL = 0b1;
+        /// Consider players that will be dealt another hand. They aren't taking a break from the table.
+        const SEATED = 0b10;
+        /// Consider players that are eligible to win all or part of the pot for this hand.
+        const POT_ELIGIBLE = 0b100;
+        /// Consider players that could bet during this hand. They haven't folded nor are they all in.
+        const MAY_BET = 0b1000;
+    }
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Player {
     pub id: PlayerId,
     pub stack: Currency,
     pub pocket: Option<[Card; POCKET_SIZE]>,
     pub bet_status: BetStatus,
-    /// Whether or not this player wants to be dealt in. They could be forced to sit out if they get
-    /// stacked.
-    pub sitting_out: bool,
+    pub play_status: PlayStatus,
 }
 impl Players {
     pub fn player_by_id(&self, id: PlayerId) -> Option<&Player> {
-        self.players_iter().find(|x| x.id == id)
+        self.player_with_index_by_id(id).map(|(_, p)| p)
     }
 
     pub(crate) fn player_with_index_by_id(&self, id: PlayerId) -> Option<(SeatIdx, &Player)> {
-        self.players_iter_with_index().find(|(_, x)| x.id == id)
+        self.players_iter(PlayerFilter::ALL)
+            .find(|(_, x)| x.id == id)
     }
 
     pub(crate) fn player_by_id_mut(&mut self, id: PlayerId) -> Option<&mut Player> {
-        self.players_iter_mut().find(|x| x.id == id)
+        self.players_iter_mut(PlayerFilter::ALL)
+            .find(|(_, x)| x.id == id)
+            .map(|(_, p)| p)
     }
 
     pub(crate) fn seat_player(&mut self, player: Player) -> Result<SeatIdx, GameError> {
@@ -70,17 +96,26 @@ impl Players {
         &mut self,
         mut pockets: Vec<[Card; 2]>,
     ) -> HashMap<PlayerId, Option<[Card; 2]>> {
-        assert_eq!(pockets.len(), self.betting_players_count());
+        assert_eq!(
+            pockets.len(),
+            self.players_iter(PlayerFilter::MAY_BET).count()
+        );
         let dt = self.token_dealer;
         let mut ret = HashMap::new();
         // Can't use a betting_players_iter_after_mut() becasue can't chain/cycle mutable iterator
         // May be able to fix this with custom iterator
         // Until then, iterate twice
-        for (_, player) in self.betting_players_iter_mut().skip_while(|(i, _)| *i < dt) {
+        for (_, player) in self
+            .players_iter_mut(PlayerFilter::MAY_BET)
+            .skip_while(|(i, _)| *i < dt)
+        {
             player.pocket = Some(pockets.pop().unwrap());
             ret.insert(player.id, Some(player.pocket.unwrap()));
         }
-        for (_, player) in self.betting_players_iter_mut().take_while(|(i, _)| *i < dt) {
+        for (_, player) in self
+            .players_iter_mut(PlayerFilter::MAY_BET)
+            .take_while(|(i, _)| *i < dt)
+        {
             player.pocket = Some(pockets.pop().unwrap());
             ret.insert(player.id, Some(player.pocket.unwrap()));
         }
@@ -95,49 +130,45 @@ impl Players {
             .map(|(i, _)| i)
     }
 
-    pub fn players_iter(&self) -> impl Iterator<Item = &Player> /*+ Clone + '_ */ {
-        self.players.iter().filter_map(|x| x.as_ref())
-    }
-
-    fn players_iter_mut(&mut self) -> impl Iterator<Item = &mut Player> {
-        self.players.iter_mut().filter_map(|x| x.as_mut())
-    }
-
-    /// Iterate over all players, returning their index into the player array as well
-    pub fn players_iter_with_index(&self) -> impl Iterator<Item = (SeatIdx, &Player)> {
-        self.players
-            .iter()
-            .enumerate()
-            .filter(|(_, x)| x.is_some())
-            .map(|(i, x)| (i, x.as_ref().unwrap()))
-    }
-
-    /// Iterate over all players, returning their index into the player array as well
-    fn players_iter_mut_with_index(&mut self) -> impl Iterator<Item = (SeatIdx, &mut Player)> {
+    pub fn players_iter_mut(
+        &mut self,
+        filters: PlayerFilter,
+    ) -> impl Iterator<Item = (SeatIdx, &mut Player)> {
         self.players
             .iter_mut()
             .enumerate()
-            .filter(|(_, x)| x.is_some())
-            .map(|(i, x)| (i, x.as_mut().unwrap()))
+            .filter_map(|(idx, p)| p.as_mut().map(|pp| (idx, pp)))
+            .filter_map(move |(idx, player)| {
+                if filters.contains(PlayerFilter::ALL)
+                    || filters.contains(PlayerFilter::SEATED)
+                        && matches!(player.play_status, PlayStatus::Playing)
+                    || filters.contains(PlayerFilter::MAY_BET) && player.is_betting()
+                    || filters.contains(PlayerFilter::POT_ELIGIBLE) && !player.is_folded()
+                {
+                    Some((idx, player))
+                } else {
+                    None
+                }
+            })
     }
 
-    /// Like betting_players_iter, but with the seat index for each player also returned
-    /// Returns an iterator over players still in the betting and their seat index
-    ///
-    /// Note: say the only not-betting player is seat idx 2. This will list 0 and 1 before going
-    /// on to 3 and the rest. This behavior is depended upon by betting_players_iter_after(...).
-    fn betting_players_iter(&self) -> impl Iterator<Item = (SeatIdx, &Player)> /*+ Clone + '_*/ {
-        self.players_iter_with_index()
-            .filter(|(_, x)| x.is_betting())
-    }
-
-    pub(crate) fn betting_players_count(&self) -> usize {
-        self.betting_players_iter().count()
-    }
-
-    fn betting_players_iter_mut(&mut self) -> impl Iterator<Item = (SeatIdx, &mut Player)> {
-        self.players_iter_mut_with_index()
-            .filter(|(_, x)| x.is_betting())
+    pub fn players_iter(&self, filters: PlayerFilter) -> impl Iterator<Item = (SeatIdx, &Player)> {
+        self.players
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, p)| p.as_ref().map(|pp| (idx, pp)))
+            .filter_map(move |(idx, player)| {
+                if filters.contains(PlayerFilter::ALL)
+                    || filters.contains(PlayerFilter::SEATED)
+                        && matches!(player.play_status, PlayStatus::Playing)
+                    || filters.contains(PlayerFilter::MAY_BET) && player.is_betting()
+                    || filters.contains(PlayerFilter::POT_ELIGIBLE) && !player.is_folded()
+                {
+                    Some((idx, player))
+                } else {
+                    None
+                }
+            })
     }
 
     /// Returns an iterator over the players in seat positions after the given seat index
@@ -154,50 +185,41 @@ impl Players {
         // Because rust will only let us return one type of iterator and we want to return early if
         // there are no betting players, we collect players into a vec and return an iterator over
         // that vec. Sucks.
-        let last_betting_seat = match self.betting_players_iter().last() {
+        let last_betting_seat = match self.players_iter(PlayerFilter::MAY_BET).last() {
             None => return Vec::new().into_iter(),
             Some((i, _)) => i,
         };
         let si = if i >= last_betting_seat { 0 } else { i + 1 };
-        self.betting_players_iter()
-            .chain(self.betting_players_iter())
+        self.players_iter(PlayerFilter::MAY_BET)
+            .chain(self.players_iter(PlayerFilter::MAY_BET))
             .skip_while(move |(i, _)| *i < si)
             .collect::<Vec<_>>()
             .into_iter()
     }
 
-    /// All players that are still eligible to win some or all of the pot (i.e. not folded)
-    pub(crate) fn eligible_players_iter(&self) -> impl Iterator<Item = &Player> /*+ Clone + '_*/ {
-        self.players_iter().filter(|x| !x.is_folded())
-    }
-
-    fn seated_players_iter(&self) -> impl Iterator<Item = &Player> {
-        self.players_iter().filter(|x| !x.sitting_out)
-    }
-
     pub(crate) fn clean_state(&mut self) {
-        for p in self.players_iter_mut() {
+        for (_, p) in self.players_iter_mut(PlayerFilter::ALL) {
             p.bet_status = BetStatus::Waiting;
             p.pocket = None;
         }
     }
 
     fn auto_sitout(&mut self) {
-        for p in self.players_iter_mut() {
+        for (_, p) in self.players_iter_mut(PlayerFilter::ALL) {
             if p.stack < 1 {
-                p.sitting_out = true;
+                p.play_status = PlayStatus::SittingOut;
             }
         }
     }
 
     pub(crate) fn start_hand(&mut self) -> Result<(), GameError> {
         self.auto_sitout();
-        if self.seated_players_iter().count() < 2 {
+        if self.players_iter(PlayerFilter::SEATED).count() < 2 {
             return Err(GameError::NotEnoughPlayers);
         }
         //self.unfold_all();
         //self.auto_fold_players();
-        for p in self.players_iter_mut() {
+        for (_, p) in self.players_iter_mut(PlayerFilter::ALL) {
             p.bet_status = BetStatus::Waiting;
             p.pocket = None;
         }
@@ -207,13 +229,13 @@ impl Players {
         self.need_bets_from = self
             .betting_players_iter_after(self.token_dealer)
             .map(|(i, _)| i)
-            .take(self.betting_players_count())
+            .take(self.players_iter(PlayerFilter::MAY_BET).count())
             .collect();
         // need_bets_from stores the next needed seat at the end of the vector. This requires
         // reversing the list in all cases except when we're heads up. When heads up, the dealer/sb
         // acts first preflop, and the dealer/sb seat should already be the 2nd (of two) items in
         // the vector.
-        if self.betting_players_count() == 2 {
+        if self.players_iter(PlayerFilter::MAY_BET).count() == 2 {
             assert_eq!(self.token_dealer, self.token_sb);
             assert_eq!(self.token_bb, self.need_bets_from[0]);
             assert_eq!(self.token_sb, self.need_bets_from[1]);
@@ -244,13 +266,13 @@ impl Players {
         if !self.need_bets_from.is_empty() {
             return Err(GameError::StreetNotComplete);
         }
-        for (_, p) in self.betting_players_iter_mut() {
+        for (_, p) in self.players_iter_mut(PlayerFilter::MAY_BET) {
             p.bet_status = BetStatus::Waiting;
         }
         self.need_bets_from = self
             .betting_players_iter_after(self.token_dealer)
             .map(|(i, _)| i)
-            .take(self.betting_players_count())
+            .take(self.players_iter(PlayerFilter::MAY_BET).count())
             .collect();
         // unlike in start_hand, we want to reverse the list even when just heads up. The dealer/sb
         // player acts last, will be the last item in the vector, thus the vec needs to be reversed
@@ -265,7 +287,7 @@ impl Players {
     /// join on "the wrong side" of the button and are supposed to sit out for a bit before being
     /// dealt in. Idk the rules for this, so it's not implemented at this time. 11/11/22 MT
     pub(crate) fn rotate_tokens(&mut self) -> Result<(), GameError> {
-        let n_players = self.betting_players_iter().count();
+        let n_players = self.players_iter(PlayerFilter::MAY_BET).count();
         if n_players < 2 {
             return Err(GameError::NotEnoughPlayers);
         }
@@ -302,7 +324,11 @@ impl Player {
             stack,
             pocket: None,
             bet_status: BetStatus::Waiting,
-            sitting_out: stack < 1,
+            play_status: if stack < 1 {
+                PlayStatus::SittingOut
+            } else {
+                PlayStatus::Playing
+            },
         }
     }
 

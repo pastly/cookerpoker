@@ -3,6 +3,7 @@ use std::io::{stdin, stdout, BufRead, Write};
 
 use poker_core::bet::{BetAction, BetStatus};
 use poker_core::deck::DeckSeed;
+use poker_core::player::PlayerFilter;
 use poker_core::state::{GameState, State};
 use poker_core::{Currency, GameError};
 use structopt::StructOpt;
@@ -125,7 +126,7 @@ fn prompt(q: &str, display_prompts: bool) -> Result<Command, Box<dyn Error>> {
 }
 
 fn print_player_info(state: &GameState, prefix: &str) {
-    for (idx, player) in state.players.players_iter_with_index() {
+    for (idx, player) in state.players.players_iter(PlayerFilter::ALL) {
         let mut tokens = vec![];
         if idx == state.players.token_dealer {
             tokens.push("D");
@@ -248,7 +249,7 @@ fn print_test_info(state: &GameState) -> Result<(), Box<dyn Error>> {
             Some(c) => c.to_string(),
         },
     );
-    for player in state.players.players_iter() {
+    for (_, player) in state.players.players_iter(PlayerFilter::ALL) {
         println!("player {} bank {}", player.id, player.stack);
         println!("player {} bet_status {}", player.id, player.bet_status);
         println!(
