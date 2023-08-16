@@ -124,7 +124,7 @@ impl From<Rank> for i8 {
     }
 }
 
-#[derive(Hash, Enum, Clone, Copy, Debug, PartialEq, Eq, Ord, Serialize, Deserialize)]
+#[derive(Hash, Enum, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Suit {
     Club,
     Diamond,
@@ -154,10 +154,18 @@ impl From<char> for Suit {
         }
     }
 }
+
 /// All suits are equal
 impl PartialOrd for Suit {
     fn partial_cmp(&self, _: &Self) -> Option<std::cmp::Ordering> {
         Some(std::cmp::Ordering::Equal)
+    }
+}
+
+/// All suits are equal
+impl Ord for Suit {
+    fn cmp(&self, _: &Self) -> std::cmp::Ordering {
+        std::cmp::Ordering::Equal
     }
 }
 
