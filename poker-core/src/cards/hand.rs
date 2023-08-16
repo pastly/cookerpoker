@@ -63,7 +63,7 @@ pub fn best_hands(
     for p in first_pass.into_iter() {
         // Winner starts us off.
         if first {
-            old = Some(p.clone());
+            old = Some(p);
             working.push(p);
             first = false;
         } else {
@@ -73,7 +73,7 @@ pub fn best_hands(
             } else {
                 // Current hand is worse than old, commit the working vec
                 // and reset old
-                old = Some(p.clone());
+                old = Some(p);
                 outer.push(working);
                 working = Vec::new();
                 working.push(p);
@@ -97,11 +97,11 @@ impl Ord for FinalHandResult {
         use std::cmp::Ordering;
         // Easy case first
         if self.class > other.class {
-            return Ordering::Greater;
+            Ordering::Greater
         } else if self.class < other.class {
-            return Ordering::Less;
+            Ordering::Less
         } else if self.eq(other) {
-            return Ordering::Equal;
+            Ordering::Equal
         } else {
             for i in 0..5 {
                 // Sorted, so left to right rank comarisons should be ordered
@@ -233,11 +233,7 @@ fn cards_have_straight(h: impl Iterator<Item = Card> + Clone) -> Option<[Option<
                 return Some(cards);
             }
             // Cards are sorted high to low be default
-            if in_a_row == 0 {
-                cards[in_a_row] = Some(c);
-                prev = c.rank;
-                in_a_row += 1;
-            } else if c.rank.value() == prev.value() - 1 {
+            if in_a_row == 0 || c.rank.value() == prev.value() - 1 {
                 cards[in_a_row] = Some(c);
                 prev = c.rank;
                 in_a_row += 1;
@@ -266,9 +262,7 @@ fn cards_have_straight(h: impl Iterator<Item = Card> + Clone) -> Option<[Option<
                 cards[i] = h.clone().find(|x| x.rank == *r);
             }
             // Force Ace to the right of low rank sort to fix hand comparisons
-            let t = cards[0];
-            cards[0] = cards[4];
-            cards[4] = t;
+            cards.swap(0, 4);
             return Some(cards);
         }
         // Handle low straight
@@ -285,18 +279,18 @@ impl FromStr for Hand {
         let mut cards: [Option<Card>; 5] = [None; 5];
         let mut ci = 0usize;
         let p0 = Card::from([
-            i.nth(0).ok_or(String::from("Failed to parse hand"))?,
-            i.nth(0).ok_or(String::from("Failed to parse hand"))?,
+            i.next().ok_or(String::from("Failed to parse hand"))?,
+            i.next().ok_or(String::from("Failed to parse hand"))?,
         ]);
         let p1 = Card::from([
-            i.nth(0).ok_or(String::from("Failed to parse hand"))?,
-            i.nth(0).ok_or(String::from("Failed to parse hand"))?,
+            i.next().ok_or(String::from("Failed to parse hand"))?,
+            i.next().ok_or(String::from("Failed to parse hand"))?,
         ]);
         let pocket = Some([p0, p1]);
         for mut s in &i.chunks(2) {
             let c = Card::from([
-                s.nth(0).ok_or(String::from("Failed to parse hand"))?,
-                s.nth(0).ok_or(String::from("Failed to parse hand"))?,
+                s.next().ok_or(String::from("Failed to parse hand"))?,
+                s.next().ok_or(String::from("Failed to parse hand"))?,
             ]);
             cards[ci] = Some(c);
             ci += 1;
@@ -308,6 +302,22 @@ impl FromStr for Hand {
         }
 
         Ok(hand)
+    }
+}
+
+impl FromIterator<Card> for Hand {
+    fn from_iter<T: IntoIterator<Item = Card>>(iter: T) -> Self {
+        let mut cards = iter.into_iter();
+        let p0 = cards.next().expect("from_iter empty");
+        let p1 = cards.next().expect("from_iter with 1 card");
+        let pocket = Some([p0, p1]);
+        let mut board = [None; 5];
+        let mut bi = 0usize;
+        for c in cards {
+            board[bi] = Some(c);
+            bi += 1;
+        }
+        Hand { pocket, board }
     }
 }
 
@@ -327,23 +337,9 @@ impl Hand {
         Hand::new_with_pocket(Some(pocket), [None; 5])
     }
 
-    pub fn from_iter(cards: impl IntoIterator<Item = Card> + Clone) -> Self {
-        let mut cards = cards.clone().into_iter();
-        let p0 = cards.nth(0).expect("from_iter empty");
-        let p1 = cards.nth(0).expect("from_iter with 1 card");
-        let pocket = Some([p0, p1]);
-        let mut board = [None; 5];
-        let mut bi = 0usize;
-        for c in cards {
-            board[bi] = Some(c);
-            bi += 1;
-        }
-        Hand { pocket, board }
-    }
-
     /// Clones the current Hand, dropping the Pocket
     pub fn board_only(&self) -> Hand {
-        Hand::new_without_pocket(self.board.clone())
+        Hand::new_without_pocket(self.board)
     }
 
     pub fn get_hand(&self) -> [Option<Card>; 7] {
@@ -431,7 +427,7 @@ impl Hand {
     pub fn get_hand_iter(&self) -> impl Iterator<Item = Card> + Clone {
         self.get_hand()
             .into_iter()
-            .filter_map(|x| x)
+            .flatten()
             .sorted_unstable()
             .rev()
     }
@@ -453,9 +449,9 @@ impl Hand {
     /// Helper function to fill kickers
     fn fill_kickers(&self, c: [Option<Card>; 5], index: usize) -> [Option<Card>; 5] {
         let mut c = c;
-        let mut remaining = self.get_filtered_hand_iter(c.into_iter().filter_map(|x| x));
+        let mut remaining = self.get_filtered_hand_iter(c.into_iter().flatten());
         for i in index..5 {
-            c[i] = remaining.nth(0);
+            c[i] = remaining.next();
         }
         c
     }
@@ -479,7 +475,7 @@ impl Hand {
             StraightFlush => <Self as HandSolver>::straight_flush,
             RoyalFlush => <Self as HandSolver>::royal_flush,
         };
-        tfn(&self)
+        tfn(self)
     }
     pub fn get_best_possible_hand_result(&self) -> HandClass {
         // Hacky fix for hands with only pocket cards
@@ -563,10 +559,9 @@ impl HandSolver for Hand {
             }
             let flush_iter = self.get_cards_by_suit_iter(sm);
             let has_sf = cards_have_straight(flush_iter);
-            if has_sf.is_some() {
+            if let Some(cards) = has_sf {
                 // Cards are sorted with ace to left, so high straight is always cards[0] = ace and cards[4] = ten
                 // This is only true when ranks are deduped, or, as in this case, we are only checking one suit
-                let cards = has_sf.unwrap();
                 if cards[0].as_ref().unwrap().rank == Rank::Ace
                     && cards[4].as_ref().unwrap().rank == Rank::Ten
                 {
@@ -594,8 +589,8 @@ impl HandSolver for Hand {
             }
             let flush_iter = self.get_cards_by_suit_iter(sm);
             let has_sf = cards_have_straight(flush_iter);
-            if has_sf.is_some() {
-                return HaveResult::Has(has_sf.unwrap());
+            if let Some(cards) = has_sf {
+                return HaveResult::Has(cards);
             }
         }
 
@@ -785,7 +780,7 @@ impl HandSolver for Hand {
 
         // Check if it's possible
         // If there are at least two cards left to go or 1 + pair
-        let has_pair = self.pairs(2).nth(0).is_some();
+        let has_pair = self.pairs(2).next().is_some();
         if self.cards_left() >= 2 || (self.cards_left() >= 1 && has_pair) {
             return HaveResult::CanHave;
         }

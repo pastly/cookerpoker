@@ -180,8 +180,8 @@ impl FromStr for Card {
         assert_eq!(s.len(), 2);
         let mut i = s.chars();
         Ok(Card::from([
-            i.nth(0).ok_or(String::from("Failed to parse card"))?,
-            i.nth(0).ok_or(String::from("Failed to parse card"))?,
+            i.next().ok_or(String::from("Failed to parse card"))?,
+            i.next().ok_or(String::from("Failed to parse card"))?,
         ]))
     }
 }
@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn string_single() {
         let mut s = "Ah".chars().into_iter();
-        let ch = [s.nth(0).unwrap(), s.nth(0).unwrap()];
+        let ch = [s.next().unwrap(), s.next().unwrap()];
         let c = Card::from(ch);
         assert_eq!(c.rank, Rank::Ace);
         assert_eq!(c.suit, Suit::Heart);

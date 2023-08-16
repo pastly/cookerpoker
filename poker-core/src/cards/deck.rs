@@ -42,13 +42,12 @@ impl Deck {
         let mut cards = all_cards();
         let mut rng = ChaChaRng::from_seed(*seed);
         cards.shuffle(&mut rng);
-        let d = Deck {
+        Deck {
             cards,
             index: 0,
             seed,
             sorted: true,
-        };
-        d
+        }
     }
 
     pub fn can_draw(&self) -> bool {
