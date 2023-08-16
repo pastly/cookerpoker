@@ -1,3 +1,4 @@
+use base64ct::{self, Base64, Encoding};
 use rand::{seq::SliceRandom, SeedableRng};
 use rand_chacha::ChaChaRng;
 use serde::{Deserialize, Serialize};
@@ -104,24 +105,16 @@ impl Deck {
 }
 
 #[derive(Clone, Copy, Debug, derive_more::Display, PartialEq, Eq, Serialize, Deserialize)]
-#[display(fmt = "{:?}", "self.value")]
-pub struct DeckSeed {
-    value: [u8; SEED_LEN],
-}
+#[display(fmt = "{:?}", "self.0")]
+pub struct DeckSeed([u8; SEED_LEN]);
 
 impl FromStr for DeckSeed {
-    type Err = &'static str;
+    type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut value = [0u8; SEED_LEN];
-        let s = s.as_bytes();
-        if s.len() != SEED_LEN {
-            return Err("Wrong seed length");
-        }
-        for (i, b) in s.iter().enumerate() {
-            value[i] = *b;
-        }
-        Ok(DeckSeed { value })
+        Base64::decode(s, &mut value).map_err(|_| "Failed to decode")?;
+        Ok(DeckSeed(value))
     }
 }
 
@@ -129,15 +122,13 @@ impl Deref for DeckSeed {
     type Target = [u8; SEED_LEN];
 
     fn deref(&self) -> &Self::Target {
-        &self.value
+        &self.0
     }
 }
 
 impl std::default::Default for DeckSeed {
     fn default() -> DeckSeed {
-        DeckSeed {
-            value: fill_random::<SEED_LEN>(),
-        }
+        DeckSeed(fill_random::<SEED_LEN>())
     }
 }
 

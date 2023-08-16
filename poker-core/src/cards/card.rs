@@ -232,10 +232,10 @@ pub fn all_cards() -> [Card; 52] {
     use itertools::Itertools;
     // Default value, can probably unsafe this if it isn't optimized well
     let mut cards: [Card; 52] = [Card::new(Suit::Club, Rank::Ace); 52];
-    let c_iter = ALL_SUITS
+    let c_iter = ALL_RANKS
         .iter()
-        .cartesian_product(ALL_RANKS.iter())
-        .map(|x| Card::new(*x.0, *x.1));
+        .cartesian_product(ALL_SUITS.iter())
+        .map(|x| Card::new(*x.1, *x.0));
     for (i, c) in c_iter.enumerate() {
         cards[i] = c;
     }
