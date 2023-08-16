@@ -5,8 +5,8 @@ pub mod deck;
 pub mod hand;
 
 pub use card::Card;
-pub use deck::Deck;
-pub use hand::{Hand, HandSolver};
+pub use deck::{Deck, DeckSeed};
+pub use hand::{best_hands, Hand, HandSolver};
 
 fn fill_random<const L: usize>() -> [u8; L] {
     let mut r = rand::thread_rng();

@@ -1,9 +1,11 @@
 use super::card::*;
+use crate::PlayerId;
 use enum_map::EnumMap;
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum HandClass {
     HighCard,
     Pair,
@@ -32,10 +34,56 @@ const ALL_HAND_CLASSES: [HandClass; 10] = [
 
 const LOW_RANK_STRAIGHT: [Rank; 5] = [Rank::Ace, Rank::Two, Rank::Three, Rank::Four, Rank::Five];
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct FinalHandResult {
     pub cards: [Card; 5],
     pub class: HandClass,
+}
+
+pub fn best_hands(
+    hands: &std::collections::HashMap<PlayerId, Hand>,
+) -> Vec<Vec<(PlayerId, FinalHandResult)>> {
+    let final_hands = hands
+        .iter()
+        .map(|(i, x)| (*i, x.finalize_hand()))
+        .sorted_unstable()
+        .rev();
+    let mut outer: Vec<Vec<(PlayerId, FinalHandResult)>> = Vec::new();
+    // Final hands are already sorted best to worst
+    // First pass builds Vec<(crate::PlayerId, Finalizedhand)>
+    // However, ties have to be merged.
+    let mut first_pass: Vec<(PlayerId, FinalHandResult)> = Vec::new();
+    for ih in final_hands {
+        first_pass.push(ih);
+    }
+    let mut old: Option<(PlayerId, FinalHandResult)> = None;
+    let mut first = true;
+    let mut working: Vec<(PlayerId, FinalHandResult)> = Vec::new();
+    // We iterate once over, comparing the result with the previous
+    for p in first_pass.into_iter() {
+        // Winner starts us off.
+        if first {
+            old = Some(p.clone());
+            working.push(p);
+            first = false;
+        } else {
+            if p.1 == old.unwrap().1 {
+                // Matches means we have a tie, append
+                working.push(p);
+            } else {
+                // Current hand is worse than old, commit the working vec
+                // and reset old
+                old = Some(p.clone());
+                outer.push(working);
+                working = Vec::new();
+                working.push(p);
+            }
+        }
+    }
+    // Push the worst hand
+    outer.push(working);
+    // If they match, we append to working
+    outer
 }
 
 impl PartialOrd for FinalHandResult {
@@ -57,6 +105,7 @@ impl Ord for FinalHandResult {
         } else {
             for i in 0..5 {
                 // Sorted, so left to right rank comarisons should be ordered
+                // TODO write test for low straight
                 if self.cards[i] > other.cards[i] {
                     return Ordering::Greater;
                 } else if self.cards[i] < other.cards[i] {
@@ -82,7 +131,7 @@ impl PartialEq for FinalHandResult {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Hand {
     pub pocket: Option<[Card; 2]>,
     pub board: [Option<Card>; 5],
@@ -106,7 +155,7 @@ fn is_straight_possible(h: impl Iterator<Item = Card> + Clone, cards_to_come: u8
     // valued as 1 instead of 14.
     if ranks.is_empty() {
         return false;
-    } else if ranks[0] == Rank::Ace.into() {
+    } else if ranks[0] == i8::from(Rank::Ace) {
         // Yes I really am doing 2-1 = 1 here, because fuck you maybe in the
         // future Rank::Two isn't 2.
         //
@@ -272,6 +321,10 @@ impl Hand {
 
     pub fn new_with_pocket(pocket: Option<[Card; 2]>, board: [Option<Card>; 5]) -> Self {
         Hand { pocket, board }
+    }
+
+    pub fn new_from_pocket(pocket: [Card; 2]) -> Self {
+        Hand::new_with_pocket(Some(pocket), [None; 5])
     }
 
     pub fn from_iter(cards: impl IntoIterator<Item = Card> + Clone) -> Self {
@@ -1318,4 +1371,47 @@ mod test_straight {
         unimplemented!();
     }
     */
+}
+
+#[cfg(test)]
+mod test_best_hands {
+    use super::*;
+
+    fn c(p: &str, b: &str) -> String {
+        String::from(p) + b
+    }
+
+    #[test]
+    fn test_best_hands() {
+        use std::collections::HashMap;
+        let b = "AhQdKs5h9h";
+
+        // Flush
+        let h1 = Hand::from_str(&c("2h3h", b)).unwrap();
+        // Quads
+        let h2 = Hand::from_str(&c("AcAd", b)).unwrap();
+        // Better Flush
+        let h3 = Hand::from_str(&c("4h6h", b)).unwrap();
+        // Pair
+        let h4 = Hand::from_str(&c("Kd2c", b)).unwrap();
+        // Equal Pair same kicker
+        let h5 = Hand::from_str(&c("Kc3c", b)).unwrap();
+        let mut hm: HashMap<i32, Hand> = HashMap::new();
+        hm.insert(1, h1);
+        hm.insert(2, h2);
+        hm.insert(3, h3);
+        hm.insert(4, h4);
+        hm.insert(5, h5);
+        let mut bh = best_hands(&hm);
+        let mut winner = bh.remove(0);
+        assert_eq!(winner.len(), 1);
+        let winner = winner.pop().unwrap().0;
+        assert_eq!(winner, 2);
+        let mut two = bh.remove(0);
+        let two_hand = two.pop().unwrap().1;
+        assert_eq!(two_hand.class, HandClass::Flush);
+        let three = bh.remove(0);
+        let four = bh.remove(0);
+        assert_eq!(four.len(), 2);
+    }
 }

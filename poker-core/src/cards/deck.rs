@@ -2,6 +2,7 @@ use rand::{seq::SliceRandom, SeedableRng};
 use rand_chacha::ChaChaRng;
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
+use std::str::FromStr;
 
 use super::card::{all_cards, Card};
 use super::fill_random;
@@ -11,19 +12,18 @@ const ENCODED_SEED_LEN: usize = 4 * ((SEED_LEN + 3 - 1) / 3); // 4 * ceil(SEED_L
 pub type GameRng = ChaChaRng;
 
 /// A `Deck` will always be shuffled according to the seed provided at initialization
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq)]
 pub struct Deck {
     #[serde(skip)]
     #[serde(default = "all_cards")]
     cards: [Card; 52],
     index: usize,
-    pub seed: Seed,
+    pub seed: DeckSeed,
     /// This will only ever be false when deserialized
     #[serde(skip)]
     sorted: bool,
 }
 
-/// We only compare the order of cards when comparing decks
 impl std::cmp::PartialEq for Deck {
     fn eq(&self, other: &Self) -> bool {
         self.cards.eq(&other.cards)
@@ -32,13 +32,13 @@ impl std::cmp::PartialEq for Deck {
 
 impl std::default::Default for Deck {
     fn default() -> Self {
-        let seed = Seed::default();
+        let seed = DeckSeed::default();
         Self::new(seed)
     }
 }
 
 impl Deck {
-    pub fn new(seed: Seed) -> Self {
+    pub fn new(seed: DeckSeed) -> Self {
         let mut cards = all_cards();
         let mut rng = ChaChaRng::from_seed(*seed);
         cards.shuffle(&mut rng);
@@ -55,6 +55,16 @@ impl Deck {
         self.index < 52
     }
 
+    /// Helper function to deal out many cards at once
+    pub fn deal_pockets(&mut self, num_players: u8) -> Vec<[Card; 2]> {
+        let mut v = Vec::new();
+        for _ in 0..num_players {
+            let c1 = self.draw();
+            let c2 = self.draw();
+            v.push([c1, c2]);
+        }
+        v
+    }
     /// Returns a card and increments the deck index
     /// # Panics
     /// Panics if index is out of bounds. i.e. this function is called 53 times on the same deck
@@ -94,12 +104,29 @@ impl Deck {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Seed {
+#[derive(Clone, Copy, Debug, derive_more::Display, PartialEq, Eq, Serialize, Deserialize)]
+#[display(fmt = "{:?}", "self.value")]
+pub struct DeckSeed {
     value: [u8; SEED_LEN],
 }
 
-impl Deref for Seed {
+impl FromStr for DeckSeed {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut value = [0u8; SEED_LEN];
+        let s = s.as_bytes();
+        if s.len() != SEED_LEN {
+            return Err("Wrong seed length");
+        }
+        for (i, b) in s.iter().enumerate() {
+            value[i] = *b;
+        }
+        Ok(DeckSeed { value })
+    }
+}
+
+impl Deref for DeckSeed {
     type Target = [u8; SEED_LEN];
 
     fn deref(&self) -> &Self::Target {
@@ -107,9 +134,9 @@ impl Deref for Seed {
     }
 }
 
-impl std::default::Default for Seed {
-    fn default() -> Seed {
-        Seed {
+impl std::default::Default for DeckSeed {
+    fn default() -> DeckSeed {
+        DeckSeed {
             value: fill_random::<SEED_LEN>(),
         }
     }

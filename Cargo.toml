@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 members = [
     "poker-core",
     "poker-core-py",
@@ -6,3 +7,5 @@ members = [
     "poker-client",
     "poker-messages",
 ]
+
+

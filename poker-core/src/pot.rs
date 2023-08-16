@@ -445,7 +445,7 @@ mod test_payout {
         p.bet(3, BetAction::Call(5.into()));
         p.finalize_round();
         let payout = p.payout_without_log(&vec![vec![1]]);
-        assert_eq!(payout[&1], 15.into());
+        assert_eq!(payout[&1], 15i32);
     }
 
     #[test]
@@ -456,34 +456,34 @@ mod test_payout {
         p.bet(3, BetAction::Call(5.into()));
         p.finalize_round();
         let payout = p.payout_without_log(&vec![vec![1, 2]]);
-        assert_eq!(payout[&1], 8.into());
-        assert_eq!(payout[&2], 7.into());
+        assert_eq!(payout[&1], 8i32);
+        assert_eq!(payout[&2], 7i32);
 
         // it is not possible for the 3rd person to be in for more than the others like this, but
         // the pot does its best to function anyway. Garbage in => garbage out. It's the caller's
         // fault for not knowing how Texas Holdem works.
         let mut p = Pot::default();
-        p.bet(1, BetAction::Bet(5.into()));
-        p.bet(2, BetAction::Bet(5.into()));
-        p.bet(3, BetAction::Bet(6.into()));
+        p.bet(1, BetAction::Bet(5i32));
+        p.bet(2, BetAction::Bet(5i32));
+        p.bet(3, BetAction::Bet(6i32));
         p.finalize_round();
         let payout = p.payout_without_log(&vec![vec![1, 2]]);
-        assert_eq!(payout[&1], 8.into());
-        assert_eq!(payout[&2], 8.into());
+        assert_eq!(payout[&1], 8i32);
+        assert_eq!(payout[&2], 8i32);
     }
 
     #[test]
     fn three_way_tie() {
         let mut p = Pot::default();
-        p.bet(1, BetAction::Bet(5.into()));
-        p.bet(2, BetAction::Bet(5.into()));
-        p.bet(3, BetAction::Bet(5.into()));
+        p.bet(1, BetAction::Bet(5i32));
+        p.bet(2, BetAction::Bet(5i32));
+        p.bet(3, BetAction::Bet(5i32));
         p.finalize_round();
         let payout = p.payout_without_log(&vec![vec![1, 2, 3]]);
         dbg!(&payout);
-        assert_eq!(payout[&1], 5.into());
-        assert_eq!(payout[&2], 5.into());
-        assert_eq!(payout[&3], 5.into());
+        assert_eq!(payout[&1], 5i32);
+        assert_eq!(payout[&2], 5i32);
+        assert_eq!(payout[&3], 5i32);
     }
 }
 
@@ -505,44 +505,44 @@ mod tests {
         let payout = p.payout_without_log(&vec![vec![1], vec![2, 3]]);
         dbg!(&payout);
         // 5 from each player, 8 remains (5 from p2's call and 3 from p3's allin)
-        assert_eq!(payout[&1], 15.into());
+        assert_eq!(payout[&1], 15i32);
         // a second side pot containing 6 (3 for p3's all in, and 3 from p2's call) exists. p2 and
         // p3 tied, so they split it.
         // p2 has 3 and p3 has 3.
         // The final pot has just p2 and their remaining 2. They get that whole pot.
         // p2 has 3+2 and p3 has 3 still.
-        assert_eq!(payout[&2], 5.into());
-        assert_eq!(payout[&3], 3.into());
+        assert_eq!(payout[&2], 5i32);
+        assert_eq!(payout[&3], 3i32);
     }
 
     #[test]
     fn side_pot_payout() {
         let mut p = Pot::default();
-        p.bet(1, BetAction::Bet(10.into()));
-        p.bet(2, BetAction::AllIn(5.into()));
-        p.bet(3, BetAction::Bet(10.into()));
+        p.bet(1, BetAction::Bet(10i32));
+        p.bet(2, BetAction::AllIn(5i32));
+        p.bet(3, BetAction::Bet(10i32));
         p.finalize_round();
         dbg!(&p);
         let payout = p.payout_without_log(&vec![vec![2], vec![1, 3]]);
-        assert_eq!(payout[&2], 15.into());
-        assert_eq!(payout[&1], 5.into());
-        assert_eq!(payout[&3], 5.into());
+        assert_eq!(payout[&2], 15i32);
+        assert_eq!(payout[&1], 5i32);
+        assert_eq!(payout[&3], 5i32);
     }
 
     #[test]
     fn overflowing_side_pot() {
         let mut p = Pot::default();
-        p.bet(1, BetAction::Bet(10.into()));
-        p.bet(2, BetAction::AllIn(5.into()));
-        p.bet(3, BetAction::AllIn(3.into()));
+        p.bet(1, BetAction::Bet(10i32));
+        p.bet(2, BetAction::AllIn(5i32));
+        p.bet(3, BetAction::AllIn(3i32));
         p.finalize_round();
         dbg!(&p);
         let payout = p.payout_without_log(&vec![vec![3], vec![2], vec![1]]);
         dbg!(&payout);
-        assert_eq!(payout[&3], 9.into());
-        assert_eq!(payout[&2], 4.into());
+        assert_eq!(payout[&3], 9i32);
+        assert_eq!(payout[&2], 4i32);
         // 1 overbet and was returned pot nobody else could claim
-        assert_eq!(payout[&1], 5.into());
+        assert_eq!(payout[&1], 5i32);
     }
 
     #[test]
@@ -569,10 +569,10 @@ mod tests {
         for log_item in &log {
             println!("{}", log_item);
         }
-        assert_eq!(payout[&3], 39.into());
-        assert_eq!(payout[&2], 16.into());
+        assert_eq!(payout[&3], 39i32);
+        assert_eq!(payout[&2], 16i32);
         // 1 overbet and was returned pot nobody else could claim
-        assert_eq!(payout[&1], 4.into());
+        assert_eq!(payout[&1], 4i32);
     }
 
     #[test]
@@ -583,12 +583,12 @@ mod tests {
             let ip = &p.settled[0];
             assert_eq!(ip.players.len(), 3);
             for v in ip.players.values() {
-                assert_eq!(v.amount, 5.into());
+                assert_eq!(v.amount, 5i32);
             }
             assert_eq!(ip.max_in, None);
             dbg!(&p);
             let payout = p.payout_without_log(&vec![vec![1]]);
-            assert_eq!(payout[&1], 15.into());
+            assert_eq!(payout[&1], 15i32);
             dbg!(&payout);
         }
         let mut p1 = Pot::default();
@@ -620,11 +620,11 @@ mod tests {
         p.bet(1, BetAction::Call(15.into()));
         p.bet(2, BetAction::Call(15.into()));
         p.finalize_round();
-        assert_eq!(p.settled_value(), 45.into());
-        p.bet(1, BetAction::Bet(5.into()));
-        p.bet(2, BetAction::AllIn(50.into()));
-        p.bet(3, BetAction::Call(50.into()));
-        p.bet(1, BetAction::Raise(500.into()));
+        assert_eq!(p.settled_value(), 45i32);
+        p.bet(1, BetAction::Bet(5i32));
+        p.bet(2, BetAction::AllIn(50i32));
+        p.bet(3, BetAction::Call(50i32));
+        p.bet(1, BetAction::Raise(500i32));
         // 2 is all in and can't do anything
         // 3 folds, so there's nothing more to do
         p.finalize_round();
@@ -636,21 +636,21 @@ mod tests {
         let pot = &p.settled[0];
         assert_eq!(pot.players.len(), 3);
         for v in pot.players.values() {
-            assert_eq!(v.amount, 15.into());
+            assert_eq!(v.amount, 15i32);
         }
         assert_eq!(pot.max_in, None);
 
         let pot = &p.settled[1];
         assert_eq!(pot.players.len(), 3);
         for v in pot.players.values() {
-            assert_eq!(v.amount, 50.into());
+            assert_eq!(v.amount, 50i32);
         }
-        assert_eq!(pot.max_in, Some(50.into()));
+        assert_eq!(pot.max_in, Some(50i32));
 
         let pot = &p.settled[2];
         assert_eq!(pot.players.len(), 1);
         for v in pot.players.values() {
-            assert_eq!(v.amount, 450.into());
+            assert_eq!(v.amount, 450i32);
         }
         assert_eq!(pot.max_in, None);
     }

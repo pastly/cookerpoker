@@ -364,11 +364,8 @@ name = "poker-core"
 version = "0.1.0"
 dependencies = [
  "base64ct",
-<<<<<<< HEAD
  "bitflags",
-=======
  "blake3",
->>>>>>> 161800c (Half merge)
  "derive_more",
  "enum-map",
  "itertools",

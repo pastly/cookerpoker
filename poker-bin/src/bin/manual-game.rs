@@ -149,9 +149,9 @@ fn print_player_info(state: &GameState, prefix: &str) {
                 BetStatus::In(x) => x.to_string(),
                 BetStatus::AllIn(x) => format!("{} (all in)", x),
             },
-            match player.pocket {
+            match player.hand {
                 None => String::new(),
-                Some(p) => p[0].to_string() + &p[1].to_string(),
+                Some(p) => p.pocket.unwrap()[0].to_string() + &p.pocket.unwrap()[1].to_string(),
             }
         );
     }
@@ -184,7 +184,7 @@ fn single_hand(
             return Ok(false);
         }
         let (_, player) = state.nta().unwrap();
-        let pocket = player.pocket.unwrap();
+        let pocket = player.hand.unwrap();
         let q = format!(
             "Community: {}\nPlayer {}'s action? {} {}",
             state
@@ -195,8 +195,8 @@ fn single_hand(
                 .collect::<Vec<_>>()
                 .join(""),
             player.id,
-            pocket[0],
-            pocket[1]
+            pocket.pocket.unwrap()[0],
+            pocket.pocket.unwrap()[1]
         );
         match prompt(&q, display_prompts)? {
             Command::Info => {
@@ -255,9 +255,10 @@ fn print_test_info(state: &GameState) -> Result<(), Box<dyn Error>> {
         println!(
             "player {} pocket {}",
             player.id,
-            match player.pocket {
+            match player.hand {
                 None => "None".to_string(),
-                Some(pocket) => format!("{}{}", pocket[0], pocket[1]),
+                Some(pocket) =>
+                    format!("{}{}", pocket.pocket.unwrap()[0], pocket.pocket.unwrap()[1]),
             }
         );
     }
