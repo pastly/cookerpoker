@@ -9,7 +9,7 @@ name = "poker_core_py"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.16.6", features = ["extension-module"] }
+pyo3 = { version = "0.19.2", features = ["extension-module"] }
 poker-core = { path = "../poker-core" }
 poker-messages = { path = "../poker-messages" }
 serde_json = "1.0.105"
