@@ -211,7 +211,7 @@ impl InnerPot {
             // split the payout evenly across all the winning players. It's important that we
             // avoided division by 0 by making sure there is >0 winning players.
             let payouts = split_x_by_y(self.value(), winning_players.len().try_into().unwrap());
-            for (player, payout) in itertools::zip(winning_players, payouts) {
+            for (player, payout) in std::iter::zip(winning_players, payouts) {
                 hm.insert(*player, payout);
             }
             break;

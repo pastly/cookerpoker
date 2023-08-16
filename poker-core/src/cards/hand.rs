@@ -75,8 +75,7 @@ pub fn best_hands(
                 // and reset old
                 old = Some(p);
                 outer.push(working);
-                working = Vec::new();
-                working.push(p);
+                working = vec![p];
             }
         }
     }
@@ -312,10 +311,8 @@ impl FromIterator<Card> for Hand {
         let p1 = cards.next().expect("from_iter with 1 card");
         let pocket = Some([p0, p1]);
         let mut board = [None; 5];
-        let mut bi = 0usize;
-        for c in cards {
+        for (bi, c) in cards.enumerate() {
             board[bi] = Some(c);
-            bi += 1;
         }
         Hand { pocket, board }
     }
@@ -540,10 +537,8 @@ pub enum HaveResult {
 impl HaveResult {
     /// Helper function that combines Has and CanHav
     pub fn bool(&self) -> bool {
-        match self {
-            HaveResult::CantHave => false,
-            _ => true,
-        }
+        // Neat clippy lint for this
+        !matches!(self, HaveResult::CantHave)
     }
 }
 
@@ -744,9 +739,12 @@ impl HandSolver for Hand {
         HaveResult::CantHave
     }
 
+    #[allow(clippy::never_loop)]
     fn pair(&self) -> HaveResult {
         // Has
-        for _c in self.pairs(2) {
+        // This only runs when two_pair has already failed. Since best pair it to the left
+        // we only iterate through the first set of pairs
+        for _ in self.pairs(2) {
             let mut ca: [Option<Card>; 5] = [None; 5];
             let mut ci = 0usize;
             let pairs = self.pairs(2);
