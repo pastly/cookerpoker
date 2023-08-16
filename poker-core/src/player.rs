@@ -1,5 +1,5 @@
 use crate::bet::{BetAction, BetStatus};
-use crate::deck::Card;
+use crate::cards::Card;
 use crate::GameError;
 use crate::{Currency, PlayerId, SeatIdx, MAX_PLAYERS};
 use bitflags::bitflags;

@@ -1,4 +1,4 @@
-use crate::deck::Card;
+use crate::cards::card::Card;
 use crate::pot;
 use crate::state;
 use crate::{Currency, PlayerId, SeqNum};
