@@ -1,6 +1,5 @@
 use crate::bet::BetAction;
-use crate::deck::{Card, Deck, DeckSeed};
-use crate::hand::best_hands;
+use crate::cards::{best_hands, Card, Deck, DeckSeed, Hand};
 use crate::log::{Log, LogItem};
 use crate::player::{Player, PlayerFilter, Players};
 use crate::pot::Pot;
@@ -305,9 +304,9 @@ impl GameState {
                 Street::PreFlop => unreachable!(),
                 Street::Flop => {
                     self.deck.burn();
-                    let c1 = self.deck.draw()?;
-                    let c2 = self.deck.draw()?;
-                    let c3 = self.deck.draw()?;
+                    let c1 = self.deck.draw();
+                    let c2 = self.deck.draw();
+                    let c3 = self.deck.draw();
                     self.community[0] = Some(c1);
                     self.community[1] = Some(c2);
                     self.community[2] = Some(c3);
@@ -315,13 +314,13 @@ impl GameState {
                 }
                 Street::Turn => {
                     self.deck.burn();
-                    let c1 = self.deck.draw()?;
+                    let c1 = self.deck.draw();
                     self.community[3] = Some(c1);
                     self.logs.push(LogItem::Turn(c1));
                 }
                 Street::River => {
                     self.deck.burn();
-                    let c1 = self.deck.draw()?;
+                    let c1 = self.deck.draw();
                     self.community[4] = Some(c1);
                     self.logs.push(LogItem::River(c1));
                 }
@@ -357,25 +356,18 @@ impl GameState {
     fn finalize_hand(&mut self) -> Result<(), GameError> {
         let pot = std::mem::take(&mut self.pot);
         // players and their pockets, as a vec
-        let players: Vec<(PlayerId, [Card; 2])> = self
+        let players: Vec<(PlayerId, Hand)> = self
             .players
             .players_iter(PlayerFilter::POT_ELIGIBLE)
-            .map(|(_, p)| (p.id, p.pocket.unwrap()))
+            .map(|(_, p)| (p.id, p.hand.expect("Tried to finalize empty hand")))
             .collect();
         // PlayerIds, sorted in a Vec<Vec<PlayerId>>, for pot's payout function
         let ranked_players = if players.len() == 1 {
             vec![vec![players[0].0]]
         } else {
             assert!(self.community[4].is_some());
-            let community = [
-                self.community[0].unwrap(),
-                self.community[1].unwrap(),
-                self.community[2].unwrap(),
-                self.community[3].unwrap(),
-                self.community[4].unwrap(),
-            ];
             let map = players.iter().copied().collect();
-            best_hands(&map, community)?
+            best_hands(&map)
                 .iter()
                 .map(|inner| inner.iter().map(|item| item.0).collect())
                 .collect()
@@ -390,6 +382,8 @@ impl GameState {
                     .player_by_id(*winning_player_id)
                     .expect("Unable to get player that allegedly won (at least part of) the pot");
                 let cards = p
+                    .hand
+                    .expect("player that won (at least part of) the pot has no cards")
                     .pocket
                     .expect("player that won (at least part of) the pot has no cards");
                 let li = LogItem::HandReveal(*winning_player_id, [Some(cards[0]), Some(cards[1])]);
@@ -410,7 +404,7 @@ impl GameState {
         self.change_state(State::NotStarted);
         self.community = [None; COMMUNITY_SIZE];
         self.pot = Default::default();
-        self.deck = Deck::new(&deck_seed);
+        self.deck = Deck::new(deck_seed);
         self.set_current_bet(0, self.big_blind);
         self.last_raiser = None;
     }
@@ -449,13 +443,15 @@ impl GameState {
         self.last_raiser = None;
 
         let num_p = self.players.players_iter(PlayerFilter::MAY_BET).count() as u8;
-        let pockets = self.deck.deal_pockets(num_p)?;
-        let deal_logs = self
+        let pockets = self.deck.deal_pockets(num_p);
+        // TODO don't know how I feel about logging the pocket values
+        /*let deal_logs = self
             .players
             .deal_pockets(pockets)
             .into_iter()
             .map(|(k, v)| LogItem::PocketDealt(k, v));
         self.logs.extend(deal_logs);
+        */
         self.logs.push(LogItem::NextToAct(self.nta().unwrap().0));
         Ok(())
     }
@@ -661,12 +657,12 @@ mod tests {
                     gs.players.start_hand().unwrap();
                 }
                 let mut deck = Deck::default();
-                let pockets = deck.deal_pockets(n_players as u8).unwrap();
+                let pockets = deck.deal_pockets(n_players as u8);
                 // this is the actual test. Does this panic?
                 gs.players.deal_pockets(pockets);
                 // okay so it didn't. let's make sure every player has a pocket.
                 for (_, player) in gs.players.players_iter(PlayerFilter::ALL) {
-                    assert!(player.pocket.is_some());
+                    assert!(player.hand.is_some());
                 }
             }
         }

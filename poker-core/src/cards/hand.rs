@@ -1,45 +1,11 @@
-use crate::deck::{Card, Rank};
+use super::card::*;
 use crate::PlayerId;
-use itertools::{zip, Itertools};
-use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::error::Error;
-use std::fmt;
+use enum_map::EnumMap;
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum WinState {
-    Win,
-    Tie,
-    Lose,
-}
-
-impl From<Ordering> for WinState {
-    fn from(o: Ordering) -> Self {
-        match o {
-            Ordering::Less => WinState::Lose,
-            Ordering::Greater => WinState::Win,
-            Ordering::Equal => WinState::Tie,
-        }
-    }
-}
-
-impl From<WinState> for Ordering {
-    fn from(ws: WinState) -> Self {
-        match ws {
-            WinState::Lose => Ordering::Less,
-            WinState::Win => Ordering::Greater,
-            WinState::Tie => Ordering::Equal,
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct Hand {
-    cards: [Card; 5],
-    class: HandClass,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum HandClass {
     HighCard,
     Pair,
@@ -50,1070 +16,1072 @@ pub enum HandClass {
     FullHouse,
     FourOfAKind,
     StraightFlush,
+    RoyalFlush,
 }
 
-impl HandClass {
-    fn beats(c1: &[Card], c2: &[Card]) -> WinState {
-        let hc1 = HandClass::which(c1);
-        let hc2 = HandClass::which(c2);
-        match hc1.cmp(&hc2) {
-            Ordering::Equal => {}
-            o => return o.into(),
-        };
-        assert_eq!(hc1, hc2);
-        let mut left: [Rank; 5] = [
-            c1[0].rank(),
-            c1[1].rank(),
-            c1[2].rank(),
-            c1[3].rank(),
-            c1[4].rank(),
-        ];
-        let mut right: [Rank; 5] = [
-            c2[0].rank(),
-            c2[1].rank(),
-            c2[2].rank(),
-            c2[3].rank(),
-            c2[4].rank(),
-        ];
-        left.sort_unstable();
-        left.reverse();
-        right.sort_unstable();
-        right.reverse();
-        match hc1 {
-            HandClass::StraightFlush => HandClass::beats_straight_flush(left, right),
-            HandClass::FourOfAKind => HandClass::beats_quads(left, right),
-            HandClass::FullHouse => HandClass::beats_full_house(left, right),
-            HandClass::Flush => HandClass::beats_flush(left, right),
-            HandClass::Straight => HandClass::beats_straight(left, right),
-            HandClass::ThreeOfAKind => HandClass::beats_set(left, right),
-            HandClass::TwoPair => HandClass::beats_two_pair(left, right),
-            HandClass::Pair => HandClass::beats_pair(left, right),
-            HandClass::HighCard => HandClass::beats_high_card(left, right),
-        }
-        .into()
-    }
+const ALL_HAND_CLASSES: [HandClass; 10] = [
+    HandClass::RoyalFlush,
+    HandClass::StraightFlush,
+    HandClass::FourOfAKind,
+    HandClass::FullHouse,
+    HandClass::Flush,
+    HandClass::Straight,
+    HandClass::ThreeOfAKind,
+    HandClass::TwoPair,
+    HandClass::Pair,
+    HandClass::HighCard,
+];
 
-    fn beats_straight_flush(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
-        // flush part is equal; only need to compare the straight part
-        Self::beats_straight(left, right)
-    }
+const LOW_RANK_STRAIGHT: [Rank; 5] = [Rank::Ace, Rank::Two, Rank::Three, Rank::Four, Rank::Five];
 
-    fn beats_quads(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
-        // the quads will either be 0-3 or 1-4, and kicker the remainder
-        let (quad1, kick1) = if left[0] == left[3] {
-            (left[0], left[4])
-        } else {
-            (left[4], left[0])
-        };
-        let (quad2, kick2) = if right[0] == right[3] {
-            (right[0], right[4])
-        } else {
-            (right[4], right[0])
-        };
-        match quad1.cmp(&quad2) {
-            Ordering::Equal => kick1.cmp(&kick2),
-            o => o,
-        }
-    }
-
-    fn beats_full_house(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
-        // The logic is the same as for beats_set(), except both "kickers" in a hand are the same
-        Self::beats_set(left, right)
-    }
-
-    fn beats_flush(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
-        Self::beats_high_card(left, right)
-    }
-
-    fn beats_straight(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
-        // have to look special at 5432A straight, as it will be A5432 since cards are sorted by
-        // rank.
-        let l = match (left[0], left[1]) {
-            (Rank::RA, Rank::R5) => Rank::R5,
-            (first, _) => first,
-        };
-        let r = match (right[0], right[1]) {
-            (Rank::RA, Rank::R5) => Rank::R5,
-            (first, _) => first,
-        };
-        l.cmp(&r)
-    }
-
-    fn beats_set(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
-        // The set is either 0-2, 1-3, or 2-4. The kickers ar ethe remainder
-        let (trio1, kick1) = if left[0] == left[2] {
-            (left[0], (left[3], left[4]))
-        } else if left[1] == left[3] {
-            (left[1], (left[0], left[4]))
-        } else {
-            (left[2], (left[0], left[1]))
-        };
-        let (trio2, kick2) = if right[0] == right[2] {
-            (right[0], (right[3], right[4]))
-        } else if right[1] == right[3] {
-            (right[1], (right[0], right[4]))
-        } else {
-            (right[2], (right[0], right[1]))
-        };
-        // Yes, with a single deck the set should never be the same for both hands. But for "future
-        // proofing", I'm goign to check anyway.
-        match trio1.cmp(&trio2) {
-            Ordering::Equal => match kick1.0.cmp(&kick2.0) {
-                Ordering::Equal => kick1.1.cmp(&kick2.1),
-                o => o,
-            },
-            o => o,
-        }
-    }
-
-    fn beats_two_pair(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
-        // find the two pairs by finding the odd ball card instead.
-        // If it's 0th, then 1-2 and 3-4 are the pairs.
-        // if it's 4th, then 0-1 and 2-3 are the pairs.
-        // If it's 2nd, then 0-1 and 3-4 are the pairs.
-        let (pairs1, kick1) = if left[0] != left[1] {
-            ((left[1], left[3]), left[0])
-        } else if left[4] != left[3] {
-            ((left[0], left[2]), left[4])
-        } else {
-            ((left[0], left[3]), left[2])
-        };
-        let (pairs2, kick2) = if right[0] != right[1] {
-            ((right[1], right[3]), right[0])
-        } else if right[4] != right[3] {
-            ((right[0], right[2]), right[4])
-        } else {
-            ((right[0], right[3]), right[2])
-        };
-        match pairs1.0.cmp(&pairs2.0) {
-            Ordering::Equal => match pairs1.1.cmp(&pairs2.1) {
-                Ordering::Equal => kick1.cmp(&kick2),
-                o => o,
-            },
-            o => o,
-        }
-    }
-
-    fn beats_pair(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
-        let (pair1, kick1) = if left[0] == left[1] {
-            (left[0], (left[2], left[3], left[4]))
-        } else if left[1] == left[2] {
-            (left[1], (left[0], left[3], left[4]))
-        } else if left[2] == left[3] {
-            (left[2], (left[0], left[1], left[4]))
-        } else {
-            (left[3], (left[0], left[1], left[2]))
-        };
-        let (pair2, kick2) = if right[0] == right[1] {
-            (right[0], (right[2], right[3], right[4]))
-        } else if right[1] == right[2] {
-            (right[1], (right[0], right[3], right[4]))
-        } else if right[2] == right[3] {
-            (right[2], (right[0], right[1], right[4]))
-        } else {
-            (right[3], (right[0], right[1], right[2]))
-        };
-        match pair1.cmp(&pair2) {
-            Ordering::Equal => match kick1.0.cmp(&kick2.0) {
-                Ordering::Equal => match kick1.1.cmp(&kick2.1) {
-                    Ordering::Equal => kick1.2.cmp(&kick2.2),
-                    o => o,
-                },
-                o => o,
-            },
-            o => o,
-        }
-    }
-
-    fn beats_high_card(left: [Rank; 5], right: [Rank; 5]) -> Ordering {
-        for (l, r) in zip(left.iter(), right.iter()) {
-            match l.cmp(r) {
-                Ordering::Equal => {}
-                o => return o,
-            };
-        }
-        Ordering::Equal
-    }
-
-    fn which(c: &[Card]) -> HandClass {
-        // sort a copy, in case the order of the main copy of cards is important (and also because
-        // we aren't mutably borrowing the hand)
-        //
-        // It's important that the order of these checks is maintained from best-hand to
-        // worst-hand. The check for hand type $foo only verifies the hand can be considered $foo,
-        // not that $foo is the best thing it can be considered. I can only think of one example,
-        // unfortunately. It is: is_straight() doesn't check if the hand is also a flush, thus
-        // is_straight_flush() must be called first.
-        assert_eq!(c.len(), 5);
-        let mut cards: [Card; 5] = [c[0], c[1], c[2], c[3], c[4]];
-        cards.sort_unstable();
-        cards.reverse();
-        if Self::is_straight_flush(&cards) {
-            Self::StraightFlush
-        } else if Self::is_quads(&cards) {
-            Self::FourOfAKind
-        } else if Self::is_full_house(&cards) {
-            Self::FullHouse
-        } else if Self::is_flush(&cards) {
-            Self::Flush
-        } else if Self::is_straight(&cards) {
-            Self::Straight
-        } else if Self::is_set(&cards) {
-            Self::ThreeOfAKind
-        } else if Self::is_two_pair(&cards) {
-            Self::TwoPair
-        } else if Self::is_pair(&cards) {
-            Self::Pair
-        } else {
-            Self::HighCard
-        }
-    }
-
-    fn is_straight_flush(cards: &[Card; 5]) -> bool {
-        // This function requires the given cards are sorted
-        Self::is_straight(cards) && Self::is_flush(cards)
-    }
-
-    fn is_quads(cards: &[Card; 5]) -> bool {
-        // This function requires the given cards are sorted
-        //
-        // Either the first 4 cards must be the same rank, or the last 4. There's just one odd
-        // card, and it must either be first or last in a sorted array of cards.
-        cards[0].rank() == cards[3].rank() || cards[1].rank() == cards[4].rank()
-    }
-
-    fn is_full_house(cards: &[Card; 5]) -> bool {
-        // There must only be 2 unique ranks. But that's not the only requirement: AAAA2 has two
-        // ranks but isn't a full house.
-        if cards.iter().map(|c| c.rank()).unique().count() != 2 {
-            return false;
-        }
-        // There's definitely only two ranks, so it's either quads or a full house. It can't be
-        // both, so just return the inverse of whether or not it's quads :)
-        !Self::is_quads(cards)
-    }
-
-    fn is_straight(cards: &[Card; 5]) -> bool {
-        // This function requires the given cards are sorted
-        //
-        // Convert ranks to ints that we can do basic math on. Rank 2 -> 0, Rank 3 -> 1, etc.
-        let ints: Vec<i8> = cards
-            .iter()
-            .map(|c| match c.rank() {
-                Rank::R2 => 0,
-                Rank::R3 => 1,
-                Rank::R4 => 2,
-                Rank::R5 => 3,
-                Rank::R6 => 4,
-                Rank::R7 => 5,
-                Rank::R8 => 6,
-                Rank::R9 => 7,
-                Rank::RT => 8,
-                Rank::RJ => 9,
-                Rank::RQ => 10,
-                Rank::RK => 11,
-                Rank::RA => 12,
-            })
-            .collect();
-        assert_eq!(ints.len(), 5);
-        // Check specifically for A2345 straight, as it will appear as A5432 (aka 12, 3, 2, 1, 0)
-        // and not look like a straight.
-        if ints == [12, 3, 2, 1, 0] {
-            return true;
-        }
-        // Now make sure each successive int is one less than the previous one. This is why we
-        // needed the cards sorted.
-        for n in 0..4 {
-            if ints[n] - 1 != ints[n + 1] {
-                return false;
-            }
-        }
-        true
-    }
-
-    fn is_flush(cards: &[Card; 5]) -> bool {
-        cards.iter().map(|c| c.suit()).unique().count() == 1
-    }
-
-    fn is_set(cards: &[Card; 5]) -> bool {
-        // This function requires the given cards are sorted
-        //
-        // There must be three unique ranks, but that can either be two pair or a set and two
-        // different kickers. Bail early if not 3.
-        if cards.iter().map(|c| c.rank()).unique().count() != 3 {
-            return false;
-        }
-        // Now we just need to confirm that one of the sets of 3 cards in the hand is all the same.
-        // Either 1st/3rd (AAA23), 2nd/4th(ATTT2), or 3rd/5th (AK222) must be identical, because
-        // the hand is sorted.
-        cards[0].rank() == cards[2].rank()
-            || cards[1].rank() == cards[3].rank()
-            || cards[2].rank() == cards[4].rank()
-    }
-
-    fn is_two_pair(cards: &[Card; 5]) -> bool {
-        // This function requires the given cards are sorted
-        //
-        // There must be three unique ranks, but that can either be two pair or a set and two
-        // different kickers. Bail early if not 3.
-        if cards.iter().map(|c| c.rank()).unique().count() != 3 {
-            return false;
-        }
-        // There's definitely exactly 3 ranks, and it can't be both two pair and a set, so return
-        // the inverse of whether it's a set :)
-        !Self::is_set(cards)
-    }
-
-    fn is_pair(cards: &[Card; 5]) -> bool {
-        // There's 4 ranks. 5 would be just High Card, and less than 4 would mean the hand is
-        // something better.
-        cards.iter().map(|c| c.rank()).unique().count() == 4
-    }
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub struct FinalHandResult {
+    pub cards: [Card; 5],
+    pub class: HandClass,
 }
 
-#[derive(PartialEq, Eq, Debug)]
-pub enum HandError {
-    NotFiveCards(usize),
-    NotTwoCards(usize),
+pub fn best_hands(
+    hands: &std::collections::HashMap<PlayerId, Hand>,
+) -> Vec<Vec<(PlayerId, FinalHandResult)>> {
+    let final_hands = hands
+        .iter()
+        .map(|(i, x)| (*i, x.finalize_hand()))
+        .sorted_unstable()
+        .rev();
+    let mut outer: Vec<Vec<(PlayerId, FinalHandResult)>> = Vec::new();
+    // Final hands are already sorted best to worst
+    // First pass builds Vec<(crate::PlayerId, Finalizedhand)>
+    // However, ties have to be merged.
+    let mut first_pass: Vec<(PlayerId, FinalHandResult)> = Vec::new();
+    for ih in final_hands {
+        first_pass.push(ih);
+    }
+    let mut old: Option<(PlayerId, FinalHandResult)> = None;
+    let mut first = true;
+    let mut working: Vec<(PlayerId, FinalHandResult)> = Vec::new();
+    // We iterate once over, comparing the result with the previous
+    for p in first_pass.into_iter() {
+        // Winner starts us off.
+        if first {
+            old = Some(p);
+            working.push(p);
+            first = false;
+        } else {
+            if p.1 == old.unwrap().1 {
+                // Matches means we have a tie, append
+                working.push(p);
+            } else {
+                // Current hand is worse than old, commit the working vec
+                // and reset old
+                old = Some(p);
+                outer.push(working);
+                working = vec![p];
+            }
+        }
+    }
+    // Push the worst hand
+    outer.push(working);
+    // If they match, we append to working
+    outer
 }
 
-impl Error for HandError {}
-
-impl fmt::Display for HandError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::NotFiveCards(n) => write!(f, "Five cards are requied, but {} were given", n),
-            Self::NotTwoCards(n) => write!(f, "Two cards are requied, but {} were given", n),
-        }
-    }
-}
-
-impl fmt::Display for Hand {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}{}{}{}{}",
-            self.cards[0], self.cards[1], self.cards[2], self.cards[3], self.cards[4],
-        )
-    }
-}
-
-impl Hand {
-    pub fn new(cards: &[Card]) -> Result<Self, HandError> {
-        match cards.len() {
-            5 => Ok(Self::new_unchecked(cards)),
-            _ => Err(HandError::NotFiveCards(cards.len())),
-        }
-    }
-
-    pub fn new_unchecked(c: &[Card]) -> Self {
-        Self {
-            cards: [c[0], c[1], c[2], c[3], c[4]],
-            class: HandClass::which(c),
-        }
-    }
-
-    pub fn cards(&self) -> [Card; 5] {
-        self.cards
-    }
-
-    pub fn beats(&self, other: &Self) -> WinState {
-        match self.class.cmp(&other.class) {
-            Ordering::Equal => HandClass::beats(&self.cards, &other.cards),
-            o => o.into(),
-        }
-    }
-
-    /// Return the first Rank that we see more than once in the given slice of cards.
-    ///
-    /// Used as a helper for describe function.
-    fn first_paired(cards: &[Card]) -> Rank {
-        let mut seen = Vec::with_capacity(4);
-        for c in cards {
-            if seen.contains(&c.rank()) {
-                return c.rank();
-            }
-            seen.push(c.rank());
-        }
-        unreachable!();
-    }
-
-    /// Return the first Rank (other than the given Rank) that we see more than once in the given
-    /// slice of cards.
-    ///
-    /// Used as a helper for describe function.
-    fn first_paired_not(cards: &[Card], other: Rank) -> Rank {
-        let mut seen = Vec::with_capacity(3);
-        for c in cards {
-            if c.rank() == other {
-                continue;
-            } else if seen.contains(&c.rank()) {
-                return c.rank();
-            }
-            seen.push(c.rank());
-        }
-        unreachable!();
-    }
-
-    /// Return the first Rank that we see more than twice in the given slice of cards.
-    ///
-    /// Used as a helper for describe function.
-    fn first_set(cards: &[Card]) -> Rank {
-        let mut seen = Vec::with_capacity(3);
-        let mut seen_twice = None;
-        for c in cards {
-            if !seen.contains(&c.rank()) {
-                seen.push(c.rank());
-            } else if seen_twice.is_none() {
-                seen_twice = Some(c.rank());
-            } else if seen_twice.unwrap() == c.rank() {
-                return c.rank();
-            }
-        }
-        unreachable!();
-    }
-
-    /// Return the high card of the straight contained in the given five card slice.
-    ///
-    /// Used as a helper for describe function
-    fn straight_high(c: &[Card]) -> Rank {
-        let mut cards: [Card; 5] = [c[0], c[1], c[2], c[3], c[4]];
-        cards.sort_unstable();
-        cards.reverse();
-        match cards[0].rank() {
-            Rank::RA => match cards[1].rank() {
-                Rank::RK => Rank::RA,
-                Rank::R5 => Rank::R5,
-                _ => unreachable!(),
-            },
-            _ => cards[0].rank(),
-        }
-    }
-
-    /// Return the high card in the given five card slice.
-    ///
-    /// Used as a helper for describe function
-    fn high_card(c: &[Card]) -> Rank {
-        let mut cards: [Card; 5] = [c[0], c[1], c[2], c[3], c[4]];
-        cards.sort_unstable();
-        cards.reverse();
-        cards[0].rank()
-    }
-
-    pub fn describe(&self) -> String {
-        match self.class {
-            HandClass::HighCard => format!("{} high", Self::high_card(&self.cards)),
-            HandClass::Pair => format!("Pair of {}s", Self::first_paired(&self.cards)),
-            HandClass::TwoPair => {
-                let first = Self::first_paired(&self.cards);
-                let second = Self::first_paired_not(&self.cards, first);
-                let mut buf = [first, second];
-                buf.sort_unstable();
-                buf.reverse();
-                format!("Two pair {}s and {}s", buf[0], buf[1])
-            }
-            HandClass::ThreeOfAKind => {
-                format!("Set of {}s", Self::first_set(&self.cards))
-            }
-            HandClass::Straight => format!("{} high straight", Self::straight_high(&self.cards)),
-            HandClass::Flush => format!("{} high flush", Self::high_card(&self.cards)),
-            HandClass::FullHouse => {
-                let first = Self::first_set(&self.cards);
-                let second = Self::first_paired_not(&self.cards, first);
-                format!("Boat {}s full of {}s", first, second)
-            }
-            HandClass::FourOfAKind => {
-                format!("Quad {}s", Self::first_paired(&self.cards))
-            }
-            HandClass::StraightFlush => {
-                format!("{} high straight flush", Self::straight_high(&self.cards))
-            }
-        }
-    }
-}
-
-impl Ord for Hand {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.beats(other).into()
-    }
-}
-
-impl PartialOrd for Hand {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+impl PartialOrd for FinalHandResult {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-/// Checks all 5-card combinations of the given cards, and returns a Vector of the best
-/// 5-card hands. If more than one Hand is returned, they are all equal (`WinState::Tie`).
-/// If <5 cards are in the given slice, returns an empty vec.
-///
-/// This function checks every single possible combination of five cards. Be mindful of this before
-/// given it a large number of cards.
-///
-///    - 6 choose 5: 6
-///    - 7 choose 5: 21
-///    - 8 choose 5: 56
-///    - 10 choose 5: 252
-///    - 52 choose 5: 2.6 million
-///
-/// The original use case was best 5 card hand given 7 cards.
-pub fn best_of_cards(cards: &[Card]) -> Vec<Hand> {
-    if cards.len() < 5 {
-        return vec![];
-    }
-    let mut hands: Vec<_> = cards
-        .iter()
-        .combinations(5)
-        .map(|combo| {
-            // .combinations() gives us a Vec<&Card>, but we want Vec<Card>
-            combo.iter().map(|&c| *c).collect::<Vec<Card>>()
-        })
-        .map(|combo| Hand::new_unchecked(&combo))
-        .collect();
-    // do r.beats(l) instead of l.beats(r) because we want the first items in the list to be better
-    // than the ones that follow. Otherwise we'd have to sort and then reverse afterward.
-    hands.sort_unstable_by(|l, r| r.beats(l).into());
-    // The best hand is at the front. Return a Vec containing items from the front of the list as
-    // long as they tie the best hand.
-    let best = hands[0];
-    hands
-        .into_iter()
-        .take_while(|h| h.beats(&best) == WinState::Tie)
-        .collect()
-}
-
-/// Order all the given hands and return them, best-to-worst.
-///
-/// Arguments:
-///
-///   - pockets: Mapping between Account ID and their pocket 2 cards
-///   - community: The 5 community cards
-///
-/// Returns (if no error):
-///
-///   A Vec where each item is a Vec of (Account ID, Hand) tuples. The outer vec is the ordering
-///   (best-to-worst), and inner vecs are so ties can be represented.
-///
-/// Errors:
-///
-///   - `HandError::NotTwoCards` if any pocket isn't two cards long
-///   - `HandError::NotFiveCards` if the community isn't five cards long
-pub fn best_hands(
-    pockets: &HashMap<PlayerId, [Card; 2]>,
-    community: [Card; 5],
-) -> Result<Vec<Vec<(PlayerId, Hand)>>, HandError> {
-    if pockets.is_empty() {
-        // This check is important, as later we pull out the best hand before iterating over the
-        // rest.
-        return Ok(vec![]);
-    }
-    if community.len() != 5 {
-        return Err(HandError::NotFiveCards(community.len()));
-    }
-    // Get the best possible 5-card hand for each pocket
-    let mut hands = vec![];
-    for (account_id, pocket) in pockets {
-        if pocket.len() != 2 {
-            return Err(HandError::NotTwoCards(pocket.len()));
-        }
-        let mut cards = Vec::with_capacity(7);
-        cards.extend_from_slice(pocket);
-        cards.extend_from_slice(&community);
-        assert_eq!(cards.len(), 7);
-        let hand = best_of_cards(&cards)[0];
-        hands.push((account_id, hand));
-    }
-    // Do left beats right, as in this function we want the best to be at the end of the list,
-    // which is the opposite of what we often do in other functions.
-    hands.sort_by(|l, r| l.1.beats(&r.1).into());
-    // We have all hands sorted now. It is time to coalesce ties together by wrapping all hands
-    // with a vec of length one and tie-ing hands together into a vec of length >1
-    let mut ret: Vec<Vec<(PlayerId, Hand)>> = vec![];
-    let mut inner: Vec<(PlayerId, Hand)> = vec![];
-    let mut current_best = hands[hands.len() - 1].1;
-    while let Some((account_id, hand)) = hands.pop() {
-        match hand.cmp(&current_best) {
-            Ordering::Equal => {
-                inner.push((*account_id, hand));
-            }
-            Ordering::Less => {
-                ret.push(inner.clone());
-                inner.truncate(0);
-                inner.push((*account_id, hand));
-                current_best = hand;
-            }
-            Ordering::Greater => {
-                unreachable!();
-            }
-        };
-    }
-    if !inner.is_empty() {
-        ret.push(inner);
-    }
-    Ok(ret)
-}
-
-#[cfg(test)]
-mod test_best_of_cards {
-    use super::*;
-    use crate::deck::*;
-
-    fn one_best(s: &'static str, hc: HandClass, high_card: Card) {
-        let hands = best_of_cards(&cards_from_str(s));
-        for hand in &hands {
-            println!("{}", hand);
-        }
-        assert_eq!(hands.len(), 1);
-        let hand = hands[0];
-        assert_eq!(hand.class, hc);
-        let card = hand.cards.iter().max().unwrap();
-        assert_eq!(card.rank(), high_card.rank());
-        assert_eq!(card.suit(), high_card.suit());
-    }
-
-    fn multi_best(s: &'static str, hc: HandClass, n: usize) {
-        let hands = best_of_cards(&cards_from_str(s));
-        for hand in &hands {
-            println!("{}", hand);
-        }
-        assert_eq!(hands.len(), n);
-        assert_eq!(hands[0].class, hc);
-    }
-
-    #[test]
-    fn multiple_straights() {
-        one_best("Ac2d3h4s5c6dTh", HandClass::Straight, ['6', DIAMOND].into());
-    }
-
-    #[test]
-    fn multiple_straights_tie() {
-        multi_best("Kc2d3h4s5c6d6h", HandClass::Straight, 2);
-        multi_best("2d3h4s5c6d6h6s", HandClass::Straight, 3);
-    }
-
-    #[test]
-    fn straight_vs_flush() {
-        one_best("Th9s8h7h6h5h2c", HandClass::Flush, ['T', HEART].into());
-    }
-}
-
-#[cfg(test)]
-mod test_best_hands {
-    use super::*;
-
-    #[test]
-    fn basic() {
-        let mut map: HashMap<i32, [Card; 2]> = HashMap::new();
-        map.insert(1, [['A', 'c'].into(), ['A', 'd'].into()]);
-        map.insert(2, [['A', 'h'].into(), ['A', 's'].into()]);
-        map.insert(3, [['K', 'h'].into(), ['K', 's'].into()]);
-        let comm = [
-            ['2', 'c'].into(),
-            ['3', 'd'].into(),
-            ['5', 'h'].into(),
-            ['9', 's'].into(),
-            ['T', 'c'].into(),
-        ];
-        let ret = best_hands(&map, comm).unwrap();
-        for (idx, inner) in ret.iter().enumerate() {
-            println!("{}:", idx);
-            for h in inner {
-                println!("    {} {}", h.0, h.1);
-            }
-        }
-        assert_eq!(ret.len(), 2);
-        assert_eq!(ret[0].len(), 2);
-        assert_eq!(ret[1].len(), 1);
-        assert_eq!(ret[0][0].1.class, HandClass::Pair);
-        assert_eq!(ret[0][0].1.cards[0].rank(), Rank::RA);
-        assert_eq!(ret[1][0].1.class, HandClass::Pair);
-        assert_eq!(ret[1][0].1.cards[0].rank(), Rank::RK);
-    }
-}
-
-#[cfg(test)]
-mod test_hand {
-    use super::*;
-    use crate::deck::cards_from_str;
-    use crate::deck::Deck;
-    use std::iter;
-
-    #[test]
-    fn wrong_sizes() {
-        let mut deck = Deck::default();
-        for n in [0, 1, 2, 3, 4, 6, 7] {
-            let cards: Vec<Card> = iter::repeat_with(|| deck.draw().unwrap()).take(n).collect();
-            let hand = Hand::new(&cards);
-            assert!(hand.is_err());
-        }
-    }
-
-    #[test]
-    fn correct_size() {
-        let mut deck = Deck::default();
-        let cards: Vec<Card> = iter::repeat_with(|| deck.draw().unwrap()).take(5).collect();
-        let hand = Hand::new(&cards);
-        assert!(hand.is_ok());
-    }
-
-    /// Verify that the first hand is greater than (wins compared to) the second hand. Also verify
-    /// the other equality properties that would also be true.
-    fn beats_helper1(s1: &'static str, s2: &'static str) {
-        let h1 = Hand::new_unchecked(&cards_from_str(s1));
-        let h2 = Hand::new_unchecked(&cards_from_str(s2));
-        assert!(h1 > h2);
-        assert!(h2 < h1);
-        assert_eq!(h1, h1.clone());
-        assert_eq!(h2, h2.clone());
-        // same as above, but without Ord/PartialOrd wrapper
-        assert_eq!(h1.beats(&h2), WinState::Win);
-        assert_eq!(h2.beats(&h1), WinState::Lose);
-        assert_eq!(h1.beats(&h1.clone()), WinState::Tie);
-        assert_eq!(h2.beats(&h2.clone()), WinState::Tie);
-    }
-
-    #[test]
-    fn beats() {
-        for (s1, s2) in [("AsKsQsJsTs", "KdQdJdTd9d"), ("AsKsQsJsTs", "Td8s6d4d2d")] {
-            beats_helper1(s1, s2);
-        }
-    }
-}
-
-#[cfg(test)]
-mod test_hand_describe {
-    use super::*;
-    use crate::deck::cards_from_str;
-
-    fn is(hand: &'static str, desc: &'static str) {
-        assert_eq!(Hand::new_unchecked(&cards_from_str(hand)).describe(), desc);
-    }
-
-    #[test]
-    fn high_card() {
-        is("Ah6h5d4c3s", "A high");
-        is("6hAh5d4c3s", "A high");
-        is("7c5d4h3s2s", "7 high");
-    }
-
-    #[test]
-    fn pair() {
-        is("AcKdQh6s6c", "Pair of 6s");
-        is("Ac6s6cKdQh", "Pair of 6s");
-        is("AcAs6cKdQh", "Pair of As");
-    }
-
-    #[test]
-    fn two_pair() {
-        is("AcAdKcKd4d", "Two pair As and Ks");
-        is("4dKcKdAcAd", "Two pair As and Ks");
-        is("6c2c4s6d2d", "Two pair 6s and 2s");
-    }
-
-    #[test]
-    fn set() {
-        is("AcAdAhKcQc", "Set of As");
-        is("TcKdThTsQc", "Set of Ts");
-    }
-
-    #[test]
-    fn straight() {
-        is("AdKsQsJsTs", "A high straight");
-        is("KdAsTsJsQs", "A high straight");
-        is("Ad2s4s3s5s", "5 high straight");
-        is("8d4s6s5s7s", "8 high straight");
-    }
-
-    #[test]
-    fn flush() {
-        is("Ac8c7c6c5c", "A high flush");
-        is("Tc8c7c6c5c", "T high flush");
-        is("8cTc5c6c6c", "T high flush");
-        is("7c6c5c4c2c", "7 high flush");
-    }
-
-    #[test]
-    fn full_house() {
-        is("AcKcAdKdAs", "Boat As full of Ks");
-        is("2cKc2dKd2s", "Boat 2s full of Ks");
-    }
-
-    #[test]
-    fn quads() {
-        is("AcAdAhAsKc", "Quad As");
-        is("2c2d2h2s3c", "Quad 2s");
-    }
-
-    #[test]
-    fn straight_flush() {
-        is("AsKsQsJsTs", "A high straight flush");
-        is("KsAsTsJsQs", "A high straight flush");
-        is("As2s4s3s5s", "5 high straight flush");
-        is("8s4s6s5s7s", "8 high straight flush");
-    }
-}
-
-#[cfg(test)]
-mod test_hand_class {
-    use super::*;
-    use crate::deck::{Rank, Suit};
-
-    const ALL_RANKS: [Rank; 13] = [
-        Rank::R2,
-        Rank::R3,
-        Rank::R4,
-        Rank::R5,
-        Rank::R6,
-        Rank::R7,
-        Rank::R8,
-        Rank::R9,
-        Rank::RT,
-        Rank::RJ,
-        Rank::RQ,
-        Rank::RK,
-        Rank::RA,
-    ];
-    const ALL_SUITS: [Suit; 4] = [Suit::Club, Suit::Diamond, Suit::Heart, Suit::Spade];
-
-    // All the straight flushes are correctly identified as such.
-    #[test]
-    fn straight_flushes() {
-        for ranks in [
-            [Rank::RA, Rank::RK, Rank::RQ, Rank::RJ, Rank::RT],
-            [Rank::RK, Rank::RQ, Rank::RJ, Rank::RT, Rank::R9],
-            [Rank::RQ, Rank::RJ, Rank::RT, Rank::R9, Rank::R8],
-            [Rank::RJ, Rank::RT, Rank::R9, Rank::R8, Rank::R7],
-            [Rank::RT, Rank::R9, Rank::R8, Rank::R7, Rank::R6],
-            [Rank::R9, Rank::R8, Rank::R7, Rank::R6, Rank::R5],
-            [Rank::R8, Rank::R7, Rank::R6, Rank::R5, Rank::R4],
-            [Rank::R7, Rank::R6, Rank::R5, Rank::R4, Rank::R3],
-            [Rank::R6, Rank::R5, Rank::R4, Rank::R3, Rank::R2],
-            [Rank::R5, Rank::R4, Rank::R3, Rank::R2, Rank::RA],
-        ] {
-            for suit in ALL_SUITS {
-                let cards = [
-                    Card::new(ranks[0], suit),
-                    Card::new(ranks[1], suit),
-                    Card::new(ranks[2], suit),
-                    Card::new(ranks[3], suit),
-                    Card::new(ranks[4], suit),
-                ];
-                assert_eq!(HandClass::which(&cards), HandClass::StraightFlush);
-            }
-        }
-    }
-
-    // Test all quads (but not with all kickers)
-    #[test]
-    fn quads() {
-        for rank in ALL_RANKS {
-            let extra = Card::new(
-                match rank {
-                    Rank::R2 => Rank::R3,
-                    _ => Rank::R2,
-                },
-                Suit::Club,
-            );
-            let cards = [
-                Card::new(rank, Suit::Club),
-                Card::new(rank, Suit::Diamond),
-                Card::new(rank, Suit::Heart),
-                Card::new(rank, Suit::Spade),
-                extra,
-            ];
-            assert_eq!(HandClass::which(&cards), HandClass::FourOfAKind);
-        }
-    }
-
-    // All combinations of 2 ranks in a full house, but not with all combos of suit too
-    #[test]
-    fn boat() {
-        for rank3 in ALL_RANKS {
-            for rank2 in ALL_RANKS {
-                if rank2 == rank3 {
-                    continue;
-                }
-                let cards = [
-                    Card::new(rank3, Suit::Club),
-                    Card::new(rank3, Suit::Diamond),
-                    Card::new(rank3, Suit::Heart),
-                    Card::new(rank2, Suit::Club),
-                    Card::new(rank2, Suit::Diamond),
-                ];
-                assert_eq!(HandClass::which(&cards), HandClass::FullHouse);
-            }
-        }
-    }
-
-    // A couple arbitrarily chosen 5 card hands, but all suits
-    #[test]
-    fn flush() {
-        for ranks in [
-            [Rank::RA, Rank::RK, Rank::RQ, Rank::RJ, Rank::R2],
-            [Rank::RT, Rank::R8, Rank::R6, Rank::R4, Rank::R2],
-            [Rank::R2, Rank::R4, Rank::R5, Rank::R6, Rank::R7],
-        ] {
-            for suit in ALL_SUITS {
-                let cards = [
-                    Card::new(ranks[0], suit),
-                    Card::new(ranks[1], suit),
-                    Card::new(ranks[2], suit),
-                    Card::new(ranks[3], suit),
-                    Card::new(ranks[4], suit),
-                ];
-                assert_eq!(HandClass::which(&cards), HandClass::Flush);
-            }
-        }
-    }
-
-    #[test]
-    fn straight() {
-        for ranks in [
-            [Rank::RA, Rank::RK, Rank::RQ, Rank::RJ, Rank::RT],
-            [Rank::RK, Rank::RQ, Rank::RJ, Rank::RT, Rank::R9],
-            [Rank::RQ, Rank::RJ, Rank::RT, Rank::R9, Rank::R8],
-            [Rank::RJ, Rank::RT, Rank::R9, Rank::R8, Rank::R7],
-            [Rank::RT, Rank::R9, Rank::R8, Rank::R7, Rank::R6],
-            [Rank::R9, Rank::R8, Rank::R7, Rank::R6, Rank::R5],
-            [Rank::R8, Rank::R7, Rank::R6, Rank::R5, Rank::R4],
-            [Rank::R7, Rank::R6, Rank::R5, Rank::R4, Rank::R3],
-            [Rank::R6, Rank::R5, Rank::R4, Rank::R3, Rank::R2],
-            [Rank::R5, Rank::R4, Rank::R3, Rank::R2, Rank::RA],
-        ] {
-            let cards = [
-                Card::new(ranks[0], Suit::Club),
-                Card::new(ranks[1], Suit::Club),
-                Card::new(ranks[2], Suit::Club),
-                Card::new(ranks[3], Suit::Club),
-                Card::new(ranks[4], Suit::Spade),
-            ];
-            assert_eq!(HandClass::which(&cards), HandClass::Straight);
-        }
-    }
-
-    #[test]
-    fn set() {
-        for rank in ALL_RANKS {
-            let r2 = match rank {
-                Rank::R2 => Rank::R3,
-                _ => Rank::R2,
-            };
-            let r3 = match rank {
-                Rank::RA => Rank::RK,
-                _ => Rank::RA,
-            };
-            let cards = [
-                Card::new(rank, Suit::Club),
-                Card::new(rank, Suit::Diamond),
-                Card::new(rank, Suit::Heart),
-                Card::new(r2, Suit::Club),
-                Card::new(r3, Suit::Club),
-            ];
-            assert_eq!(HandClass::which(&cards), HandClass::ThreeOfAKind);
-        }
-    }
-
-    #[test]
-    fn two_pair() {
-        for r1 in ALL_RANKS {
-            for r2 in ALL_RANKS {
-                if r1 == r2 {
-                    continue;
-                }
-                let r3 = if r1 != Rank::RA && r2 != Rank::RA {
-                    Rank::RA
-                } else if r1 != Rank::RK && r2 != Rank::RK {
-                    Rank::RK
+impl Ord for FinalHandResult {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        // Easy case first
+        if self.class > other.class {
+            Ordering::Greater
+        } else if self.class < other.class {
+            Ordering::Less
+        } else if self.eq(other) {
+            Ordering::Equal
+        } else {
+            for i in 0..5 {
+                // Sorted, so left to right rank comarisons should be ordered
+                // TODO write test for low straight
+                if self.cards[i] > other.cards[i] {
+                    return Ordering::Greater;
+                } else if self.cards[i] < other.cards[i] {
+                    return Ordering::Less;
                 } else {
-                    Rank::RQ
-                };
-                let cards = [
-                    Card::new(r1, Suit::Club),
-                    Card::new(r1, Suit::Diamond),
-                    Card::new(r2, Suit::Club),
-                    Card::new(r2, Suit::Diamond),
-                    Card::new(r3, Suit::Spade),
-                ];
-                assert_eq!(HandClass::which(&cards), HandClass::TwoPair);
+                    continue;
+                }
             }
-        }
-    }
-
-    #[test]
-    fn pair() {
-        for rank in ALL_RANKS {
-            let r1 = match rank {
-                Rank::R2 => Rank::R3,
-                _ => Rank::R2,
-            };
-            let r2 = match rank {
-                Rank::R4 => Rank::R5,
-                _ => Rank::R4,
-            };
-            let r3 = match rank {
-                Rank::R6 => Rank::R7,
-                _ => Rank::R6,
-            };
-            let cards = [
-                Card::new(r1, Suit::Club),
-                Card::new(r2, Suit::Club),
-                Card::new(r3, Suit::Club),
-                Card::new(rank, Suit::Club),
-                Card::new(rank, Suit::Diamond),
-            ];
-            assert_eq!(HandClass::which(&cards), HandClass::Pair);
-        }
-    }
-
-    #[test]
-    fn high_card() {
-        for ranks in [
-            [Rank::RA, Rank::RK, Rank::RQ, Rank::RJ, Rank::R2],
-            [Rank::RT, Rank::R8, Rank::R6, Rank::R4, Rank::R2],
-            [Rank::R2, Rank::R4, Rank::R5, Rank::R6, Rank::R7],
-        ] {
-            let cards = [
-                Card::new(ranks[0], Suit::Club),
-                Card::new(ranks[1], Suit::Club),
-                Card::new(ranks[2], Suit::Club),
-                Card::new(ranks[3], Suit::Club),
-                Card::new(ranks[4], Suit::Diamond),
-            ];
-            assert_eq!(HandClass::which(&cards), HandClass::HighCard);
+            unreachable!();
         }
     }
 }
 
+impl Eq for FinalHandResult {}
+
+impl PartialEq for FinalHandResult {
+    fn eq(&self, other: &Self) -> bool {
+        if self.class == other.class {
+            return self.cards.iter().map(|x| x.rank).counts()
+                == other.cards.iter().map(|x| x.rank).counts();
+        }
+        false
+    }
+}
+
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Hand {
+    pub pocket: Option<[Card; 2]>,
+    pub board: [Option<Card>; 5],
+}
+
+/// Given some known cards and the number of unknown cards yet to come,
+/// determine whether or not it is possible to make a straight.
+fn is_straight_possible(h: impl Iterator<Item = Card> + Clone, cards_to_come: u8) -> bool {
+    // It doesn't matter what we have (we could have nothing!) if 5 cards are
+    // yet to come. Those 5 could be in order and make a straight.
+    if cards_to_come >= 4 {
+        return true;
+    }
+    // We only care about ranks here. So let's operate on those.
+    // Further, we only care about unique ranks. So do that.
+    // Resort because in tests cards are not always sorted exactly correctly.
+    // (AKQ...432)
+    let mut ranks: Vec<i8> = h.map(|c| c.rank.into()).unique().sorted().rev().collect();
+    // If there's an Ace, it'll be first. And it can be either high or low in a
+    // straight. So to make the rest of this algo easier, add an Ace to the end,
+    // valued as 1 instead of 14.
+    if ranks.is_empty() {
+        return false;
+    } else if ranks[0] == i8::from(Rank::Ace) {
+        // Yes I really am doing 2-1 = 1 here, because fuck you maybe in the
+        // future Rank::Two isn't 2.
+        //
+        // Defensive programming, bitches. Learn it. Do it.
+        let two: i8 = Rank::Two.into();
+        ranks.push(two - 1);
+    }
+    // We will check a first card (the higher) and a second card (WILL be
+    // lower). The index of the second is this many more than the index of the
+    // first.
+    // The logic for this (and the key insight for the rest of this function):
+    //
+    // Assume the rank list only contains unique ranks and they are sorted. In
+    // order for a straight to be possible, you need to be able to find a pair
+    // of cards that is close enough together s.t. other (known) cards in the
+    // hand and the (unknown) cards yet to come can fill in between those two
+    // chosen cards and constitute a straight. Call the chosen cards 'A' and
+    // 'B'. When the list is ordered and contains unique elements, we can
+    // manipulate the number of elements between A and B s.t. the number of
+    // known cards is implied and the gaps the unknown cards to come (CTC)
+    // must fill is trivially calculateable. The difference between a valid A
+    // and B that can make a straight given these assumptions is <= 4.
+    //
+    // Given ranks K986 and 2 CTC, we need to find an A and B s.t. A, B, and
+    // the 1 card between them (3 known cards) plus the 2 CTC (2 unkown cards)
+    // could all together constitute a straight. K (13) minus 8 is 5, too many.
+    // Move on. 9-6 <= 4, which works. The 8 between them we known, and the
+    // remaining unknown cards can either be T7 or 75 (T9876 or 98765).
+    //
+    // Given ranks A95 and 3 CTC, we would do A (14) minus 9, get 5, too many,
+    // move on. 9-5<=4, which works for 98765
+    //
+    // Given ranks 987 and 3 CTC, we would do 9-8 <= 4, which works for many
+    // straights involving 98. (Not to mention the straights we'd get with 87).
+    //
+    // Given ranks T987 and 1 CTC, we do 10-7 <= 4. (JT987 and T9876) yes
+    // Ranks T986 and 1 CTC: 10-6 <= 4 (T9876) yes
+    // Ranks T876 and 1 CTC: 10-6 <= 4 (T9876) yes
+    // Ranks T765 and 1 CTC: 10-5 is 5 so no straight possible. The 765 are
+    // connected, but with 1 CTC we can't possibly make a straight.
+    let gap_size = match cards_to_come {
+        0 => 4,   // 3 known cards between
+        1 => 3,   // 2 known cards between
+        2 => 2,   // 1 known cards between
+        3.. => 1, // 0 known cards between
+    };
+    // Iterate down the list once, calculating the diff between A and B. As
+    // described at length above, it must be 4 or less if a straight is
+    // possible. This is true no matter how many CTC between we manipulated the
+    // number of cards between A and B in this ordered list of unique ranks
+    // based on the number of CTC.
+    let mut first = 0;
+    let mut last = first + gap_size;
+    while last < ranks.len() {
+        let diff = ranks[first] - ranks[last];
+        if diff <= 4 {
+            return true;
+        }
+        first += 1;
+        last += 1;
+    }
+    false
+}
+
+// Helper function to take an iterator of cards and determine if there is a straight
+// The cards MUST be sorted power to the left, Ace at [0]
+fn cards_have_straight(h: impl Iterator<Item = Card> + Clone) -> Option<[Option<Card>; 5]> {
+    if h.clone().count() >= 5 {
+        let mut in_a_row = 0usize;
+        let mut prev: Rank = Rank::Two;
+        let mut cards: [Option<Card>; 5] = [None; 5];
+        for c in h.clone() {
+            // Left to right is done with full straight
+            if in_a_row == 5 {
+                return Some(cards);
+            }
+            // Cards are sorted high to low be default
+            if in_a_row == 0 || c.rank.value() == prev.value() - 1 {
+                cards[in_a_row] = Some(c);
+                prev = c.rank;
+                in_a_row += 1;
+            } else if c.rank == prev {
+                continue;
+            } else {
+                prev = Rank::Two;
+                in_a_row = 0;
+                // We don't need to re-null cards because it only returns if iar gets back to 5
+                // Meaning it has to re-write the entire array anyway.
+            }
+        }
+        if in_a_row == 5 {
+            return Some(cards);
+        }
+        let mut flag = true;
+        let v: Vec<Rank> = h.clone().map(|c| c.rank).collect();
+        for r in LOW_RANK_STRAIGHT {
+            if !v.contains(&r) {
+                flag = false;
+                break;
+            }
+        }
+        if flag {
+            for (i, r) in LOW_RANK_STRAIGHT.iter().enumerate() {
+                cards[i] = h.clone().find(|x| x.rank == *r);
+            }
+            // Force Ace to the right of low rank sort to fix hand comparisons
+            cards.swap(0, 4);
+            return Some(cards);
+        }
+        // Handle low straight
+    }
+    None
+}
+
+impl FromStr for Hand {
+    // TODO
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Hand, Self::Err> {
+        let mut i = s.chars();
+        let mut cards: [Option<Card>; 5] = [None; 5];
+        let mut ci = 0usize;
+        let p0 = Card::from([
+            i.next().ok_or(String::from("Failed to parse hand"))?,
+            i.next().ok_or(String::from("Failed to parse hand"))?,
+        ]);
+        let p1 = Card::from([
+            i.next().ok_or(String::from("Failed to parse hand"))?,
+            i.next().ok_or(String::from("Failed to parse hand"))?,
+        ]);
+        let pocket = Some([p0, p1]);
+        for mut s in &i.chunks(2) {
+            let c = Card::from([
+                s.next().ok_or(String::from("Failed to parse hand"))?,
+                s.next().ok_or(String::from("Failed to parse hand"))?,
+            ]);
+            cards[ci] = Some(c);
+            ci += 1;
+        }
+        // Make sure there are no duplicates
+        let hand = Hand::new_with_pocket(pocket, cards);
+        if hand.get_hand_iter().unique().count() != hand.card_count() {
+            return Err(String::from("Found duplicate cards"));
+        }
+
+        Ok(hand)
+    }
+}
+
+impl FromIterator<Card> for Hand {
+    fn from_iter<T: IntoIterator<Item = Card>>(iter: T) -> Self {
+        let mut cards = iter.into_iter();
+        let p0 = cards.next().expect("from_iter empty");
+        let p1 = cards.next().expect("from_iter with 1 card");
+        let pocket = Some([p0, p1]);
+        let mut board = [None; 5];
+        for (bi, c) in cards.enumerate() {
+            board[bi] = Some(c);
+        }
+        Hand { pocket, board }
+    }
+}
+
+impl Hand {
+    pub fn new_without_pocket(board: [Option<Card>; 5]) -> Self {
+        Hand {
+            pocket: None,
+            board,
+        }
+    }
+
+    pub fn new_with_pocket(pocket: Option<[Card; 2]>, board: [Option<Card>; 5]) -> Self {
+        Hand { pocket, board }
+    }
+
+    pub fn new_from_pocket(pocket: [Card; 2]) -> Self {
+        Hand::new_with_pocket(Some(pocket), [None; 5])
+    }
+
+    /// Clones the current Hand, dropping the Pocket
+    pub fn board_only(&self) -> Hand {
+        Hand::new_without_pocket(self.board)
+    }
+
+    pub fn get_hand(&self) -> [Option<Card>; 7] {
+        let mut a: [Option<Card>; 7] = [None; 7];
+
+        if self.pocket.is_some() {
+            for (i, c) in self.pocket.as_ref().unwrap().iter().enumerate() {
+                a[i] = Some(*c);
+            }
+        }
+        for (i, c) in self.board.iter().enumerate() {
+            a[i + 2] = *c;
+        }
+
+        a
+    }
+
+    /// Helper function for how many cards are currently dealt
+    fn card_count(&self) -> usize {
+        self.get_hand_iter().count()
+    }
+
+    /// Helper function for how many cards remain unseen
+    fn cards_left(&self) -> usize {
+        7 - self.card_count()
+    }
+
+    /// Helper function for how many suits are currently represented
+    fn suit_count(&self) -> usize {
+        self.get_hand_iter().map(|x| x.suit).unique().count()
+    }
+
+    /// helper function for how many ranks are currently represented
+    fn rank_count(&self) -> usize {
+        self.get_hand_iter().map(|x| x.rank).unique().count()
+    }
+
+    /// helper function for getting hash_map of ranks
+    fn ranks(&self) -> EnumMap<Rank, usize> {
+        let mut em: EnumMap<Rank, usize> = EnumMap::from_array([0usize; 13]);
+        for c in self.get_hand_iter() {
+            em[c.rank] += 1;
+        }
+        em
+    }
+    /// helper function for getting hash_map of ranks
+    fn suits(&self) -> EnumMap<Suit, usize> {
+        let mut em: EnumMap<Suit, usize> = EnumMap::from_array([0usize; 4]);
+        for c in self.get_hand_iter() {
+            em[c.suit] += 1;
+        }
+        em
+    }
+
+    // helper function to get all cards of a specific suit
+    fn get_cards_by_suit_iter(&self, s: Suit) -> impl Iterator<Item = Card> + Clone {
+        self.get_hand_iter().filter(move |x| x.suit == s)
+    }
+
+    // helper function to get all cards of a specific suit
+    fn get_cards_by_rank_iter(&self, r: Rank) -> impl Iterator<Item = Card> {
+        self.get_hand_iter().filter(move |x| x.rank == r)
+    }
+    /// helper function that returns an iterator over pairs
+    /// Since the logic is basically the same it also handles trips
+    fn pairs(&self, count: usize) -> impl Iterator<Item = Card> + Clone {
+        let rhm = self.ranks();
+        let mut sp = Vec::new();
+        for (k, v) in rhm.into_iter() {
+            if v == count {
+                sp.push(k);
+            }
+        }
+        // Returns at most two pairs or one trips
+        // 2 == 4 because take() will exit early if only one pair was found
+        let r = if count == 2 || count == 4 { 4 } else { 3 };
+        self.get_hand_iter()
+            .filter(move |&x| sp.contains(&x.rank))
+            .take(r)
+    }
+
+    /// Gets the cards currently available to the hand.
+    /// Cards will be sorted in the order of highest rank at index 0
+    /// Makes finding the highest kicker easier
+    pub fn get_hand_iter(&self) -> impl Iterator<Item = Card> + Clone {
+        self.get_hand()
+            .into_iter()
+            .flatten()
+            .sorted_unstable()
+            .rev()
+    }
+
+    /// Helper function to get a sorted hand iterator minus cards in a parameter
+    fn get_filtered_hand_iter(
+        &self,
+        f: impl Iterator<Item = Card> + Clone,
+    ) -> impl Iterator<Item = Card> + Clone {
+        // Have to evaluate and re-return to break the &mut requirement of the lazy iterator
+        let mut v: Vec<Card> = self
+            .get_hand_iter()
+            .filter(|&x| !f.clone().contains(&x))
+            .collect();
+        v.sort_unstable();
+        v.into_iter()
+    }
+
+    /// Helper function to fill kickers
+    fn fill_kickers(&self, c: [Option<Card>; 5], index: usize) -> [Option<Card>; 5] {
+        let mut c = c;
+        let mut remaining = self.get_filtered_hand_iter(c.into_iter().flatten());
+        for i in index..5 {
+            c[i] = remaining.next();
+        }
+        c
+    }
+
+    /// Helper function to indicate if the best hand is just the board
+    pub fn playing_board(&self) -> bool {
+        self.get_best_possible_hand_result() == self.board_only().get_best_possible_hand_result()
+    }
+
+    fn test_result(&self, hr: HandClass) -> HaveResult {
+        use HandClass::*;
+        let tfn = match hr {
+            HighCard => <Self as HandSolver>::high_card,
+            Pair => <Self as HandSolver>::pair,
+            TwoPair => <Self as HandSolver>::two_pair,
+            ThreeOfAKind => <Self as HandSolver>::three_kind,
+            Straight => <Self as HandSolver>::straight,
+            Flush => <Self as HandSolver>::flush,
+            FullHouse => <Self as HandSolver>::full_house,
+            FourOfAKind => <Self as HandSolver>::four_kind,
+            StraightFlush => <Self as HandSolver>::straight_flush,
+            RoyalFlush => <Self as HandSolver>::royal_flush,
+        };
+        tfn(self)
+    }
+    pub fn get_best_possible_hand_result(&self) -> HandClass {
+        // Hacky fix for hands with only pocket cards
+        if self.card_count() == 2 {
+            return HandClass::RoyalFlush;
+        }
+        for hr in ALL_HAND_CLASSES {
+            if self.test_result(hr).bool() {
+                return hr;
+            }
+        }
+        // Rust doesn't understand that can_have_high_card always returns true
+        unreachable!("Best possible hand failed")
+    }
+
+    pub fn get_current_hand_class(&self) -> HandClass {
+        for r in ALL_HAND_CLASSES.iter() {
+            match self.test_result(*r) {
+                HaveResult::Has(_x) => {
+                    return *r;
+                }
+                _ => {
+                    continue;
+                }
+            }
+        }
+        unreachable!("Current hand class failed")
+    }
+
+    pub fn get_current_best_hand(&self) -> (HandClass, [Option<Card>; 5]) {
+        for r in ALL_HAND_CLASSES.iter() {
+            match self.test_result(*r) {
+                HaveResult::Has(x) => {
+                    return (*r, x);
+                }
+                _ => {
+                    continue;
+                }
+            }
+        }
+        unreachable!("Current best hand failed")
+    }
+
+    pub fn finalize_hand(self) -> FinalHandResult {
+        assert!(self.card_count() >= 5);
+        // Default, probably want to unsafe this later
+        let mut cards: [Card; 5] = [Card::from_str("Ah").unwrap(); 5];
+        let (class, c) = self.get_current_best_hand();
+        for (ci, c) in c.into_iter().enumerate() {
+            cards[ci] = c.unwrap();
+        }
+        FinalHandResult { cards, class }
+    }
+}
+
+pub enum HaveResult {
+    CantHave,
+    CanHave,
+    Has([Option<Card>; 5]),
+}
+
+impl HaveResult {
+    /// Helper function that combines Has and CanHav
+    pub fn bool(&self) -> bool {
+        // Neat clippy lint for this
+        !matches!(self, HaveResult::CantHave)
+    }
+}
+
+impl HandSolver for Hand {
+    fn royal_flush(&self) -> HaveResult {
+        // Has
+        if self.suits().values().max().unwrap() >= &5 {
+            let mut sm = Suit::Heart;
+            for (s, i) in self.suits() {
+                if i >= 5 {
+                    sm = s;
+                }
+            }
+            let flush_iter = self.get_cards_by_suit_iter(sm);
+            let has_sf = cards_have_straight(flush_iter);
+            if let Some(cards) = has_sf {
+                // Cards are sorted with ace to left, so high straight is always cards[0] = ace and cards[4] = ten
+                // This is only true when ranks are deduped, or, as in this case, we are only checking one suit
+                if cards[0].as_ref().unwrap().rank == Rank::Ace
+                    && cards[4].as_ref().unwrap().rank == Rank::Ten
+                {
+                    return HaveResult::Has(cards);
+                }
+            }
+        }
+
+        // Can Have
+        //TODO
+
+        // Can't Have
+        HaveResult::CantHave
+    }
+
+    fn straight_flush(&self) -> HaveResult {
+        // Has
+        // Checking flush is easy
+        let mut sm = Suit::Heart;
+        if self.suits().values().max().unwrap() >= &5 {
+            for (s, i) in self.suits() {
+                if i >= 5 {
+                    sm = s;
+                }
+            }
+            let flush_iter = self.get_cards_by_suit_iter(sm);
+            let has_sf = cards_have_straight(flush_iter);
+            if let Some(cards) = has_sf {
+                return HaveResult::Has(cards);
+            }
+        }
+
+        // Can Have
+        for suit in ALL_SUITS {
+            if is_straight_possible(self.get_cards_by_suit_iter(suit), self.cards_left() as u8) {
+                return HaveResult::CanHave;
+            }
+        }
+
+        // Can't Have
+        HaveResult::CantHave
+    }
+
+    fn four_kind(&self) -> HaveResult {
+        let mut cards: [Option<Card>; 5] = [None; 5];
+        let mut ci = 0usize;
+        // Has
+        if self.pairs(4).count() == 4 {
+            for c in self.pairs(4) {
+                cards[ci] = Some(c);
+                ci += 1;
+            }
+            return HaveResult::Has(self.fill_kickers(cards, ci));
+        }
+
+        // Can Have
+        if self.ranks().values().max().unwrap() + self.cards_left() >= 4 {
+            return HaveResult::CanHave;
+        }
+
+        // Can't Have
+        HaveResult::CantHave
+    }
+
+    fn full_house(&self) -> HaveResult {
+        // Has
+        let p = self.pairs(2);
+        let pc = p.clone().count();
+        if self.card_count() >= 5 {
+            let t = self.pairs(3);
+            let tc = t.clone().count();
+            if pc >= 2usize && tc == 3usize {
+                let mut cards: [Option<Card>; 5] = [None; 5];
+                let mut ci = 0usize;
+                for c in p {
+                    cards[ci] = Some(c);
+                    ci += 1;
+                }
+                for c in t {
+                    cards[ci] = Some(c);
+                    ci += 1;
+                }
+                return HaveResult::Has(cards);
+            }
+        }
+
+        // Can Have
+        // Have four cards left
+        if self.cards_left() >= 4 {
+            return HaveResult::CanHave;
+        }
+
+        let max_ranks = *self.ranks().values().max().unwrap();
+
+        // Has trips and 1 card left
+        // Not actually possible to test in current framework. Trips + 1 best
+        // Is always quads.
+        if max_ranks >= 3 && self.cards_left() >= 1 {
+            return HaveResult::CanHave;
+        }
+        // Has two pair and one card left
+        if pc >= 4 && self.cards_left() >= 1 {
+            return HaveResult::CanHave;
+        }
+
+        // Has pair and two cards left
+        if max_ranks >= 2 && self.cards_left() >= 2 {
+            return HaveResult::CanHave;
+        }
+
+        // Can't Have
+        HaveResult::CantHave
+    }
+
+    fn flush(&self) -> HaveResult {
+        // Has
+        if self.suits().values().max().unwrap() >= &5 {
+            let mut sm = Suit::Heart;
+            for (s, i) in self.suits() {
+                if i >= 5 {
+                    sm = s;
+                }
+            }
+            let mut cards = [None; 5];
+            for (i, c) in self.get_cards_by_suit_iter(sm).enumerate() {
+                if i >= 5 {
+                    break;
+                }
+                cards[i] = Some(c);
+            }
+            return HaveResult::Has(cards);
+        }
+
+        // Can Have
+        if self.cards_left() + self.suits().values().max().unwrap() >= 5 {
+            return HaveResult::CanHave;
+        }
+
+        // Can't Have
+        HaveResult::CantHave
+    }
+
+    fn straight(&self) -> HaveResult {
+        // Has
+        if self.card_count() >= 5 {
+            let has_s = cards_have_straight(self.get_hand_iter());
+            if let Some(s) = has_s {
+                return HaveResult::Has(s);
+            }
+        }
+
+        // Can Have9
+        if is_straight_possible(self.get_hand_iter(), self.cards_left() as u8) {
+            return HaveResult::CanHave;
+        }
+
+        // Can't Have
+        HaveResult::CantHave
+    }
+
+    fn two_pair(&self) -> HaveResult {
+        // Has
+        let mut ci = 0usize;
+        let mut ca: [Option<Card>; 5] = [None; 5];
+        for c in self.pairs(2) {
+            ca[ci] = Some(c);
+            ci += 1;
+
+            if ci >= 4 {
+                return HaveResult::Has(self.fill_kickers(ca, ci));
+            }
+        }
+
+        // Can Have
+        if (ci >= 2 && self.cards_left() >= 1) || self.cards_left() >= 3 {
+            return HaveResult::CanHave;
+        }
+
+        // Can't Have
+        HaveResult::CantHave
+    }
+
+    #[allow(clippy::never_loop)]
+    fn pair(&self) -> HaveResult {
+        // Has
+        // This only runs when two_pair has already failed. Since best pair it to the left
+        // we only iterate through the first set of pairs
+        for _ in self.pairs(2) {
+            let mut ca: [Option<Card>; 5] = [None; 5];
+            let mut ci = 0usize;
+            let pairs = self.pairs(2);
+            for c in pairs {
+                ca[ci] = Some(c);
+                ci += 1;
+            }
+            return HaveResult::Has(self.fill_kickers(ca, ci));
+        }
+
+        // Can Have
+        if self.cards_left() >= 1 {
+            HaveResult::CanHave
+        } else {
+            HaveResult::CantHave
+        }
+    }
+
+    fn three_kind(&self) -> HaveResult {
+        // Has Trips
+        let mut ca: [Option<Card>; 5] = [None; 5];
+        let mut ci = 0usize;
+        let pairs = self.pairs(3);
+        for c in pairs {
+            ca[ci] = Some(c);
+            ci += 1;
+        }
+        if ci > 0 {
+            return HaveResult::Has(self.fill_kickers(ca, ci));
+        }
+
+        // Check if it's possible
+        // If there are at least two cards left to go or 1 + pair
+        let has_pair = self.pairs(2).next().is_some();
+        if self.cards_left() >= 2 || (self.cards_left() >= 1 && has_pair) {
+            return HaveResult::CanHave;
+        }
+        HaveResult::CantHave
+    }
+
+    fn high_card(&self) -> HaveResult {
+        let ca: [Option<Card>; 5] = [None; 5];
+        HaveResult::Has(self.fill_kickers(ca, 0))
+    }
+}
+
+/// This trait contains methods of looking up whether a given iterator (any number of cards) has, or could have,
+/// a HandResult
+/// have_* functions imply can_have_*, but the inverse is not true.
+/// # Important
+/// have_* functions do NOT return the best hand, only the best hand for that category.
+/// for example, `have_pair` only attempts to return 5 cards that contains the strongest pair and the strongest kickers
+/// i.e., in the hand AAJ333 `have_pair` would return the best hand as AAJ33
+/// As such, have_* functions should be called in order of power when trying to find the best hand.
+pub trait HandSolver {
+    fn royal_flush(&self) -> HaveResult;
+    fn straight_flush(&self) -> HaveResult;
+    fn four_kind(&self) -> HaveResult;
+    fn full_house(&self) -> HaveResult;
+    fn flush(&self) -> HaveResult;
+    fn straight(&self) -> HaveResult;
+    fn three_kind(&self) -> HaveResult;
+    fn two_pair(&self) -> HaveResult;
+    fn pair(&self) -> HaveResult;
+    fn high_card(&self) -> HaveResult;
+}
+
 #[cfg(test)]
-mod test_hand_class_beats {
+mod test_class {
     use super::*;
-    use crate::deck::cards_from_str;
+
+    fn best_partial_hand_class(s: &'static str) -> HandClass {
+        let h = Hand::from_str(s).unwrap();
+        //dbg!(&h);
+        h.get_current_hand_class()
+    }
+
+    fn get_card_array(s: &'static str) -> Vec<Card> {
+        let mut v: Vec<Card> = Vec::new();
+        for c in &s.chars().chunks(2) {
+            let ss: Vec<char> = c.take(2).collect();
+            let ss: [char; 2] = <[char; 2]>::try_from(ss).unwrap();
+            v.push(Card::from(ss));
+        }
+        v.sort();
+        v.reverse();
+        v
+    }
+
+    #[test]
+    fn test_cards_straight() {
+        let c = get_card_array("2h3d4c5s6h");
+        dbg!(&c);
+        let sc = cards_have_straight(c.into_iter());
+        assert!(sc.is_some());
+    }
+
+    #[test]
+    fn high_card_class() {
+        assert_eq!(best_partial_hand_class("Ah4s"), HandClass::HighCard);
+        assert_eq!(best_partial_hand_class("5h4s"), HandClass::HighCard);
+        assert_eq!(best_partial_hand_class("Th4s6d3d8cJh"), HandClass::HighCard);
+        assert_ne!(best_partial_hand_class("Ah4s4d"), HandClass::HighCard);
+    }
+
+    #[test]
+    fn pair_class() {
+        assert_eq!(best_partial_hand_class("AhAs"), HandClass::Pair);
+        assert_eq!(best_partial_hand_class("AhAsJs5h"), HandClass::Pair);
+        assert_eq!(best_partial_hand_class("AhAsThJd"), HandClass::Pair);
+        assert_eq!(best_partial_hand_class("4h4sAh6s"), HandClass::Pair);
+        assert_ne!(best_partial_hand_class("AhAs4h4d"), HandClass::Pair);
+    }
+
+    #[test]
+    fn two_pair_class() {
+        assert_eq!(best_partial_hand_class("AhAs5h5d6s"), HandClass::TwoPair);
+        assert_eq!(best_partial_hand_class("AhAs5h6d6s"), HandClass::TwoPair);
+        assert_eq!(best_partial_hand_class("AhAs5d5s"), HandClass::TwoPair);
+        assert_eq!(best_partial_hand_class("4h4sAsAd"), HandClass::TwoPair);
+        // Trips should not match
+        assert_ne!(best_partial_hand_class("4h4sAsAd4d"), HandClass::TwoPair);
+    }
+
+    #[test]
+    fn trips_class() {
+        assert_eq!(best_partial_hand_class("AhAs5dAc"), HandClass::ThreeOfAKind);
+        assert_eq!(
+            best_partial_hand_class("5hAs5d5s4d"),
+            HandClass::ThreeOfAKind
+        );
+        // Full house should not match
+        assert_ne!(
+            best_partial_hand_class("AhAs5dAc5h"),
+            HandClass::ThreeOfAKind
+        );
+    }
+
+    #[test]
+    fn full_house_class() {
+        assert_eq!(best_partial_hand_class("AhAsAdKhKs"), HandClass::FullHouse);
+        assert_eq!(best_partial_hand_class("2s4h2d4s2c"), HandClass::FullHouse);
+        assert_ne!(
+            best_partial_hand_class("As2h2dAdAcAh"),
+            HandClass::FullHouse
+        );
+    }
+
+    #[test]
+    fn quads_class() {
+        assert_eq!(
+            best_partial_hand_class("AhAsAdAc5d"),
+            HandClass::FourOfAKind
+        );
+        assert_eq!(
+            best_partial_hand_class("5hAs5d5sAhAc5c"),
+            HandClass::FourOfAKind
+        );
+    }
+
+    #[test]
+    fn royal_class() {
+        let h1 = Hand::from_str("2h3hAhKhQhJhTh").unwrap();
+        let hf = h1.finalize_hand();
+        dbg!(&hf);
+        assert_eq!(
+            best_partial_hand_class("2h3hAhKhQhJhTh"),
+            HandClass::RoyalFlush
+        );
+        assert_eq!(best_partial_hand_class("AhKhQhJhTh"), HandClass::RoyalFlush);
+        assert_eq!(
+            best_partial_hand_class("ThKhQhAhJhAdAs"),
+            HandClass::RoyalFlush
+        );
+    }
+
+    #[test]
+    fn straight_class() {
+        assert_ne!(best_partial_hand_class("AhKhQhJhTh"), HandClass::Straight);
+        assert_ne!(best_partial_hand_class("9hKhQhJhTh"), HandClass::Straight);
+        assert_eq!(best_partial_hand_class("9h8h7d6s5c"), HandClass::Straight);
+        assert_eq!(best_partial_hand_class("Ah2c3s4d5h"), HandClass::Straight);
+        assert_eq!(best_partial_hand_class("6h5d5c4h3d2c"), HandClass::Straight);
+        assert_eq!(
+            best_partial_hand_class("Ah2c2d3h2s4d5c"),
+            HandClass::Straight
+        );
+    }
+
+    #[test]
+    fn straight_flush_class() {
+        assert_ne!(
+            best_partial_hand_class("AhKhQhJhTh"),
+            HandClass::StraightFlush
+        );
+        assert_eq!(
+            best_partial_hand_class("9h8h7h6h5h"),
+            HandClass::StraightFlush
+        );
+        assert_eq!(
+            best_partial_hand_class("Ah2h3h4h5h"),
+            HandClass::StraightFlush
+        );
+    }
+
+    #[test]
+    fn flush_class() {
+        assert_ne!(best_partial_hand_class("AhKhQhJhTh"), HandClass::Flush);
+        assert_ne!(best_partial_hand_class("9hKhQhJhTh"), HandClass::Flush);
+        assert_eq!(best_partial_hand_class("9h2h5h6hQh"), HandClass::Flush);
+        assert_eq!(best_partial_hand_class("Ah2h3h4h8h"), HandClass::Flush);
+    }
+}
+
+#[cfg(test)]
+mod test_runner {
+    use super::*;
+
+    fn best_possible_hand_class(s: &'static str) -> HandClass {
+        let h = Hand::from_str(s).unwrap();
+        //dbg!(&h);
+        h.get_best_possible_hand_result()
+    }
+
+    #[test]
+    fn straight_runner() {
+        assert_eq!(
+            best_possible_hand_class("2h3h4d5s9cTh"),
+            HandClass::Straight
+        );
+        assert_eq!(best_possible_hand_class("2h3h4d9cTs"), HandClass::Straight);
+    }
+
+    #[test]
+    fn pair_runner() {
+        assert_eq!(best_possible_hand_class("2h4d6s8cTdJs"), HandClass::Pair);
+    }
+
+    #[test]
+    fn flush_runner() {
+        assert_eq!(best_possible_hand_class("2h4h6h8hJsQd"), HandClass::Flush);
+        assert_eq!(best_possible_hand_class("2h4h8hJcQd"), HandClass::Flush);
+        // Straight Flush potential
+        assert_ne!(best_possible_hand_class("2h3h4h5hJdQs"), HandClass::Flush);
+    }
+
+    #[test]
+    fn quads_runner() {
+        assert_eq!(
+            best_possible_hand_class("2h2s2d5s6c9h"),
+            HandClass::FourOfAKind
+        );
+    }
+
+    #[test]
+    fn full_house_runner() {
+        // Two pair + card left
+        assert_eq!(
+            best_possible_hand_class("AhAsKhKs2d5c"),
+            HandClass::FullHouse
+        );
+    }
+
+    /*#[test]
+    fn royal_flush_runner() {
+        // Less cards there are make Royal Flush more likely
+        assert_eq!(best_possible_hand_class("Ah2d3s"), HandClass::RoyalFlush);
+    }*/
+
+    #[test]
+    fn straight_flush_runner() {
+        assert_eq!(
+            best_possible_hand_class("Th9h8h7h2d3c"),
+            HandClass::StraightFlush
+        );
+    }
+}
+
+#[cfg(test)]
+mod test_wins {
+    use super::*;
+
+    #[test]
+    fn hand_from_pockets_str() {
+        let str = "AhAs";
+        let _hand = Hand::from_str(&str).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn hand_from_one_card() {
+        let str = "Ah";
+        let _hand = Hand::from_str(&str).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn hand_from_three_half_card() {
+        let str = "AhAsJ";
+        let _hand = Hand::from_str(&str).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn hand_duplicate_cards() {
+        let str = "AhAh";
+        let _hand = Hand::from_str(&str).unwrap();
+    }
+
+    fn best_hand(s: &'static str) -> FinalHandResult {
+        Hand::from_str(s).unwrap().finalize_hand()
+    }
 
     fn win_lose(s1: &'static str, s2: &'static str, hc: HandClass) {
-        let h1 = Hand::new_unchecked(&cards_from_str(s1));
-        let h2 = Hand::new_unchecked(&cards_from_str(s2));
+        let h1 = Hand::from_str(s1).unwrap().finalize_hand();
+        let h2 = Hand::from_str(s2).unwrap().finalize_hand();
         assert_eq!(h1.class, hc);
         assert_eq!(h2.class, hc);
-        println!("win? {} vs {}", h1, h2);
-        assert_eq!(h1.beats(&h2), WinState::Win);
-        println!("lose? {} vs {}", h2, h1);
-        assert_eq!(h2.beats(&h1), WinState::Lose);
+        println!("win? {:?} vs {:?}", h1, h2);
+        assert!(h1 > h2);
+        println!("lose? {:?} vs {:?}", h2, h1);
+        assert!(h2 < h1);
     }
 
     fn tie(s1: &'static str, s2: &'static str, hc: HandClass) {
-        let h1 = Hand::new_unchecked(&cards_from_str(s1));
-        let h2 = Hand::new_unchecked(&cards_from_str(s2));
+        let h1 = Hand::from_str(s1).unwrap().finalize_hand();
+        let h2 = Hand::from_str(s2).unwrap().finalize_hand();
         assert_eq!(h1.class, hc);
         assert_eq!(h2.class, hc);
-        println!("tie? {} vs {}", h1, h2);
-        assert_eq!(h1.beats(&h2), WinState::Tie);
+        println!("tie? {:?} vs {:?}", h1, h2);
+        assert_eq!(h1, h2);
     }
 
     #[test]
     fn straight_flush_tie() {
         for (s1, s2) in [
-            ("AcKcQcJcTc", "AdKdQdJdTd"),
+            ("KcQcJcTc9c", "KdQdJdTd9d"),
             ("KcQcJcTc9c", "KdQdJdTd9d"),
             ("5c4c3c2cAc", "5d4d3d2dAd"),
         ] {
@@ -1124,9 +1092,9 @@ mod test_hand_class_beats {
     #[test]
     fn straight_flush() {
         for (s1, s2) in [
-            ("AcKcQcJcTc", "KdQdJdTd9d"),
+            ("KcQcJcTc9c", "QdJdTd9d8d"),
             ("6c5c4c3c2c", "5d4d3d2dAd"),
-            ("AcKcQcJcTc", "5d4d3d2dAd"),
+            ("KcQcJcTc9c", "5d4d3d2dAd"),
         ] {
             win_lose(s1, s2, HandClass::StraightFlush);
         }
@@ -1134,8 +1102,6 @@ mod test_hand_class_beats {
 
     #[test]
     fn quads_tie() {
-        // this should be impossible in typical single deck poker, but check for it anyway since
-        // the logic doesn't care
         for (s1, s2) in [("2c2d2h2s3c", "2c2d2h2s3d")] {
             tie(s1, s2, HandClass::FourOfAKind);
         }
@@ -1214,14 +1180,14 @@ mod test_hand_class_beats {
 
     #[test]
     fn two_pair_tie() {
-        for (s1, s2) in [("AsAsKsKsTd", "AcAcKcKcTs")] {
+        for (s1, s2) in [("AsAdKsKdTd", "AcAdKcKdTs")] {
             tie(s1, s2, HandClass::TwoPair);
         }
     }
 
     #[test]
     fn two_pair() {
-        for (s1, s2) in [("AsAsKsKsJd", "AcAcKcKcTs"), ("AsAsKsKsJd", "AcAcQcQcKs")] {
+        for (s1, s2) in [("AsAdKsKdJd", "AcAdKcKdTs"), ("AsAdKsKdJd", "AcAdQcQdKs")] {
             win_lose(s1, s2, HandClass::TwoPair);
         }
     }
@@ -1260,5 +1226,185 @@ mod test_hand_class_beats {
         ] {
             win_lose(s1, s2, HandClass::HighCard);
         }
+    }
+
+    #[test]
+    fn best_hand_is_board() {
+        let h1 = Hand::from_str("2c3dAdKdQdJdTd").unwrap();
+        let h2 = Hand::from_str("3h4h9hThJhQhKh").unwrap();
+        dbg!(&h1.get_best_possible_hand_result());
+        assert!(h1.playing_board());
+        assert!(h2.playing_board());
+    }
+}
+
+#[cfg(test)]
+mod test_straight {
+    use super::*;
+    use crate::deck::Deck;
+
+    fn get_card_array(s: &'static str) -> Vec<Card> {
+        let mut v: Vec<Card> = Vec::new();
+        for c in &s.chars().chunks(2) {
+            let ss: Vec<char> = c.take(2).collect();
+            let ss: [char; 2] = <[char; 2]>::try_from(ss).unwrap();
+            v.push(Card::from(ss));
+        }
+        v.sort();
+        v.reverse();
+        v
+    }
+
+    /// With any random set of cards, if 5 or more cards are yet to come, then
+    /// a straight is possible
+    #[test]
+    fn straight_always_possible_ctc_5() {
+        // For many values for cards to come that are all at least 5
+        for ctc in [5, 6, 7, 10, 30] {
+            // Do many reps (since this is random)
+            for _ in 0..100 {
+                // For many hand sizes
+                for hand_size in [0, 1, 2, 3, 4, 5, 6, 7, 10] {
+                    let mut deck = Deck::default();
+                    let cards: Vec<_> = (0..hand_size).map(|_| deck.draw()).collect();
+                    assert!(is_straight_possible(cards.into_iter(), ctc));
+                }
+            }
+        }
+    }
+
+    /// Not enough cards will come in order to make a straight
+    #[test]
+    fn straight_ctc_1_not_enough() {
+        for cards in ["AcKcQc", "9c8c7c", "2c3c4c", "5c", "6c7c"] {
+            assert!(!is_straight_possible(get_card_array(&cards).into_iter(), 1));
+        }
+    }
+
+    /// Not enough cards will come in order to make a straight
+    #[test]
+    fn straight_ctc_2_not_enough() {
+        for cards in ["AcKc", "9c8c", "2c3c", "5c", "6c7c"] {
+            assert!(!is_straight_possible(get_card_array(&cards).into_iter(), 2));
+        }
+    }
+
+    /// Not enough cards will come in order to make a straight
+    #[test]
+    fn straight_ctc_3_not_enough() {
+        for cards in ["Ac", "9c", "2c", "5c", "6c"] {
+            assert!(!is_straight_possible(get_card_array(&cards).into_iter(), 3));
+        }
+    }
+
+    /// Cards to come 1 and there is no gap for a single card to fill that would make a straight
+    #[test]
+    fn straight_ctc_1_gap() {
+        for cards in [
+            "AcKcQc",
+            "KcQcJc",
+            "9c7c6c",
+            "AcKcQc3c",
+            "4c5c9cTc",
+            "2c3c4c9cTcJc",
+        ] {
+            assert!(!is_straight_possible(get_card_array(&cards).into_iter(), 1));
+        }
+    }
+
+    /// Cards to come 2 and there is no gap for two cards or two one-card gaps
+    #[test]
+    fn straight_ctc_2_gap() {
+        for cards in [
+            "AcKc",
+            "KcQc",
+            "9c7c",
+            "8c7cAc",
+            "2c3c9c",
+            "2c3c9cTc",
+            "2c3c7c8cQcKc",
+        ] {
+            assert!(!is_straight_possible(get_card_array(&cards).into_iter(), 2));
+        }
+    }
+    /*
+
+    /// Cards to come 3 and there is no combo of gaps for three cards to fill
+    /// that would be a straight
+    #[test]
+    fn straight_ctc_3_gap() {
+        unimplemented!();
+    }
+
+    /// Blah blah good test for 1 CTC and yes straight is possible
+    /// do all: _XXXX X_XXX XX_XX XXX_X XXXX_
+    /// make sure to explicitly get A-high and 5-high straights
+    #[test]
+    fn straight_yes_ctc_1() {
+        unimplemented!();
+    }
+
+    /// See above, but 2 CTC
+    /// Again get all possible positions of those 2 cards
+    /// Again explicitly test A-high and 5-high
+    #[test]
+    fn straight_yes_ctc_2() {
+        unimplemented!();
+    }
+
+    /// See above, but 3 CTC
+    #[test]
+    fn straight_yes_ctc_3() {
+        unimplemented!();
+    }
+
+    /// Should be trivial: give at least 1 card and yes straight possible
+    #[test]
+    fn straight_yes_ctc_4() {
+        unimplemented!();
+    }
+    */
+}
+
+#[cfg(test)]
+mod test_best_hands {
+    use super::*;
+
+    fn c(p: &str, b: &str) -> String {
+        String::from(p) + b
+    }
+
+    #[test]
+    fn test_best_hands() {
+        use std::collections::HashMap;
+        let b = "AhQdKs5h9h";
+
+        // Flush
+        let h1 = Hand::from_str(&c("2h3h", b)).unwrap();
+        // Quads
+        let h2 = Hand::from_str(&c("AcAd", b)).unwrap();
+        // Better Flush
+        let h3 = Hand::from_str(&c("4h6h", b)).unwrap();
+        // Pair
+        let h4 = Hand::from_str(&c("Kd2c", b)).unwrap();
+        // Equal Pair same kicker
+        let h5 = Hand::from_str(&c("Kc3c", b)).unwrap();
+        let mut hm: HashMap<i32, Hand> = HashMap::new();
+        hm.insert(1, h1);
+        hm.insert(2, h2);
+        hm.insert(3, h3);
+        hm.insert(4, h4);
+        hm.insert(5, h5);
+        let mut bh = best_hands(&hm);
+        let mut winner = bh.remove(0);
+        assert_eq!(winner.len(), 1);
+        let winner = winner.pop().unwrap().0;
+        assert_eq!(winner, 2);
+        let mut two = bh.remove(0);
+        let two_hand = two.pop().unwrap().1;
+        assert_eq!(two_hand.class, HandClass::Flush);
+        let three = bh.remove(0);
+        let four = bh.remove(0);
+        assert_eq!(four.len(), 2);
     }
 }

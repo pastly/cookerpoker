@@ -1,6 +1,6 @@
 use crate::utils::card_char;
 use poker_core::bet::BetStatus;
-use poker_core::deck::{Card, Suit};
+use poker_core::cards::{card::Suit, Card};
 use poker_core::PlayerId;
 use wasm_bindgen::JsCast;
 use web_sys::Element;
@@ -41,7 +41,7 @@ impl Elementable for Option<Card> {
     fn fill_element(&self, elm: &Element) {
         elm.set_class_name("card");
         if let Some(c) = self {
-            let suit_class = match c.suit() {
+            let suit_class = match c.suit {
                 Suit::Club => "card-club",
                 Suit::Diamond => "card-diamond",
                 Suit::Heart => "card-heart",

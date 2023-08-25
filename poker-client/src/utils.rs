@@ -1,4 +1,4 @@
-use poker_core::deck::{Card, Rank, Suit};
+use poker_core::cards::{card::Rank, card::Suit, Card};
 
 pub fn set_panic_hook() {
     // When the `console_error_panic_hook` feature is enabled, we can call the
@@ -13,28 +13,28 @@ pub fn set_panic_hook() {
 
 pub(crate) fn card_char(card: Card) -> char {
     // https://en.wikipedia.org/wiki/Playing_cards_in_Unicode#Block
-    let base: u32 = match card.suit() {
+    let base: u32 = match card.suit {
         Suit::Spade => 0x1F0A0,
         Suit::Heart => 0x1F0B0,
         Suit::Diamond => 0x1F0C0,
         Suit::Club => 0x1F0D0,
     };
     let val = base
-        + match card.rank() {
-            Rank::RA => 1,
-            Rank::R2 => 2,
-            Rank::R3 => 3,
-            Rank::R4 => 4,
-            Rank::R5 => 5,
-            Rank::R6 => 6,
-            Rank::R7 => 7,
-            Rank::R8 => 8,
-            Rank::R9 => 9,
-            Rank::RT => 10,
-            Rank::RJ => 11,
+        + match card.rank {
+            Rank::Ace => 1,
+            Rank::Two => 2,
+            Rank::Three => 3,
+            Rank::Four => 4,
+            Rank::Five => 5,
+            Rank::Six => 6,
+            Rank::Seven => 7,
+            Rank::Eight => 8,
+            Rank::Nine => 9,
+            Rank::Ten => 10,
+            Rank::Jack => 11,
             // Unicode includes Knight here. Skip 12.
-            Rank::RQ => 13,
-            Rank::RK => 14,
+            Rank::Queen => 13,
+            Rank::King => 14,
         };
     // Safety: Value will always be a valid char thanks to match statements and enums on card
     // suits and ranks.
@@ -59,22 +59,22 @@ pub(crate) fn _char_card(c: char) -> Option<Card> {
     let rank = {
         let diff = c - base;
         match diff {
-            1 => Rank::RA,
-            2 => Rank::R2,
-            3 => Rank::R3,
-            4 => Rank::R4,
-            5 => Rank::R5,
-            6 => Rank::R6,
-            7 => Rank::R7,
-            8 => Rank::R8,
-            9 => Rank::R9,
-            10 => Rank::RT,
-            11 => Rank::RJ,
+            1 => Rank::Ace,
+            2 => Rank::Two,
+            3 => Rank::Three,
+            4 => Rank::Four,
+            5 => Rank::Five,
+            6 => Rank::Six,
+            7 => Rank::Seven,
+            8 => Rank::Eight,
+            9 => Rank::Nine,
+            10 => Rank::Ten,
+            11 => Rank::Jack,
             // Unicode includes Knight here. Skip 12.
-            13 => Rank::RQ,
-            14 => Rank::RK,
+            13 => Rank::Queen,
+            14 => Rank::King,
             _ => return None,
         }
     };
-    Some(Card::new(rank, suit))
+    Some(Card::new(suit, rank))
 }

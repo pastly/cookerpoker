@@ -1,5 +1,5 @@
 use crate::bet::{BetAction, BetStatus};
-use crate::deck::Card;
+use crate::cards::{Card, Hand};
 use crate::GameError;
 use crate::{Currency, PlayerId, SeatIdx, MAX_PLAYERS};
 use bitflags::bitflags;
@@ -63,7 +63,7 @@ bitflags! {
 pub struct Player {
     pub id: PlayerId,
     pub stack: Currency,
-    pub pocket: Option<[Card; POCKET_SIZE]>,
+    pub hand: Option<Hand>,
     pub bet_status: BetStatus,
     pub play_status: PlayStatus,
 }
@@ -95,7 +95,7 @@ impl Players {
     pub(crate) fn deal_pockets(
         &mut self,
         mut pockets: Vec<[Card; 2]>,
-    ) -> HashMap<PlayerId, Option<[Card; 2]>> {
+    ) -> HashMap<PlayerId, Option<Hand>> {
         assert_eq!(
             pockets.len(),
             self.players_iter(PlayerFilter::MAY_BET).count()
@@ -109,15 +109,15 @@ impl Players {
             .players_iter_mut(PlayerFilter::MAY_BET)
             .skip_while(|(i, _)| *i < dt)
         {
-            player.pocket = Some(pockets.pop().unwrap());
-            ret.insert(player.id, Some(player.pocket.unwrap()));
+            player.hand = Some(Hand::new_from_pocket(pockets.pop().unwrap()));
+            ret.insert(player.id, Some(player.hand.unwrap()));
         }
         for (_, player) in self
             .players_iter_mut(PlayerFilter::MAY_BET)
             .take_while(|(i, _)| *i < dt)
         {
-            player.pocket = Some(pockets.pop().unwrap());
-            ret.insert(player.id, Some(player.pocket.unwrap()));
+            player.hand = Some(Hand::new_from_pocket(pockets.pop().unwrap()));
+            ret.insert(player.id, Some(player.hand.unwrap()));
         }
         ret
     }
@@ -200,7 +200,7 @@ impl Players {
     pub(crate) fn clean_state(&mut self) {
         for (_, p) in self.players_iter_mut(PlayerFilter::ALL) {
             p.bet_status = BetStatus::Waiting;
-            p.pocket = None;
+            p.hand = None;
         }
     }
 
@@ -221,7 +221,7 @@ impl Players {
         //self.auto_fold_players();
         for (_, p) in self.players_iter_mut(PlayerFilter::ALL) {
             p.bet_status = BetStatus::Waiting;
-            p.pocket = None;
+            p.hand = None;
         }
         self.rotate_tokens()?;
         //self.last_better = self.token_dealer;
@@ -322,7 +322,7 @@ impl Player {
         Self {
             id,
             stack,
-            pocket: None,
+            hand: None,
             bet_status: BetStatus::Waiting,
             play_status: if stack < 1 {
                 PlayStatus::SittingOut

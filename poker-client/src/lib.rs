@@ -7,7 +7,7 @@ mod utils;
 use elements::Pocket;
 use player_info::PlayerInfo;
 use poker_core::bet::BetStatus;
-use poker_core::deck::{Card, Suit};
+use poker_core::cards::{card::Suit, Card};
 use poker_core::log::LogItem;
 use poker_core::pot;
 use poker_core::{Currency, PlayerId, SeatIdx, SeqNum, MAX_PLAYERS};
@@ -49,7 +49,7 @@ impl WrappedCard {
     }
 
     pub fn suit(&self) -> String {
-        match self.0.suit() {
+        match self.0.suit {
             Suit::Club => "club",
             Suit::Diamond => "diamond",
             Suit::Heart => "heart",

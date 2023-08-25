@@ -1,5 +1,6 @@
+//! This binary is disabled as the new poker_core library does this implicitly. 
 use itertools::Itertools;
-use poker_core::deck::{Card, Deck, ALL_RANKS, ALL_SUITS};
+use poker_core::cards::{Card, Deck, ALL_RANKS, ALL_SUITS};
 use poker_core::hand::{best_of_cards, Hand};
 use std::cmp::Ordering;
 use std::env;
