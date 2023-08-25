@@ -8,7 +8,6 @@ rust-version = "1.58.0"
 
 [dependencies]
 itertools = "0.11.0"
-blake3 = "1.4.1"
 enum-map = "2.1.0"
 rand = "0.8.5"
 rand_chacha = "0.3.1"
